@@ -1,41 +1,24 @@
 import React, { useState } from 'react';
 import { Sparkles, Send, Bot, Terminal } from 'lucide-react';
-import { useTimelineStore } from '../store/timelineStore';
+import { agentOrchestrator, AgentStepLog } from '../services/agentOrchestrator';
 
 export const AIPromptConsole: React.FC = () => {
   const [prompt, setPrompt] = useState('');
-  const [agentLogs, setAgentLogs] = useState<string[]>([
-    'System initialized ReAct AI Agent Orchestrator.',
-    'Loaded tools: probe_media, transcribe_and_align, detect_silence, cut_and_arrange_timeline.',
+  const [agentLogs, setAgentLogs] = useState<AgentStepLog[]>([
+    { type: 'thought', message: 'System initialized ReAct AI Agent Orchestrator.' },
+    { type: 'tool', message: 'Loaded tools: probe_media, transcribe_and_align, detect_silence, cut_and_arrange_timeline.' },
   ]);
 
-  const { rippleDelete } = useTimelineStore();
-
-  const handleRunCommand = (e: React.FormEvent) => {
+  const handleRunCommand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
 
     const userCmd = prompt;
-    setAgentLogs((prev) => [...prev, `> User Prompt: "${userCmd}"`]);
     setPrompt('');
 
-    // Mock autonomous tool calling execution loop
-    setTimeout(() => {
-      setAgentLogs((prev) => [
-        ...prev,
-        `[Agent Thought]: Analyzing audio track for silence periods > 0.5s...`,
-      ]);
-    }, 400);
-
-    setTimeout(() => {
-      rippleDelete(5.0, 2.5);
-      setAgentLogs((prev) => [
-        ...prev,
-        `[Tool Executed]: detect_silence() -> Found 1 silence window (5.0s to 7.5s).`,
-        `[Tool Executed]: cut_and_arrange_timeline() -> Performed automated ripple delete.`,
-        `[Agent Response]: Successfully removed 2.5s of silent pause from timeline!`,
-      ]);
-    }, 1200);
+    await agentOrchestrator.processPrompt(userCmd, (log) => {
+      setAgentLogs((prev) => [...prev, log]);
+    });
   };
 
   return (
@@ -56,16 +39,16 @@ export const AIPromptConsole: React.FC = () => {
           <div
             key={idx}
             className={`p-1.5 rounded ${
-              log.startsWith('>')
+              log.type === 'user'
                 ? 'bg-indigo-950/60 text-indigo-300 font-sans'
-                : log.includes('Tool Executed')
+                : log.type === 'tool'
                 ? 'bg-neutral-900 text-green-400'
-                : log.includes('Agent Response')
+                : log.type === 'response'
                 ? 'bg-purple-950/60 text-purple-300 font-semibold font-sans'
                 : 'text-neutral-500'
             }`}
           >
-            {log}
+            {log.type === 'user' ? `> User Prompt: "${log.message}"` : log.message}
           </div>
         ))}
       </div>
