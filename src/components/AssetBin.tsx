@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Film, Music, FileText, Wand2, Search, Plus, Upload } from 'lucide-react';
+import { Film, Music, FileText, Wand2, Search, Upload } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
 import { useTimelineStore } from '../store/timelineStore';
 

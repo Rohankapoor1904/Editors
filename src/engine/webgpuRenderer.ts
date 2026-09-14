@@ -47,7 +47,7 @@ export class WebGPURendererEngine {
   /**
    * Renders a YUV420p video frame with Rec.709 color conversion & 3D LUT shader processing
    */
-  renderFrame(options: RenderOptions) {
+  renderFrame(_options: RenderOptions) {
     if (!this.isInitialized || !this.device || !this.context) return;
 
     const commandEncoder = this.device.createCommandEncoder();
