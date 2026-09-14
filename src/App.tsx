@@ -5,6 +5,7 @@ import { ProgramMonitor } from './components/ProgramMonitor';
 import { AIPromptConsole } from './components/AIPromptConsole';
 import { TimelineTrackEditor } from './components/TimelineTrackEditor';
 import { TranscriptEditor } from './components/TranscriptEditor';
+import { ExportModal } from './components/ExportModal';
 import { useTimelineStore } from './store/timelineStore';
 
 export const App: React.FC = () => {
@@ -20,13 +21,17 @@ export const App: React.FC = () => {
         {/* Left: Media & Asset Bin */}
         <AssetBin />
 
-        {/* Center: Program Monitor Canvas OR Transcript Editor depending on workspace */}
+        {/* Center Panel View depending on active Workspace Mode */}
         {activeWorkspace === 'ai' ? (
-          <div className="flex-1 flex p-2 space-x-2 bg-neutral-950">
+          <div className="flex-1 flex p-2 space-x-2 bg-neutral-950 min-h-0">
             <ProgramMonitor />
             <div className="w-96">
               <TranscriptEditor />
             </div>
+          </div>
+        ) : activeWorkspace === 'export' ? (
+          <div className="flex-1 flex items-center justify-center bg-neutral-950 p-4">
+            <ExportModal />
           </div>
         ) : (
           <ProgramMonitor />
