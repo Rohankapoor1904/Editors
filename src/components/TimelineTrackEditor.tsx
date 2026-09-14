@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
-import { Scissors, ZoomIn, ZoomOut, Eye, Lock, Volume2 } from 'lucide-react';
+import { Scissors, ZoomIn, ZoomOut, Eye, Lock, Volume2, MousePointer, MoveHorizontal, ArrowLeftRight } from 'lucide-react';
+
+export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
 
 export const TimelineTrackEditor: React.FC = () => {
+  const [activeTool, setActiveTool] = useState<EditingTool>('select');
+
   const {
     tracks,
     playheadPosition,
@@ -22,15 +26,34 @@ export const TimelineTrackEditor: React.FC = () => {
     setPlayheadPosition(newTime);
   };
 
+  const tools: { id: EditingTool; label: string; icon: React.ReactNode; key: string }[] = [
+    { id: 'select', label: 'Select', icon: <MousePointer className="w-3.5 h-3.5" />, key: 'V' },
+    { id: 'blade', label: 'Blade', icon: <Scissors className="w-3.5 h-3.5" />, key: 'C' },
+    { id: 'slip', label: 'Slip', icon: <MoveHorizontal className="w-3.5 h-3.5" />, key: 'Y' },
+    { id: 'slide', label: 'Slide', icon: <ArrowLeftRight className="w-3.5 h-3.5" />, key: 'U' },
+  ];
+
   return (
     <div className="h-64 bg-neutral-900 border-t border-neutral-800 flex flex-col select-none text-xs">
       {/* Timeline Controls Toolbar */}
       <div className="h-9 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-3 text-neutral-400">
-        <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-1 px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded">
-            <Scissors className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Split (C)</span>
-          </button>
+        {/* Editing Tools Selector */}
+        <div className="flex items-center space-x-1 bg-neutral-950 p-1 rounded border border-neutral-800">
+          {tools.map((tool) => (
+            <button
+              key={tool.id}
+              onClick={() => setActiveTool(tool.id)}
+              className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-colors ${
+                activeTool === tool.id
+                  ? 'bg-indigo-600 text-white font-medium'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+              title={`${tool.label} Tool (${tool.key})`}
+            >
+              {tool.icon}
+              <span>{tool.label} ({tool.key})</span>
+            </button>
+          ))}
         </div>
 
         {/* Zoom Controls */}
@@ -137,7 +160,7 @@ export const TimelineTrackEditor: React.FC = () => {
             style={{ left: `${playheadPosition * zoomLevel}px` }}
             className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
           >
-            <div className="w-3 h-3 bg-red-500 -ml-1.25 rotate-45 transform -translate-y-1.5 shadow" />
+            <div className="w-3 h-3 bg-red-500 -ml-1 rotate-45 transform -translate-y-1.5 shadow" />
           </div>
         </div>
       </div>
