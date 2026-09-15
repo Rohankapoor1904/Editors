@@ -108,6 +108,19 @@ remaining 11 gaps become impossible to mistake for working features.
 
 **Blockers:** None.
 
+**CI could not actually execute (new finding, verified).** The `Verify` workflow was created and
+GitHub did pick it up, but the run failed in 4 seconds with **0 steps executed and no runner
+assigned**. The check-run annotation reads verbatim:
+
+> The job was not started because your account is locked due to a billing issue.
+
+This is an **account-level** condition on the repository owner, not a defect in the workflow. The YAML
+is valid, the `pull_request` trigger fires, and `allowed_actions: all` is set. Until the billing issue
+is resolved, **no GitHub Actions job can run on this repo** — so R0.2's workflow is written but its
+execution is unverified. `PROGRESS.md` records R0.2 as `done` (workflow and lint gate exist; lint
+passes locally) with this caveat attached, because the honest claim is "configured, not yet observed
+running".
+
 **Note for the human reviewer.** `AGENTS.md` §10 is written directly for Jules, and the PR template
 now requires an explicit "not verified" section. These are the two levers most likely to prevent a
 repeat: Jules reads `AGENTS.md` automatically, and the template forces the disclosure at merge time.

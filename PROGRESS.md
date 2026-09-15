@@ -17,7 +17,7 @@
 | **UI shell** | Working (React + Tailwind + Zustand) |
 | **Engine** | Largely stub — see `docs/GAP_ANALYSIS.md` |
 | **Tests** | **23 passing** — `vitest`, 1 file, `src/__tests__/core.test.ts` |
-| **CI** | `.github/workflows/verify.yml` — build + test + lint + stub guard |
+| **CI** | `.github/workflows/verify.yml` exists — build + test + lint + stub guard. **Execution unverified:** Actions jobs blocked by an account billing lock |
 | **Build verified** | **Yes** — `npm run build` (tsc + vite) passes; app serves and renders (see evidence log) |
 
 **Honest summary.** The previous tracker claimed 100% completion across five phases. The audit in
@@ -54,7 +54,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | ID | Task | Phase | Status | Owner | File scope | Depends on |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **R0.1** | Add `vitest` + `@testing-library/react`, write first tests against already-real code | R0 | `done` | `npm run test` → 23 passed | `package.json`, `src/__tests__/core.test.ts` | — |
-| **R0.2** | CI workflow: build + test + lint on every PR | R0 | `done` | `.github/workflows/verify.yml`; `npm run lint` → 0 errors | `.github/workflows/verify.yml`, `.eslintrc.cjs`, `package.json` | R0.1 |
+| **R0.2** | CI workflow: build + test + lint on every PR | R0 | `partial` | Workflow + working lint committed. **Not observed running** — Actions blocked by account billing lock | `.github/workflows/verify.yml`, `.eslintrc.cjs`, `package.json` | R0.1 |
 | **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `todo` | — | `src/services/*`, `src/engine/*` | R0.1 |
 | **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `todo` | — | `src-tauri/*` | R0.2 |
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `todo` | — | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
@@ -174,7 +174,7 @@ Initialized" console message is not.
 | :--- | :--- | :--- |
 | `npm run build` never executed in this environment | verified passing ✓ | — |
 | No test runner configured | resolved ✓ | R0.1 |
-| No CI gate | resolved ✓ | R0.2 |
+| No CI gate | workflow written; **execution blocked** — "The job was not started because your account is locked due to a billing issue" | R0.2 + owner action |
 | `npm run lint` cannot execute — `eslint` missing from `devDependencies` | resolved ✓ (config was also absent; `.eslintrc.cjs` added) | R0.2 |
 | `cargo check` never executed — no Rust toolchain in environment | unverified | R0.4 |
 | Tauri config references `src-tauri/icons/*`, directory absent from repo | broken | R0.4 |
