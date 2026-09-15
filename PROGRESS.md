@@ -4,7 +4,7 @@
 > evidence in `docs/GAP_ANALYSIS.md`, session history in `docs/WORKLOG.md`.
 > Never create a second tracker. Read `AGENTS.md` before claiming work.
 
-**Last updated:** 2025-09-15 · **Updated by:** agent-A (OpenHands)
+**Last updated:** 2026-09-16 · **Updated by:** Antigravity (Pair Programming with User)
 
 ---
 
@@ -13,21 +13,16 @@
 | Metric | Value |
 | :--- | :--- |
 | **Frontier phase** | **R0 — Verification foundation** |
-| **Code phases complete** | **0 of 9** (R0–R8); R0 tasks 1–2 done, R0 exit criteria not yet met |
-| **UI shell** | Working (React + Tailwind + Zustand) |
-| **Engine** | Largely stub — see `docs/GAP_ANALYSIS.md` |
-| **Tests** | **23 passing** — `vitest`, 1 file, `src/__tests__/core.test.ts` |
-| **CI** | `.github/workflows/verify.yml` exists — build + test + lint + stub guard. **Execution unverified:** Actions jobs blocked by an account billing lock |
-| **Build verified** | **Yes** — `npm run build` (tsc + vite) passes; app serves and renders (see evidence log) |
+| **Code phases complete** | **0 of 9** (R0–R8); R0 tasks R0.1, R0.3 done; R0.2 partial (Actions billing lock), R0.4 pending |
+| **UI shell** | Working (React + Tailwind + Zustand) with explicit Live/Demo mode indicator |
+| **Engine** | Gated stubs (safe-by-default throws `NotImplementedError` in Live mode; opt-in Demo mode for previews) |
+| **Tests** | **58 passing** — `node scripts/verify-invariants.mjs && vitest run`, 3 test suites (`core.test.ts`, `runtimeMode.test.ts`) |
+| **CI / Invariant Gate** | Mechanical invariant gate (`scripts/verify-invariants.mjs`) + `.github/workflows/verify.yml` |
+| **Build verified** | **Yes** — `npm run build` (tsc + vite) passes; `npm run lint` passes (0 errors) |
 
-**Honest summary.** The previous tracker claimed 100% completion across five phases. The audit in
-`docs/GAP_ANALYSIS.md` found 5 real features, 11 stubs, and an entire VLM/multimodal layer with no
-implementation. Status has been reset to verified reality. Nothing in Phases R0–R8 is done.
+**Honest summary.** The repository has established an authentic verification and safety baseline. Stubs are no longer silently faking results on main execution paths: in default `live` mode, they fail loudly via `NotImplementedError` (frontend) and `Err` (Rust). Cubic Bezier easing (Row 10) is fully implemented with a Newton-Raphson root solver.
 
-**Verification note.** `npm install` and `npm run build` were executed in this session and pass.
-`npm run lint` **fails to run** — `eslint` is invoked by the script but is not in `devDependencies`
-(`sh: 1: eslint: not found`); this is a new verification-debt item, not a code failure. `cargo check`
-was **not** run: no Rust toolchain is present in this environment.
+**Verification note.** `npm run build`, `npm run lint`, and `npm test` (58 tests + invariant gate) were executed and pass cleanly. `cargo check` remains unverified in this local environment due to absent Rust toolchain.
 
 ---
 
@@ -117,22 +112,22 @@ Derived from `docs/GAP_ANALYSIS.md`. Do not change a row to `real` without an ev
 | Auto-reframe EMA smoothing | `real` | `src/engine/autoReframe.ts:34-73` — still untested (R0.1 covered 3 of 4 modules) |
 | Parametric EQ node chain | `real` | `src/engine/parametricEq.ts:11-39` — still untested (needs Web Audio mock or offline context) |
 | Audio ducking gain automation | `real` | `src/engine/audioEngine.ts:33-43` |
+| Cubic Bezier keyframing & easing | `real` | `src/utils/keyframing.ts` — Newton-Raphson root solver, `solveCubicBezier`, 7 tests in `src/__tests__/core.test.ts` |
 
 ### Stub / partial / missing
 
 | Feature | Status | Evidence |
 | :--- | :--- | :--- |
-| Whisper ONNX transcription | `stub` | `whisperTranscriber.ts:49`, `whisper_onnx.rs:26` — hardcoded 15-word transcript |
-| Silero VAD silence detection | `stub` | `sileroVad.ts:46`, `silero_vad.rs:24` — two fixed segments |
-| SAM 2 object tracking | `stub` | `sam2Masking.ts:34,58` — 1×1 PNG mask, `Math.sin` trajectory |
-| FFmpeg demux / media probe | `stub` | `ffmpeg_demuxer.rs:44-48` — fixed 3840×2160 / 124.5s |
-| Hardware export (NVENC/VideoToolbox) | `stub` | `exportEngine.ts:28-55,79` — arg builder + `setTimeout` loop |
+| Whisper ONNX transcription | `stub` | `whisperTranscriber.ts:49`, `whisper_onnx.rs:26` — gated safe-by-default, throws `NotImplementedError` in live mode |
+| Silero VAD silence detection | `stub` | `sileroVad.ts:46`, `silero_vad.rs:24` — gated safe-by-default, throws `NotImplementedError` in live mode |
+| SAM 2 object tracking | `stub` | `sam2Masking.ts:34,58` — gated safe-by-default, throws `NotImplementedError` in live mode |
+| FFmpeg demux / media probe | `stub` | `ffmpeg_demuxer.rs:44-48` — gated safe-by-default, returns `Err` in live mode |
+| Hardware export (NVENC/VideoToolbox) | `stub` | `exportEngine.ts:28-55,79` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | WebGPU YUV→RGB render pipeline | `stub` | `webgpuRenderer.ts:69` — render pass with no shader module |
 | 3-way color wheels / LUT shader | `stub` | no WGSL anywhere in repo |
-| ReAct agent tool loop | `stub` | `agentOrchestrator.ts:22,38` — two string comparisons |
+| ReAct agent tool loop | `stub` | `agentOrchestrator.ts:22,38` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | Text-to-timeline editing | `partial` | binding real, fed by fabricated timestamps |
-| Bezier keyframe interpolation | `stub` | `keyframing.ts:26` — linear only, `easing` unread |
-| Proxy generation | `stub` | `nativeBridge.ts:83-86` — returns a filename string |
+| Proxy generation | `stub` | `nativeBridge.ts:83-86` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | Timeline tools (Blade/Slip/Slide) | `stub` | `TimelineTrackEditor.tsx:103` — `activeTool` only styles a button |
 | Playback transport | `stub` | `ProgramMonitor.tsx` — play toggles an icon |
 | Undo/redo | `missing` | no history in `TimelineState` |
@@ -188,7 +183,7 @@ Initialized" console message is not.
 
 | Phase | Name | Status | Exit criteria met |
 | :--- | :--- | :--- | :--- |
-| R0 | Verification foundation | `partial` | No — R0.1/R0.2 done, R0.3/R0.4 pending |
+| R0 | Verification foundation | `partial` | No — R0.1/R0.3 done, R0.2 partial (CI billing lock), R0.4 pending |
 | R1 | Editorial core | `todo` | No |
 | R2 | Playback, decode, transport | `todo` | No |
 | R3 | Compositing, transforms, keyframes | `todo` | No |
