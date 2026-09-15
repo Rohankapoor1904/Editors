@@ -21,17 +21,10 @@ impl SileroVadEngine {
             audio_path, min_silence_dur_sec
         );
 
-        Ok(vec![
-            SilenceSegmentNative {
-                start_time: 5.0,
-                end_time: 7.5,
-                duration: 2.5,
-            },
-            SilenceSegmentNative {
-                start_time: 18.2,
-                end_time: 19.8,
-                duration: 1.6,
-            },
-        ])
+        // INVARIANT §5.5: Fail loudly rather than returning silent mock data on main path
+        Err(format!(
+            "Native Silero VAD requires ONNX runtime integration (see Roadmap R6.3). File: {}",
+            audio_path
+        ))
     }
 }

@@ -1,3 +1,5 @@
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export interface MediaProbeMetadata {
   path: string;
   filename: string;
@@ -18,8 +20,6 @@ export interface DemuxedFrameInfo {
   format: string;
   data_buffer_len: number;
 }
-
-import { isLiveMode, NotImplementedError } from './runtimeConfig';
 
 export class NativeBridgeService {
   /**
@@ -45,7 +45,7 @@ export class NativeBridgeService {
       throw new NotImplementedError('Native Media Probe & File Dialog');
     }
 
-    // Fallback web probe generator for local development preview
+    // Fallback web probe generator for local development preview (demo mode only)
     return {
       path: '/user_media/sample_interview_4k.mp4',
       filename: 'sample_interview_4k.mp4',
@@ -79,7 +79,7 @@ export class NativeBridgeService {
       throw new NotImplementedError('Native FFmpeg Video Frame Demuxer');
     }
 
-    // Web preview fallback
+    // Web preview fallback (demo mode only)
     const frameDuration = 1 / 59.94;
     return Array.from({ length: frameCount }, (_, i) => ({
       frame_index: i,

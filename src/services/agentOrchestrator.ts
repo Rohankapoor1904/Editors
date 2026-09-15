@@ -1,6 +1,7 @@
 import { sileroVadService } from './sileroVad';
 import { whisperService } from './whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
 
 export interface AgentStepLog {
   type: 'thought' | 'tool' | 'response' | 'user';
@@ -16,6 +17,10 @@ export class AgentOrchestratorService {
     onLog: (log: AgentStepLog) => void
   ): Promise<void> {
     onLog({ type: 'user', message: prompt });
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('ReAct Agent Tool & Reasoning Loop');
+    }
 
     const lower = prompt.toLowerCase();
 

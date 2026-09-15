@@ -35,6 +35,7 @@ export class Sam2MaskingEngine {
       throw new NotImplementedError('SAM 2 Subject Masking');
     }
 
+    // Demo preview mock
     return {
       confidence: 0.96,
       maskDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -59,14 +60,11 @@ export class Sam2MaskingEngine {
     const trackedSequence: TrackedFrameMask[] = [];
     const frameDuration = 1 / fps;
 
-    // Simulate smooth object movement trajectory across sequence
-    let currentX = initialClick.x - 100;
+    // Demo preview mock: static bounding box trajectory
+    const currentX = initialClick.x - 100;
     const currentY = Math.max(0, initialClick.y - 200);
 
     for (let i = 0; i < frameCount; i++) {
-      // Simulate subtle horizontal drift
-      currentX += Math.sin(i * 0.1) * 3;
-
       trackedSequence.push({
         frameIndex: i,
         timestamp: i * frameDuration,

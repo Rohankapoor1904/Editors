@@ -1,10 +1,10 @@
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export interface SilenceSegment {
   startTime: number; // in seconds
   endTime: number;   // in seconds
   duration: number;  // in seconds
 }
-
-import { isLiveMode, NotImplementedError } from './runtimeConfig';
 
 export class SileroVadService {
   /**
@@ -47,7 +47,7 @@ export class SileroVadService {
       throw new NotImplementedError('Silero VAD Silence Detection Engine');
     }
 
-    // Mock VAD output for local preview
+    // Mock VAD output for local preview (demo mode only)
     return [
       { startTime: 5.0, endTime: 7.5, duration: 2.5 },
       { startTime: 18.2, endTime: 19.8, duration: 1.6 },

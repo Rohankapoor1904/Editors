@@ -7,7 +7,9 @@ export class NotImplementedError extends Error {
   }
 }
 
-let currentRuntimeMode: RuntimeMode = 'demo';
+// INVARIANT: Default mode MUST ALWAYS be 'live' (Safe-by-default).
+// Demo mode is strictly opt-in for visual UI previews.
+let currentRuntimeMode: RuntimeMode = 'live';
 const modeListeners: Set<(mode: RuntimeMode) => void> = new Set();
 
 export function getRuntimeMode(): RuntimeMode {
