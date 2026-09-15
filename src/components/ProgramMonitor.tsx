@@ -11,7 +11,7 @@ export const ProgramMonitor: React.FC = () => {
 
   useEffect(() => {
     if (canvasRef.current) {
-      webgpuEngine.init(canvasRef.current).then((supported) => {
+      webgpuEngine.init(canvasRef.current).then((supported: boolean) => {
         setIsWebGPUActive(supported);
       });
     }

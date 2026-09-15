@@ -6,29 +6,30 @@ export interface RenderOptions {
 }
 
 export class WebGPURendererEngine {
-  private adapter: GPUAdapter | null = null;
-  private device: GPUDevice | null = null;
-  private context: GPUCanvasContext | null = null;
+  private adapter: any = null;
+  private device: any = null;
+  private context: any = null;
   private isInitialized = false;
 
   /**
    * Initializes WebGPU Device and Canvas Context
    */
   async init(canvas: HTMLCanvasElement): Promise<boolean> {
-    if (!navigator.gpu) {
+    const nav = navigator as any;
+    if (!nav.gpu) {
       console.warn('WebGPU not supported on this device/browser. Falling back to 2D Canvas context.');
       return false;
     }
 
     try {
-      this.adapter = await navigator.gpu.requestAdapter();
+      this.adapter = await nav.gpu.requestAdapter();
       if (!this.adapter) return false;
 
       this.device = await this.adapter.requestDevice();
       this.context = canvas.getContext('webgpu');
 
       if (this.context && this.device) {
-        const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+        const presentationFormat = nav.gpu.getPreferredCanvasFormat();
         this.context.configure({
           device: this.device,
           format: presentationFormat,
@@ -53,7 +54,7 @@ export class WebGPURendererEngine {
     const commandEncoder = this.device.createCommandEncoder();
     const textureView = this.context.getCurrentTexture().createView();
 
-    const renderPassDescriptor: GPURenderPassDescriptor = {
+    const renderPassDescriptor: any = {
       colorAttachments: [
         {
           view: textureView,
@@ -72,4 +73,4 @@ export class WebGPURendererEngine {
   }
 }
 
-export const webgpuEngine = new WebGPURenderEngine();
+export const webgpuEngine = new WebGPURendererEngine();
