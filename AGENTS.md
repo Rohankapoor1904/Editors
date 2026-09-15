@@ -272,6 +272,26 @@ This repository is maintained collaboratively by multiple autonomous agents, pri
 3. **Green Test != Task Done:** A passing test on a stub is a debt, not a victory.
 4. **CI & Command Evidence:** A task is only `done` when acceptance criteria are demonstrably executed. If a command cannot run in the agent's environment, write `unverified in <env>` in `docs/WORKLOG.md` — never mark `done`.
 
+### 10.5 The Single-Pass vs. Iterative TDD Law (Why Jules Appears to Edit Once)
+
+#### The Observed Phenomenon
+Users observe that Jules often edits files **only once in a single batch**, its internal Critique/Review agent immediately gives an "OK / Review Passed", and it submits a PR without an iterative edit-test-debug loop. In contrast, OpenHands operates in an interactive step-by-step loop.
+
+#### Root Cause Analysis: How the Internal Loops Differ
+1. **Google Jules (Stage-Based Pipeline):**
+   - **Stages:** `Plan → Execute (batch edit) → Critique (LLM diff review) → Test/Preview → PR`.
+   - **The LLM Rubber-Stamp Effect:** Jules's Critique Agent is an LLM assessing code against the plan. If the code compiles, the syntax is valid, and the visual preview mounts without crashing, the Critique Agent approves the change semantically.
+   - **Why Jules Doesn't Re-edit:** Jules's pipeline **only triggers a re-edit if a command exits with a non-zero error code** (`exit 1`). If the agent authored a permissive test or set `default = 'demo'`, the test suite passes (`exit 0`). Jules sees green checks and concludes no re-edit is required.
+2. **OpenHands (EventStream ReAct Loop):**
+   - **Mechanism:** `Action (bash/edit) → Runtime execution → Observation (stdout/stderr) → Next Action`.
+   - **The Loop Trap:** OpenHands naturally iterates step-by-step, but will also abruptly terminate its loop as soon as its own tests return `exit 0` (even if the test cemented a stub).
+
+#### The Law: Mechanical Gates Force Iteration
+Autonomous AI agents **never iterate on prose instructions alone**. They only iterate when a mechanical gate blocks them.
+- **The Solution:** We enforce `node scripts/verify-invariants.mjs` directly inside `npm run test`.
+- If an agent defaults to `demo`, writes a fake trajectory, or leaves native Rust commands returning mock data, `npm test` **fails immediately (exit 1)**.
+- This failure halts the Critique stage, rejects the PR, and forces Jules and OpenHands into an authentic **edit → fail → re-edit → pass** engineering loop.
+
 ---
 
 ## 11. Immediate priorities for the next agent
