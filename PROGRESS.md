@@ -1,66 +1,211 @@
-# 📊 CineCraft AI - Project Progress & Execution Dashboard
+# PROGRESS — CineCraft AI Status Tracker
 
-> **Live Status Tracker for CineCraft AI Desktop Video Editor Development**
+> **This is the only status tracker in this repository.** Plan lives in `docs/ROADMAP.md`, audit
+> evidence in `docs/GAP_ANALYSIS.md`, session history in `docs/WORKLOG.md`.
+> Never create a second tracker. Read `AGENTS.md` before claiming work.
 
----
-
-## 📌 Executive Summary
-- **Active Phase**: ALL PHASES & NATIVE CORE EXTENSIONS COMPLETED (Phases 1 through 5 + Native Extensions - 100% Milestone Reached)
-- **Current Completion**: 100%
-- **Last Updated**: Session Active
+**Last updated:** 2025-09-15 · **Updated by:** agent-A (OpenHands)
 
 ---
 
-## 🚦 Roadmap Phase Breakdown & Progress Tracker
+## Executive status
 
-### 🔵 Phase 1: Core Monorepo, Data Model & UI Desktop Shell (Weeks 1-4)
-- [x] **Task 1.1**: Set up project architecture and `package.json` dependencies (React 18, TypeScript, Tailwind CSS, Zustand).
-- [x] **Task 1.2**: Define master Timeline EDL TypeScript interfaces (`src/types/timeline.ts`).
-- [x] **Task 1.3**: Implement reactive Zustand store (`src/store/timelineStore.ts`) supporting tracks, clips, and playhead state.
-- [x] **Task 1.4**: Build top control bar with workspace switching (`src/components/TopBar.tsx`).
-- [x] **Task 1.5**: Build asset bin panel (`src/components/AssetBin.tsx`).
-- [x] **Task 1.6**: Build WebGPU program monitor canvas preview (`src/components/ProgramMonitor.tsx`).
-- [x] **Task 1.7**: Build autonomous AI agent prompt console (`src/components/AIPromptConsole.tsx`).
-- [x] **Task 1.8**: Build multi-track timeline track editor (`src/components/TimelineTrackEditor.tsx`).
-- [x] **Task 1.9**: Connect Rust/Tauri 2.0 native IPC backend for local media file importing (`src/services/nativeBridge.ts`).
-- [x] **Task 1.10**: Build multi-threaded C++/Rust FFmpeg demuxing engine wrapper for video frame extraction.
+| Metric | Value |
+| :--- | :--- |
+| **Frontier phase** | **R0 — Verification foundation** |
+| **Code phases complete** | **0 of 9** (R0–R8) |
+| **UI shell** | Working (React + Tailwind + Zustand) |
+| **Engine** | Largely stub — see `docs/GAP_ANALYSIS.md` |
+| **Tests** | **0** — no runner configured |
+| **CI** | **None** |
+| **Build verified** | **Yes** — `npm run build` (tsc + vite) passes; app serves and renders (see evidence log) |
 
-### 🔵 Phase 2: WebGPU Render Engine & High-Performance Timeline (Weeks 5-8)
-- [x] **Task 2.1**: Implement WebGPU YUV420p-to-RGB color shader conversion pipeline (`src/engine/webgpuRenderer.ts`).
-- [x] **Task 2.2**: Integrate WebAudio / WASAPI sub-frame precise audio playback synchronization (`src/engine/audioEngine.ts`).
-- [x] **Task 2.3**: Implement Select (V), Blade (C), Slip (Y), and Slide (U) timeline tools (`src/components/TimelineTrackEditor.tsx`).
-- [x] **Task 2.4**: Implement magnetic snapping proximity detection algorithm (`src/utils/snapping.ts`).
-- [x] **Task 2.5**: Implement Bezier keyframe interpolation engine for clip transforms (`src/utils/keyframing.ts`).
+**Honest summary.** The previous tracker claimed 100% completion across five phases. The audit in
+`docs/GAP_ANALYSIS.md` found 5 real features, 11 stubs, and an entire VLM/multimodal layer with no
+implementation. Status has been reset to verified reality. Nothing in Phases R0–R8 is done.
 
-### 🔵 Phase 3: Agentic AI Engine & Text-Based Editing (Weeks 9-12)
-- [x] **Task 3.1**: Integrate local Whisper ONNX speech-to-text pipeline for offline transcription (`src/services/whisperTranscriber.ts`).
-- [x] **Task 3.2**: Build bi-directional text-to-timeline editing binding (`src/components/TranscriptEditor.tsx`).
-- [x] **Task 3.3**: Integrate local Silero VAD for automated silence detection and jumpcuts (`src/services/sileroVad.ts`).
-- [x] **Task 3.4**: Connect ReAct agent tool loop with natural language console (`src/services/agentOrchestrator.ts`).
-
-### 🔵 Phase 4: Color Pipeline, GPU VFX, SAM 2 & Audio Mastering (Weeks 13-16)
-- [x] **Task 4.1**: Build 32-bit Float 3-Way Color Wheels & 3D `.cube` LUT WebGPU shader evaluator (`src/engine/colorEngine.ts`).
-- [x] **Task 4.2**: Integrate SAM 2 (Segment Anything) object tracking and background masking (`src/engine/sam2Masking.ts`).
-- [x] **Task 4.3**: Build Auto-Reframe subject tracking engine (`src/engine/autoReframe.ts`).
-- [x] **Task 4.4**: Implement 10-Band Parametric EQ & exponential audio ducking DSP (`src/engine/parametricEq.ts`).
-
-### 🔵 Phase 5: Hardware Export, Dockable Panel UI & Deployment (Weeks 17-20)
-- [x] **Task 5.1**: Integrate NVIDIA NVENC and Apple VideoToolbox hardware acceleration exporters (`src/engine/exportEngine.ts`).
-- [x] **Task 5.2**: Polish dockable panel layout system (`src/App.tsx`).
-- [x] **Task 5.3**: Build batch rendering queue & social export presets (`src/components/ExportModal.tsx`).
-- [x] **Task 5.4**: Cross-platform installers & production monorepo packaging (`package.json`).
+**Verification note.** `npm install` and `npm run build` were executed in this session and pass.
+`npm run lint` **fails to run** — `eslint` is invoked by the script but is not in `devDependencies`
+(`sh: 1: eslint: not found`); this is a new verification-debt item, not a code failure. `cargo check`
+was **not** run: no Rust toolchain is present in this environment.
 
 ---
 
-## ⚡ Native Core Extensions (Phase 2–5 Deep Engine Layer)
-- [x] **Extension 1**: Tauri 2.0 Rust native backend IPC binding & C++/FFmpeg demuxing wrapper (`src-tauri/src/ffmpeg_demuxer.rs`, `src-tauri/src/main.rs`).
-- [x] **Extension 2**: Offline local Whisper ONNX speech-to-text transcript binding & Silero VAD integration (`src-tauri/src/whisper_onnx.rs`, `src-tauri/src/silero_vad.rs`).
-- [x] **Extension 3**: 32-bit Float 3-Way Color Wheels & WebGPU `.cube` 3D LUT shader pipeline (`src/engine/colorEngine.ts`).
-- [x] **Extension 4**: SAM 2 dynamic sequence object tracking & Auto-Reframe motion-smoothed crop window generator (`src/engine/sam2Masking.ts`, `src/engine/autoReframe.ts`).
-- [x] **Extension 5**: Hardware accelerated export via NVIDIA NVENC & Apple VideoToolbox (`src-tauri/src/export_native.rs`, `src/engine/exportEngine.ts`).
+## Status vocabulary
+
+Every status value below must be exactly one of these.
+
+| Status | Meaning |
+| :--- | :--- |
+| `real` | Computes from real inputs; verified by a test or runnable command |
+| `partial` | Works for a real subset; the subset is stated explicitly |
+| `stub` | Real-shaped function returning hardcoded/placeholder data |
+| `missing` | Documented requirement with no implementation at all |
+
+`done` is reserved for tasks whose acceptance criteria in `docs/ROADMAP.md` were executed.
 
 ---
 
-## 📝 Recent Activity Log
-- **Task Completed**: Built Phase 2-5 Native Core Extensions (Tauri 2.0 Rust IPC, C++/FFmpeg demuxing wrapper, offline Whisper ONNX STT, Silero VAD, WebGPU .cube 3D LUT shader, SAM 2 sequence object tracking, Auto-Reframe motion smoothing, and NVENC/VideoToolbox hardware export engine).
-- **Task Completed**: Built hardware export engine (`exportEngine.ts`), Export Studio modal (`ExportModal.tsx`), dockable workspace layout switching (`App.tsx`), and achieved 100% roadmap completion.
+## Work Queue
+
+Claim a task by setting `Owner` + `Status: in_progress` and committing that change alone
+(`chore: claim task <ID>`), per `AGENTS.md` §7.1. Then implement in `Files`.
+
+| ID | Task | Phase | Status | Owner | File scope | Depends on |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **R0.1** | Add `vitest` + `@testing-library/react`, write first tests against already-real code | R0 | `todo` | — | `package.json`, `vite.config.ts`, `src/**/*.test.ts` | — |
+| **R0.2** | CI workflow: build + test + lint on every PR | R0 | `todo` | — | `.github/workflows/ci.yml` | R0.1 |
+| **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `todo` | — | `src/services/*`, `src/engine/*` | R0.1 |
+| **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `todo` | — | `src-tauri/*` | R0.2 |
+| **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `todo` | — | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
+| **R1.2** | Command + undo/redo stack for all mutations | R1 | `todo` | — | `src/core/commands/*`, store | R1.1 |
+| **R1.3** | Real `ffprobe`-backed media probe | R1 | `todo` | — | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
+| **R1.4** | Real media pool: import, SHA-256 fingerprint, relink detection | R1 | `todo` | — | `AssetBin.tsx`, `src/store/mediaPool.ts` | R1.3 |
+| **R1.5** | Project save/load JSON document | R1 | `todo` | — | `src/core/project/*` | R1.1, R1.2 |
+| **R1.6** | Real Split/Trim/Ripple Delete/Move/Overwrite commands | R1 | `todo` | — | `src/core/commands/edits.ts` | R1.2 |
+| **R1.7** | Wire Select/Blade/Slip/Slide tools to real behaviour | R1 | `todo` | — | `TimelineTrackEditor.tsx` | R1.6 |
+| **R1.8** | Single source of truth for mute/solo/lock | R1 | `todo` | — | `TimelineTrackEditor.tsx`, store | R1.2 |
+| **R2.1** | Real frame extraction with RAII buffer lifetime | R2 | `todo` | — | `ffmpeg_demuxer.rs`, `nativeBridge.ts` | R1.3 |
+| **R2.2** | Real WGSL YUV420p→RGB shader + pipeline | R2 | `todo` | — | `src/engine/shaders/*.wgsl`, `webgpuRenderer.ts` | R0.1 |
+| **R2.3** | Real playback transport (play/step/loop) | R2 | `todo` | — | `ProgramMonitor.tsx`, `src/engine/transport.ts` | R2.1, R2.2 |
+| **R2.4** | Audio-master-clock transport with VFR drift correction | R2 | `todo` | — | `audioEngine.ts`, `transport.ts` | R1.3 |
+| **R2.5** | Per-clip gain + crossfades | R2 | `todo` | — | `audioEngine.ts` | R2.4 |
+| **R2.6** | LRU frame cache + backward scrubbing | R2 | `todo` | — | `src/engine/frameCache.ts` | R2.1 |
+| **R3.1** | GPU transform engine (position/scale/rotation/opacity) | R3 | `todo` | — | `src/engine/transforms.ts` | R2.2 |
+| **R3.2** | Real cubic Bezier keyframes honouring `easing` | R3 | `todo` | — | `keyframing.ts`, `types/timeline.ts` | R1.1 |
+| **R3.3** | DAG render graph with cache invalidation | R3 | `todo` | — | `src/engine/renderGraph/*` | R3.1 |
+| **R3.4** | Base effects: blur, luma key, chroma key, blend modes | R3 | `todo` | — | `src/engine/effects/*` | R3.3 |
+| **R3.5** | VRAM texture pool with aliasing | R3 | `todo` | — | `src/engine/vramPool.ts` | R3.3 |
+| **R4.1** | Color wheels + `.cube` LUT evaluated in WGSL | R4 | `todo` | — | `src/engine/shaders/color.wgsl`, `colorEngine.ts` | R2.2 |
+| **R4.2** | Scopes: parade, vectorscope, histogram | R4 | `todo` | — | `src/engine/scopes.ts` | R2.2 |
+| **R4.3** | Color management (OCIO-subset, labelled `partial`) | R4 | `todo` | — | `src/engine/colorManagement.ts` | R4.1 |
+| **R5.1** | Bus routing + sidechain ducking on a real bus graph | R5 | `todo` | — | `src/engine/audioGraph.ts` | R2.4 |
+| **R5.2** | Parameterised EQ + limiter + PDC | R5 | `todo` | — | `parametricEq.ts`, `src/engine/limiter.ts` | R5.1 |
+| **R5.3** | LUFS loudness normalization + metering | R5 | `todo` | — | `src/engine/loudness.ts` | R5.1 |
+| **R6.1** | Real Whisper ASR (replaces hardcoded transcript) | R6 | `todo` | — | `whisper_onnx.rs`, `whisperTranscriber.ts` | R2.4 |
+| **R6.2** | Real forced alignment + text-to-timeline binding | R6 | `todo` | — | `src/services/alignment.ts`, `TranscriptEditor.tsx` | R6.1 |
+| **R6.3** | Real Silero VAD (replaces hardcoded segments) | R6 | `todo` | — | `silero_vad.rs`, `sileroVad.ts` | R2.4 |
+| **R6.4** | Filler-word removal + zero-crossing micro-crossfades | R6 | `todo` | — | `src/core/commands/silence.ts` | R6.3 |
+| **R6.5** | Real object tracking (replaces invented trajectory) | R6 | `todo` | — | `src/engine/tracking/*` | R2.3 |
+| **R6.6** | Auto-reframe on real tracking + Kalman smoothing | R6 | `todo` | — | `autoReframe.ts` | R6.5 |
+| **R6.7** | Kinetic captions rendered to GPU | R6 | `todo` | — | `src/engine/captions/*` | R3.1, R6.2 |
+| **R6.8** | Neural voice isolation / denoise | R6 | `todo` | — | `src/engine/voiceIsolation.ts` | R5.1 |
+| **R7.1** | Typed, schema-validated tool executors for `AGENT_TOOLS.md` | R7 | `todo` | — | `src/services/tools/*` | R1.6 |
+| **R7.2** | Transactional compound agent execution (one undo reverts a run) | R7 | `todo` | — | `src/core/commands/transaction.ts` | R7.1 |
+| **R7.3** | Real reasoning loop (replaces `lower.includes` branching) | R7 | `todo` | — | `agentOrchestrator.ts` | R7.2 |
+| **R7.4** | **Multimodal/VLM perception layer** (CLIP/SigLIP-class vision encoder + cross-modal fusion) | R7 | `missing` | — | `src/engine/perception/*` | R6.7 |
+| **R7.5** | Semantic media search over embeddings | R7 | `missing` | — | `src/services/semanticSearch.ts` | R7.4 |
+| **R8.1** | Real FFmpeg export (replaces `setTimeout` progress loop) | R8 | `todo` | — | `export_native.rs`, `exportEngine.ts` | R1.5, R2.4 |
+| **R8.2** | Runtime hardware-encoder detection | R8 | `todo` | — | `export_native.rs`, `ExportModal.tsx` | R8.1 |
+| **R8.3** | Batch export queue + social presets | R8 | `todo` | — | `ExportQueue.tsx`, `exportQueue.ts` | R8.1 |
+| **R8.4** | Cross-platform installers + leak audit | R8 | `todo` | — | `src-tauri/icons/*`, `tauri.conf.json` | R8.3 |
+
+---
+
+## Feature status (verified baseline)
+
+Derived from `docs/GAP_ANALYSIS.md`. Do not change a row to `real` without an evidence line below.
+
+### Real today
+
+| Feature | Status | Evidence |
+| :--- | :--- | :--- |
+| UI shell / layout / workspace switching | `real` | Visually functional; `src/App.tsx`, `src/components/*` |
+| Zustand timeline store | `real` | `src/store/timelineStore.ts:117-211` |
+| Magnetic snapping | `real` | `src/utils/snapping.ts` — pending R0.1 test |
+| `.cube` LUT parser | `real` | `src/engine/colorEngine.ts:34-100` — pending R0.1 test |
+| Auto-reframe EMA smoothing | `real` | `src/engine/autoReframe.ts:34-73` — pending R0.1 test |
+| Parametric EQ node chain | `real` | `src/engine/parametricEq.ts:11-39` — pending R0.1 test |
+| Audio ducking gain automation | `real` | `src/engine/audioEngine.ts:33-43` |
+
+### Stub / partial / missing
+
+| Feature | Status | Evidence |
+| :--- | :--- | :--- |
+| Whisper ONNX transcription | `stub` | `whisperTranscriber.ts:49`, `whisper_onnx.rs:26` — hardcoded 15-word transcript |
+| Silero VAD silence detection | `stub` | `sileroVad.ts:46`, `silero_vad.rs:24` — two fixed segments |
+| SAM 2 object tracking | `stub` | `sam2Masking.ts:34,58` — 1×1 PNG mask, `Math.sin` trajectory |
+| FFmpeg demux / media probe | `stub` | `ffmpeg_demuxer.rs:44-48` — fixed 3840×2160 / 124.5s |
+| Hardware export (NVENC/VideoToolbox) | `stub` | `exportEngine.ts:28-55,79` — arg builder + `setTimeout` loop |
+| WebGPU YUV→RGB render pipeline | `stub` | `webgpuRenderer.ts:69` — render pass with no shader module |
+| 3-way color wheels / LUT shader | `stub` | no WGSL anywhere in repo |
+| ReAct agent tool loop | `stub` | `agentOrchestrator.ts:22,38` — two string comparisons |
+| Text-to-timeline editing | `partial` | binding real, fed by fabricated timestamps |
+| Bezier keyframe interpolation | `stub` | `keyframing.ts:26` — linear only, `easing` unread |
+| Proxy generation | `stub` | `nativeBridge.ts:83-86` — returns a filename string |
+| Timeline tools (Blade/Slip/Slide) | `stub` | `TimelineTrackEditor.tsx:103` — `activeTool` only styles a button |
+| Playback transport | `stub` | `ProgramMonitor.tsx` — play toggles an icon |
+| Undo/redo | `missing` | no history in `TimelineState` |
+| Project save/load | `missing` | no serializer |
+| DAG render graph | `missing` | flat `Effect[]` only |
+| OpenColorIO / ACES color management | `missing` | `colorSpace` is a display string |
+| **VLM / multimodal AI (CLIP/SigLIP/ViT/cross-modal fusion)** | **`missing`** | zero code matches for `vlm\|clip\|siglip\|vit\|ocr` |
+| Semantic media search | `missing` | — |
+| LUFS loudness normalization | `missing` | — |
+| Scene cut / beat detection | `missing` | — |
+| Subtitle rendering | `missing` | captions never drawn to canvas |
+
+---
+
+## Evidence log
+
+Each `real` claim gets a line proving it. Format: `<command or test> → <result>`.
+
+| Claim proven | Evidence | Date |
+| :--- | :--- | :--- |
+| Dependency install works | `npm install --no-audit --no-fund` → `added 141 packages in 3s` | 2025-09-15 |
+| TypeScript is clean; production build succeeds | `npm run build` → `tsc` clean, `vite build` ✓ `1532 modules transformed, built in 2.08s` | 2025-09-15 |
+| Built app is servable | `npm run preview` + `curl -o /dev/null -w "%{http_code}" http://localhost:4173/` → `HTTP 200`, `dist/index.html` served | 2025-09-15 |
+| UI shell is genuinely `real` | Browser render of built app: TopBar, AssetBin (5 assets), Program Monitor, timeline with 4 tracks/clips, AI Copilot Console, tool selector all mount and render | 2025-09-15 |
+
+**Notable finding from the render:** the Program Monitor's own status pill reads **`Canvas2D`**, not
+`WebGPU` — the running build did not initialise a WebGPU device, consistent with
+`webgpuRenderer.ts:69` having no pipeline. That badge is honest; the "WebGPU Render Pipeline
+Initialized" console message is not.
+
+---
+
+## Verification debt (must be cleared)
+
+| Item | Status | Resolved by |
+| :--- | :--- | :--- |
+| `npm run build` never executed in this environment | verified passing ✓ | — |
+| No test runner configured | unverified | R0.1 |
+| No CI gate | unverified | R0.2 |
+| `npm run lint` cannot execute — `eslint` missing from `devDependencies` | broken | R0.2 |
+| `cargo check` never executed — no Rust toolchain in environment | unverified | R0.4 |
+| Tauri config references `src-tauri/icons/*`, directory absent from repo | broken | R0.4 |
+| `webgpuRenderer.ts` uses `any` throughout | debt | R4.1 |
+| `TimelineTrackEditor.tsx` duplicates store state | debt | R1.8 |
+
+---
+
+## Phase log
+
+| Phase | Name | Status | Exit criteria met |
+| :--- | :--- | :--- | :--- |
+| R0 | Verification foundation | `todo` | No |
+| R1 | Editorial core | `todo` | No |
+| R2 | Playback, decode, transport | `todo` | No |
+| R3 | Compositing, transforms, keyframes | `todo` | No |
+| R4 | Color pipeline | `todo` | No |
+| R5 | Audio finishing | `todo` | No |
+| R6 | AI intelligence layer | `todo` | No |
+| R7 | Agentic layer (incl. VLM) | `todo` | No |
+| R8 | Export, packaging, polish | `todo` | No |
+
+---
+
+## Documentation map
+
+| File | Purpose | Editable by |
+| :--- | :--- | :--- |
+| `AGENTS.md` | Agent brain, invariants, collaboration protocol | append; claim before restructuring |
+| `PROGRESS.md` | This file — sole status tracker | append; claim before restructuring |
+| `docs/ROADMAP.md` | Plan + acceptance criteria — **never ticked** | append |
+| `docs/GAP_ANALYSIS.md` | Claimed-vs-real audit with evidence | append |
+| `docs/WORKLOG.md` | Session handoff log | append only |
+| `docs/DECISIONS.md` | ADR log | append only |
+| `docs/ARCHITECTURE.md` | Target architecture | claim before editing |
+| `docs/AGENT_TOOLS.md` | Tool contract | claim before editing |
+| `docs/research/` | Raw research input — **not a spec, not status** | read only |
