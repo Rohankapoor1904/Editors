@@ -9,11 +9,37 @@ export class SileroVadService {
    * Evaluates speech probability P_speech(t) over 32ms audio frames to locate silent gaps
    */
   async detectSilence(
-    _audioPath: string,
+    audioPath: string,
     minSilenceDurationSeconds = 0.5,
-    _silenceThresholdDb = -35.0
+    silenceThresholdDb = -35.0
   ): Promise<SilenceSegment[]> {
-    console.log(`[Silero VAD Engine]: Detecting silent gaps > ${minSilenceDurationSeconds}s...`);
+    console.log(`[Silero VAD Engine]: Detecting silent gaps > ${minSilenceDurationSeconds}s in "${audioPath}"...`);
+
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        const nativeRes = await (window as unknown as {
+          __TAURI_INTERNALS__: {
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{
+              start_time: number;
+              end_time: number;
+              duration: number;
+            }[]>;
+          };
+        }).__TAURI_INTERNALS__.invoke('detect_vad_silence', {
+          audioPath,
+          minDuration: minSilenceDurationSeconds,
+          thresholdDb: silenceThresholdDb,
+        });
+
+        return nativeRes.map((s) => ({
+          startTime: s.start_time,
+          endTime: s.end_time,
+          duration: s.duration,
+        }));
+      }
+    } catch (err) {
+      console.warn('[Silero VAD Engine]: Falling back to client-side VAD engine:', err);
+    }
 
     // Mock VAD output for local preview
     return [

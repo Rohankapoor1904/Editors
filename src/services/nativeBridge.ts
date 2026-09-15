@@ -10,6 +10,15 @@ export interface MediaProbeMetadata {
   sampleRate?: number;
 }
 
+export interface DemuxedFrameInfo {
+  frame_index: number;
+  timestamp_pts: number;
+  width: number;
+  height: number;
+  format: string;
+  data_buffer_len: number;
+}
+
 export class NativeBridgeService {
   /**
    * Invokes native open file dialog via Tauri 2.0 IPC or fallback web file API
@@ -19,7 +28,7 @@ export class NativeBridgeService {
       // Check if running inside Tauri 2.0 desktop shell
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
         // Native Tauri IPC invocation
-        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('open_media_file_dialog');
+        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('open_media_file_dialog');
         return response;
       }
 
@@ -39,6 +48,34 @@ export class NativeBridgeService {
       console.error('Failed to import media file:', err);
       return null;
     }
+  }
+
+  /**
+   * Invokes C++/Rust FFmpeg demuxing wrapper to extract video frame buffers
+   */
+  async demuxVideoFrames(mediaPath: string, startTimeSeconds: number = 0, frameCount: number = 30): Promise<DemuxedFrameInfo[]> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<DemuxedFrameInfo[]> } }).__TAURI_INTERNALS__.invoke('demux_video_frames', {
+          filePath: mediaPath,
+          startTime: startTimeSeconds,
+          frameCount,
+        });
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Falling back to web demuxer mock:', err);
+    }
+
+    // Web preview fallback
+    const frameDuration = 1 / 59.94;
+    return Array.from({ length: frameCount }, (_, i) => ({
+      frame_index: i,
+      timestamp_pts: startTimeSeconds + i * frameDuration,
+      width: 3840,
+      height: 2160,
+      format: 'YUV420P',
+      data_buffer_len: 3840 * 2160 * 1.5,
+    }));
   }
 
   /**
