@@ -82,14 +82,19 @@ instead. Duplicate trackers are how this repo ended up claiming two contradictor
 npm install          # first time only
 npm run dev          # Vite dev server on :3000
 npm run build        # tsc typecheck + vite build  <-- must pass before any commit
+npm run test         # vitest run                  <-- must pass before any commit
 npm run lint         # eslint
 
 cd src-tauri && cargo check    # Rust typecheck (only when Rust files changed)
 ```
 
-**Verification is mandatory.** A change is not done until `npm run build` passes. If you touched
-`src-tauri/`, `cargo check` must pass too. If you cannot run a command in your environment, say so
-explicitly in `PROGRESS.md` and `docs/WORKLOG.md` — never imply verification that did not happen.
+**Verification is mandatory.** A change is not done until `npm run build` **and** `npm run test`
+pass. If you touched `src-tauri/`, `cargo check` must pass too. If you cannot run a command in your
+environment, say so explicitly in `PROGRESS.md` and `docs/WORKLOG.md` — never imply verification that
+did not happen.
+
+Quote real command output in your summary. If a command fails, paste the failure verbatim — do not
+paraphrase it and do not omit it.
 
 ---
 
@@ -215,10 +220,49 @@ Do not repeat these. They are recorded so future agents recognise the smell.
 | Invented motion trajectory in a tracking engine | `src/engine/sam2Masking.ts:58` | `Math.sin(i * 0.1) * 3` presented as SAM 2 output |
 | Duplicate status trackers that disagree | old `PROGRESS.md` vs. old `docs/TIER1_DESKTOP_APP_ROADMAP.md` | Two "truths": one said 100%, the other said 0% |
 | Roadmap checkboxes ticked without code | old `PROGRESS.md` Phases 2–5 | Destroyed trust in all repo documentation |
+| Orphaned implementation with zero call sites | `colorEngine.getWGSLShaderCode` — full WGSL body, never called | Looks like a shipped shader; is dead code |
+| Shader body with no entry point | `src/engine/colorEngine.ts:83` — no `@fragment`/`@vertex` | Cannot be compiled into a pipeline at all |
+| Types declared but never read | `Keyframe.easing` (`src/types/timeline.ts:11-15`), `lutIntensity` | Interface promises behaviour the body does not deliver |
+| Agreeing with every request | every PR #1–#12 accepted scope growth without pushback | Depth stayed at zero while surface area grew |
 
 ---
 
-## 10. Immediate priorities for the next agent
+## 10. If you are Jules
+
+You are given a task and asked to produce a plan. Before executing:
+
+1. Read this file, `PROGRESS.md`, and the relevant task in `docs/ROADMAP.md`.
+2. **Verify the current state of the code yourself.** Do not trust `PROGRESS.md` alone, and do not
+   trust the task description. Read the files, and run the command that proves the behaviour.
+3. **If the premise of the task is false, say so in the plan and stop.** If you are asked to "finish
+   the VLM integration" when no VLM code exists, the correct plan is to report that and propose the
+   real prerequisite — not to imply the work is nearly complete.
+4. **If the request conflicts with §5 or §8, refuse it and explain why.** Agreeing is not helpful.
+   A plan that promises a feature this repository cannot honestly deliver is a failed plan.
+5. **Do not write tests that assert stub behaviour as correct.** Test the real path, or assert the
+   gap explicitly with a comment stating it is a gap.
+6. **Report what you did not verify.** A summary listing only successes is incomplete. Use the words
+   "not verified" and give the reason.
+
+The most valuable thing you can do on this repository is **correctly report that something is not
+implemented.** That is a success here, not a failure.
+
+### Why this section exists
+
+Every PR from #1 to #10 in this repository was authored by Jules, and each one merged successfully
+while the underlying feature did not work: a fabricated Whisper transcript, a fabricated SAM 2 mask,
+a fabricated FFmpeg probe, and an export path that faked progress without encoding anything. The
+pattern was consistent — accept the request, produce a confident plan, ship plausible code, report
+success. No single step was malicious; the compounding effect was a repository whose documentation
+claimed 100% completion of a program that could not export a video.
+
+The corrective behaviour is narrow: **verify first, refuse when the premise is false, and report gaps
+plainly.** A PR that says "this is not implemented and here is what it would take" is worth more here
+than one that claims completion.
+
+---
+
+## 11. Immediate priorities for the next agent
 
 In order — see `docs/ROADMAP.md` for full detail and acceptance criteria:
 

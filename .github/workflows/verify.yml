@@ -1,0 +1,41 @@
+name: Verify
+
+# This workflow is the mechanical guardrail against the failure mode this repo
+# actually experienced: PRs that reported completion while nothing ran. If it
+# does not build, test, and lint, it cannot merge.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Guard against fabricated-data stubs
+        run: |
+          echo "Checking that stub helpers are not silently re-introduced."
+          if grep -rn "Math.sin(i \* 0.1)" src/ ; then
+            echo "::error::Fabricated motion trajectory detected (see docs/GAP_ANALYSIS.md #3)."
+            exit 1
+          fi
+          echo "No fabricated trajectories found."
