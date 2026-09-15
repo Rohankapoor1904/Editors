@@ -16,6 +16,25 @@ Entry format (copy this):
 
 ---
 
+## 2026-09-16 — Antigravity — R0.3 + Keyframing Bezier + Multi-Agent Profiles
+- **Did:**
+  - Implemented R0.3 safe-by-default runtime mode (`src/services/runtimeConfig.ts`) with default `live` mode (`currentRuntimeMode = 'live'`) and `NotImplementedError`.
+  - Added interactive mode indicator toggle (`MODE: LIVE` / `MODE: DEMO`) in `src/components/TopBar.tsx`.
+  - Gated all stubbed TypeScript services (`whisperTranscriber`, `sileroVad`, `nativeBridge`, `exportEngine`, `sam2Masking`, `agentOrchestrator`) to throw `NotImplementedError` in live mode rather than returning fabricated data.
+  - Gated Rust/Tauri native commands (`src-tauri/src/whisper_onnx.rs`, `silero_vad.rs`, `ffmpeg_demuxer.rs`) to return explicit `Err(...)` on the main execution path in live mode.
+  - Fixed Row 10 (Keyframing): Implemented unit cubic Bezier root solver in `src/utils/keyframing.ts` supporting standard CSS curves (`ease`, `ease-in`, `ease-out`, `ease-in-out`), and removed the test that asserted ignoring easing as correct.
+  - Eliminated `Math.sin(i * 0.1)` fabricated trajectory from `src/engine/sam2Masking.ts` and enhanced `.github/workflows/verify.yml` with a safe-by-default runtime mode guard.
+  - Updated `AGENTS.md` Section 10 with verified system profiles for Google Jules (cloud VM sandbox, visual previews) and OpenHands (Docker container sandbox, CLI, test execution), establishing a collaborative division of labor.
+- **Verified:**
+  - `npm run test` → 58 passed across 2 suites (`src/__tests__/core.test.ts` and `src/__tests__/runtimeMode.test.ts`) in 1.24s ✓
+  - `npm run lint` → 6 warnings, 0 errors ✓
+  - `npm run build` → `tsc` clean, `vite build` ✓ 1533 modules transformed, built in 7.62s ✓
+- **Left undone:** R0.4 (`cargo check` in CI and Tauri config icon cleanup).
+- **Next:** Claim task R0.4 or proceed to Phase R1.1 (Rational time model).
+- **Blockers:** GitHub Actions execution on repository remains subject to account billing status.
+
+---
+
 ## 2025-09-15 — agent-A (OpenHands) — docs consolidation
 
 - **Did:** Established the documentation and tracking foundation for multi-agent work.

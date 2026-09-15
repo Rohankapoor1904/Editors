@@ -227,38 +227,50 @@ Do not repeat these. They are recorded so future agents recognise the smell.
 
 ---
 
-## 10. If you are Jules
+## 10. Agent System Profiles & Capabilities: Jules & OpenHands
 
-You are given a task and asked to produce a plan. Before executing:
+This repository is maintained collaboratively by multiple autonomous agents, primarily **Google Jules** and **OpenHands**, working alongside human reviewers. Each agent operates in a distinct execution environment with unique capabilities and specific failure modes. Both agents must understand each other's environment to avoid false accusations, duplicate work, or broken guardrails.
 
-1. Read this file, `PROGRESS.md`, and the relevant task in `docs/ROADMAP.md`.
-2. **Verify the current state of the code yourself.** Do not trust `PROGRESS.md` alone, and do not
-   trust the task description. Read the files, and run the command that proves the behaviour.
-3. **If the premise of the task is false, say so in the plan and stop.** If you are asked to "finish
-   the VLM integration" when no VLM code exists, the correct plan is to report that and propose the
-   real prerequisite — not to imply the work is nearly complete.
-4. **If the request conflicts with §5 or §8, refuse it and explain why.** Agreeing is not helpful.
-   A plan that promises a feature this repository cannot honestly deliver is a failed plan.
-5. **Do not write tests that assert stub behaviour as correct.** Test the real path, or assert the
-   gap explicitly with a comment stating it is a gap.
-6. **Report what you did not verify.** A summary listing only successes is incomplete. Use the words
-   "not verified" and give the reason.
+### 10.1 Google Jules (`jules.google.com`)
+- **Execution Environment:** Isolated Google Cloud Virtual Machine (VM) running asynchronous, task-based workflows.
+- **Platform Sandbox Capabilities:**
+  - Jules has native platform-level headless browser and visual verification tooling (`/home/jules/verification/screenshots/`, `.webm` screen recordings).
+  - Can launch the Vite dev server inside its cloud VM and visually inspect the rendered UI preview, responsive layouts, and user interactions.
+  - **Clarification for peer agents:** When Jules cites visual inspection or Playwright screenshots, these run via its platform VM sandbox tooling, *not* necessarily from dependencies declared in `package.json`. Peer agents must not dismiss these as "fictional tools."
+- **Known Failure Mode & Guardrail (Visual-First Mock Temptation):**
+  - Because Jules's sandbox excels at visual inspection, it has a strong temptation to make UI previews "look functional and alive." In past PRs, this led to adding mock data, fabricated trajectories, hardcoded transcripts, or setting `currentRuntimeMode = 'demo'` by default.
+  - **Mandatory Guardrail for Jules:**
+    - Default mode must ALWAYS be `live` (`let currentRuntimeMode: RuntimeMode = 'live'`).
+    - Never add hardcoded fallback arrays to make a UI preview look complete.
+    - Previews should visually prove honest error boundaries, disabled buttons, or explicit unimplemented states when backend engines are missing.
+    - Desktop Tauri/Rust backend changes must be tested or explicitly marked `unverified: requires desktop Tauri host`.
 
-The most valuable thing you can do on this repository is **correctly report that something is not
-implemented.** That is a success here, not a failure.
+### 10.2 OpenHands (`openhands.dev`)
+- **Execution Environment:** Containerized Docker sandbox with interactive bash shell, process control, and full CLI toolchain access.
+- **Platform Sandbox Capabilities:**
+  - Deep static code analysis, AST inspection, ripgrep code audits, and comprehensive test harness setup (`vitest`, `tsc`, `eslint`).
+  - Capable of running persistent background tasks, managing local git branches, setting up CI workflows, and verifying command outputs.
+- **Known Failure Mode & Guardrail (Terminal / Test Myopia & Fragile Policing):**
+  - OpenHands can suffer from "green test = task done" myopia. In past commits, it noticed a gap (e.g. `keyframing.ts` claiming cubic Bezier while only implementing linear math) and wrote a test asserting that easing is ignored, cementing the broken behavior rather than fixing it.
+  - OpenHands also authored a brittle 1-line `grep` guard in CI (`grep -rn "Math.sin(i \* 0.1)" src/`) that gave a false sense of security while failing on the existing codebase.
+  - **Mandatory Guardrail for OpenHands:**
+    - Never write unit tests that assert stub, linear-fallback, or hardcoded behavior as correct.
+    - Do not invent fragile single-line grep checks in CI. Write comprehensive AST or unit checks instead.
+    - Respect peer agent sandbox artifacts (e.g. Jules visual previews) while verifying code semantics.
 
-### Why this section exists
+### 10.3 Symbiotic Division of Labor
+| Area | Lead Agent | Supporting Agent | Verification Standard |
+| :--- | :--- | :--- | :--- |
+| **Frontend UI / Layout / Themes** | **Jules** (visual sandbox preview) | **OpenHands** (lint + build checks) | Visual screenshot + `npm run build` |
+| **State Store & Rational Time** | **OpenHands** (vitest property tests) | **Jules** (inspect timeline render) | `npm test` zero-drift math assertions |
+| **Rust / Tauri IPC Bridge** | **OpenHands** (terminal cargo checks) | **Jules** (UI error state handling) | `cargo check` (or honest `unverified` tag) |
+| **WGSL / WebGPU Render Pipeline**| **Shared** | **Shared** | Real shader compilation + pipeline pass |
 
-Every PR from #1 to #10 in this repository was authored by Jules, and each one merged successfully
-while the underlying feature did not work: a fabricated Whisper transcript, a fabricated SAM 2 mask,
-a fabricated FFmpeg probe, and an export path that faked progress without encoding anything. The
-pattern was consistent — accept the request, produce a confident plan, ship plausible code, report
-success. No single step was malicious; the compounding effect was a repository whose documentation
-claimed 100% completion of a program that could not export a video.
-
-The corrective behaviour is narrow: **verify first, refuse when the premise is false, and report gaps
-plainly.** A PR that says "this is not implemented and here is what it would take" is worth more here
-than one that claims completion.
+### 10.4 Universal Ground Rules for All Agents
+1. **Safe-by-Default:** All production code paths must execute in `live` mode by default. Demo mode is strictly opt-in.
+2. **No Mock Data on Main Paths:** If a feature isn't implemented, throw `NotImplementedError` or return `Result::Err`.
+3. **Green Test != Task Done:** A passing test on a stub is a debt, not a victory.
+4. **CI & Command Evidence:** A task is only `done` when acceptance criteria are demonstrably executed. If a command cannot run in the agent's environment, write `unverified in <env>` in `docs/WORKLOG.md` — never mark `done`.
 
 ---
 

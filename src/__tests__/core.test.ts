@@ -78,12 +78,34 @@ describe('interpolateKeyframeValue', () => {
     expect(interpolateKeyframeValue(three, 10)).toBe(100);
   });
 
-  it('currently IGNORES the easing field (documents a real gap, not desired behaviour)', () => {
-    const eased: Keyframe[] = [
+  it('applies real cubic Bezier curves when easing is specified', () => {
+    const easeInKeys: Keyframe[] = [
+      { time: 0, value: 0, easing: 'ease-in' },
+      { time: 10, value: 100, easing: 'ease-in' },
+    ];
+    const easeOutKeys: Keyframe[] = [
+      { time: 0, value: 0, easing: 'ease-out' },
+      { time: 10, value: 100, easing: 'ease-out' },
+    ];
+    const easeInOutKeys: Keyframe[] = [
       { time: 0, value: 0, easing: 'ease-in-out' },
       { time: 10, value: 100, easing: 'ease-in-out' },
     ];
-    expect(interpolateKeyframeValue(eased, 5)).toBe(50);
+
+    // At progress 0.5:
+    // ease-in is accelerating, so value must be strictly below linear (50)
+    const valEaseIn = interpolateKeyframeValue(easeInKeys, 5);
+    expect(valEaseIn).toBeLessThan(40);
+    expect(valEaseIn).toBeGreaterThan(25);
+
+    // ease-out started fast, so value must be strictly above linear (50)
+    const valEaseOut = interpolateKeyframeValue(easeOutKeys, 5);
+    expect(valEaseOut).toBeGreaterThan(60);
+    expect(valEaseOut).toBeLessThan(75);
+
+    // ease-in-out has S-curve: at progress 0.25 (time 2.5), it is slower than linear
+    const valEaseInOutEarly = interpolateKeyframeValue(easeInOutKeys, 2.5);
+    expect(valEaseInOutEarly).toBeLessThan(20);
   });
 });
 

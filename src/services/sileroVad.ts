@@ -1,3 +1,5 @@
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export interface SilenceSegment {
   startTime: number; // in seconds
   endTime: number;   // in seconds
@@ -41,7 +43,11 @@ export class SileroVadService {
       console.warn('[Silero VAD Engine]: Falling back to client-side VAD engine:', err);
     }
 
-    // Mock VAD output for local preview
+    if (isLiveMode()) {
+      throw new NotImplementedError('Silero VAD Silence Detection Engine');
+    }
+
+    // Mock VAD output for local preview (demo mode only)
     return [
       { startTime: 5.0, endTime: 7.5, duration: 2.5 },
       { startTime: 18.2, endTime: 19.8, duration: 1.6 },

@@ -38,4 +38,9 @@ jobs:
             echo "::error::Fabricated motion trajectory detected (see docs/GAP_ANALYSIS.md #3)."
             exit 1
           fi
-          echo "No fabricated trajectories found."
+          echo "Checking that runtime mode defaults to 'live' (Safe-by-Default invariant §5.5)."
+          if grep -rn "currentRuntimeMode: RuntimeMode = 'demo'" src/ ; then
+            echo "::error::currentRuntimeMode must default to 'live', not 'demo'."
+            exit 1
+          fi
+          echo "Mechanical stub and runtime mode guards passed."

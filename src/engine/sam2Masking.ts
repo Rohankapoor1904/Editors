@@ -19,6 +19,8 @@ export interface TrackedFrameMask {
   maskDataUrl: string;
 }
 
+import { isLiveMode, NotImplementedError } from '../services/runtimeConfig';
+
 export class Sam2MaskingEngine {
   /**
    * Invokes Segment Anything 2 (SAM 2) ONNX model for single-frame subject segmentation
@@ -29,6 +31,11 @@ export class Sam2MaskingEngine {
   ): Promise<MaskResult> {
     console.log(`[SAM 2 Engine]: Generating dynamic mask for click point (${clickPoint.x}, ${clickPoint.y})...`);
 
+    if (isLiveMode()) {
+      throw new NotImplementedError('SAM 2 Subject Masking');
+    }
+
+    // Demo preview mock
     return {
       confidence: 0.96,
       maskDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -46,17 +53,18 @@ export class Sam2MaskingEngine {
   ): Promise<TrackedFrameMask[]> {
     console.log(`[SAM 2 Engine]: Tracking object across ${frameCount} frames from (${initialClick.x}, ${initialClick.y})...`);
 
+    if (isLiveMode()) {
+      throw new NotImplementedError('SAM 2 Temporal Sequence Tracking');
+    }
+
     const trackedSequence: TrackedFrameMask[] = [];
     const frameDuration = 1 / fps;
 
-    // Simulate smooth object movement trajectory across sequence
-    let currentX = initialClick.x - 100;
+    // Demo preview mock: static bounding box trajectory
+    const currentX = initialClick.x - 100;
     const currentY = Math.max(0, initialClick.y - 200);
 
     for (let i = 0; i < frameCount; i++) {
-      // Simulate subtle horizontal drift
-      currentX += Math.sin(i * 0.1) * 3;
-
       trackedSequence.push({
         frameIndex: i,
         timestamp: i * frameDuration,

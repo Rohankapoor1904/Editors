@@ -11,27 +11,22 @@ export interface TranscriptResult {
   words: WordTimestamp[];
 }
 
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export class WhisperTranscriberService {
   /**
    * Invokes local Whisper ONNX pipeline for offline, frame-accurate transcript generation
    */
-  async transcribeAudio(audioPath: string): Promise<TranscriptResult> {
-    console.log(`[Whisper Engine]: Transcribing audio "${audioPath}" with word-level timestamps...`);
+  async transcribe(audioPath: string): Promise<TranscriptResult> {
+    console.log(`[Whisper Engine]: Processing speech-to-text on ${audioPath}...`);
 
     try {
+      // Check for Tauri IPC bridge availability
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-        const nativeRes = await (window as unknown as {
-          __TAURI_INTERNALS__: {
-            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{
-              full_text: string;
-              words: { id: string; word: string; start_time: number; end_time: number; confidence: number }[];
-            }>;
-          };
-        }).__TAURI_INTERNALS__.invoke('run_whisper_stt', { audioPath });
-
+        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args: { audioPath: string }) => Promise<{ full_text: string; words: Array<{ id: string; word: string; start_time: number; end_time: number; confidence: number }> }> } }).__TAURI_INTERNALS__.invoke('transcribe_audio', { audioPath });
         return {
-          fullText: nativeRes.full_text,
-          words: nativeRes.words.map((w) => ({
+          fullText: response.full_text,
+          words: response.words.map((w) => ({
             id: w.id,
             word: w.word,
             startTime: w.start_time,
@@ -44,7 +39,11 @@ export class WhisperTranscriberService {
       console.warn('[Whisper Engine]: Falling back to local client STT engine:', err);
     }
 
-    // Client/browser fallback output
+    if (isLiveMode()) {
+      throw new NotImplementedError('Whisper Transcriber ONNX Engine');
+    }
+
+    // Client/browser fallback output (demo mode only)
     return {
       fullText: "Welcome to CineCraft AI. This is a tier-1 desktop video editor with autonomous agent features.",
       words: [
@@ -65,6 +64,10 @@ export class WhisperTranscriberService {
         { id: 'w15', word: 'features.', startTime: 5.95, endTime: 6.4, confidence: 0.96 },
       ],
     };
+  }
+
+  async transcribeAudio(audioPath: string): Promise<TranscriptResult> {
+    return this.transcribe(audioPath);
   }
 }
 

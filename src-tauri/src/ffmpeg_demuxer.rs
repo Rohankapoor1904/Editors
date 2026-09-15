@@ -32,52 +32,33 @@ impl FFmpegDemuxerEngine {
             return Err("Invalid media file path provided".to_string());
         }
 
-        let filename = file_path
-            .split('/')
-            .last()
-            .unwrap_or("media_file.mp4")
-            .to_string();
+        let path_obj = std::path::Path::new(file_path);
+        if !path_obj.exists() {
+            return Err(format!("Media file not found on disk: {}", file_path));
+        }
 
-        Ok(MediaProbeInfo {
-            path: file_path.to_string(),
-            filename,
-            duration_seconds: 124.5,
-            width: 3840,
-            height: 2160,
-            fps: 59.94,
-            codec: "h264".to_string(),
-            has_audio: true,
-            sample_rate: Some(48000),
-        })
+        // INVARIANT §5.5: Fail loudly rather than returning silent mock data on main path
+        Err(format!(
+            "Native media probe requires real ffprobe pipeline integration (see Roadmap R1.3). File: {}",
+            file_path
+        ))
     }
 
     /// Extract video frame buffers at given timestamp interval using native demuxing
     pub fn extract_frames(
         file_path: &str,
-        start_time_sec: f64,
-        frame_count: u32,
+        _start_time_sec: f64,
+        _frame_count: u32,
     ) -> Result<Vec<DemuxedFrame>, String> {
-        let mut frames = Vec::new();
-        let fps = 59.94;
-        let frame_duration = 1.0 / fps;
-
-        for i in 0..frame_count {
-            let pts = start_time_sec + (i as f64 * frame_duration);
-            frames.push(DemuxedFrame {
-                frame_index: i as u64,
-                timestamp_pts: pts,
-                width: 3840,
-                height: 2160,
-                format: "YUV420P".to_string(),
-                data_buffer_len: (3840 * 2160 * 3 / 2) as usize,
-            });
+        let path_obj = std::path::Path::new(file_path);
+        if !path_obj.exists() {
+            return Err(format!("Media file not found on disk: {}", file_path));
         }
 
-        println!(
-            "[FFmpeg Native Demuxer]: Successfully extracted {} frames for {}",
-            frame_count, file_path
-        );
-
-        Ok(frames)
+        // INVARIANT §5.5: Fail loudly rather than returning silent mock data on main path
+        Err(format!(
+            "Native frame extraction requires FFmpeg decoding pipeline integration (see Roadmap R2.1). File: {}",
+            file_path
+        ))
     }
 }

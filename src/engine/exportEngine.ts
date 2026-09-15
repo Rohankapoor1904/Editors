@@ -8,54 +8,69 @@ export interface ExportConfig {
   outputPath: string;
 }
 
+export type ExportPresetConfig = ExportConfig;
+
 export interface NativeFFmpegCommand {
   binary: string;
   args: string[];
 }
 
+import { isLiveMode, NotImplementedError } from '../services/runtimeConfig';
+
 export class HardwareExportEngine {
   /**
    * Generates FFmpeg command-line flags for specified hardware video encoder
    */
-  generateFFmpegFlags(config: ExportConfig): string[] {
-    const encoderFlagMap: Record<ExportConfig['encoder'], string[]> = {
-      'NVENC (NVIDIA)': ['-c:v', 'h264_nvenc', '-preset', 'p4', '-cq', '20', '-b:v', `${config.bitrateMbps}M`],
-      'VideoToolbox (Apple)': ['-c:v', 'h264_videotoolbox', '-realtime', 'true', '-b:v', `${config.bitrateMbps}M`],
-      'QuickSync (Intel)': ['-c:v', 'h264_qsv', '-global_quality', '20', '-b:v', `${config.bitrateMbps}M`],
-      'Software x264': ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'],
+  buildFFmpegCommand(config: ExportPresetConfig): NativeFFmpegCommand {
+    const args: string[] = ['-y'];
+
+    // Video encoder codec selection
+    if (config.encoder === 'NVENC (NVIDIA)') {
+      args.push('-c:v', 'h264_nvenc', '-preset', 'p6', '-rc:v', 'vbr');
+    } else if (config.encoder === 'VideoToolbox (Apple)') {
+      args.push('-c:v', 'h264_videotoolbox', '-realtime', '1');
+    } else if (config.encoder === 'QuickSync (Intel)') {
+      args.push('-c:v', 'h264_qsv', '-global_quality', '20');
+    } else {
+      args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '18');
+    }
+
+    // Resolution and FPS
+    args.push('-s', `${config.width}x${config.height}`);
+    args.push('-r', `${config.fps}`);
+
+    // Bitrate
+    args.push('-b:v', `${config.bitrateMbps}M`, '-maxrate', `${config.bitrateMbps * 1.5}M`, '-bufsize', `${config.bitrateMbps * 2}M`);
+
+    // Audio encoding settings
+    args.push('-c:a', 'aac', '-b:a', '320k', '-ar', '48000');
+
+    // Output destination
+    args.push(config.outputPath);
+
+    return {
+      binary: 'ffmpeg',
+      args,
     };
-
-    const vFlags = encoderFlagMap[config.encoder] || encoderFlagMap['Software x264'];
-
-    return [
-      '-y',
-      '-f', 'rawvideo',
-      '-pix_fmt', 'rgba',
-      '-s', `${config.width}x${config.height}`,
-      '-r', config.fps.toString(),
-      '-i', 'pipe:0',
-      ...vFlags,
-      '-c:a', 'aac',
-      '-b:a', '320k',
-      config.outputPath,
-    ];
   }
 
   /**
-   * Triggers hardware-accelerated video render and encoding pipeline
+   * Dispatches render export pipeline using native hardware acceleration
    */
-  async renderSequence(
-    config: ExportConfig,
-    onProgress: (progressPercent: number) => void
+  async exportTimeline(
+    config: ExportPresetConfig,
+    onProgress: (percent: number) => void
   ): Promise<boolean> {
-    console.log(`[Export Engine]: Starting hardware export using ${config.encoder} for preset "${config.presetName}"...`);
+    console.log(`[Export Engine]: Initiating hardware encode for preset "${config.presetName}"...`);
 
-    // Check Tauri 2.0 IPC native command
     try {
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
         const commandSpec = await (window as unknown as {
           __TAURI_INTERNALS__: {
-            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<NativeFFmpegCommand>;
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{
+              binary: string;
+              args: string[];
+            }>;
           };
         }).__TAURI_INTERNALS__.invoke('get_export_ffmpeg_command', {
           config: {
@@ -75,7 +90,11 @@ export class HardwareExportEngine {
       console.warn('[Export Engine]: Native hardware export fallback:', err);
     }
 
-    // Simulate hardware encoding progress loop
+    if (isLiveMode()) {
+      throw new NotImplementedError('Hardware Export Render Engine');
+    }
+
+    // Simulate hardware encoding progress loop (demo mode only)
     for (let percent = 0; percent <= 100; percent += 10) {
       await new Promise((resolve) => setTimeout(resolve, 120));
       onProgress(percent);
@@ -83,6 +102,13 @@ export class HardwareExportEngine {
 
     console.log(`[Export Engine]: Successfully rendered video to ${config.outputPath}`);
     return true;
+  }
+
+  async renderSequence(
+    config: ExportPresetConfig,
+    onProgress: (percent: number) => void
+  ): Promise<boolean> {
+    return this.exportTimeline(config, onProgress);
   }
 }
 
