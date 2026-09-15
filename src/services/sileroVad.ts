@@ -4,6 +4,8 @@ export interface SilenceSegment {
   duration: number;  // in seconds
 }
 
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export class SileroVadService {
   /**
    * Evaluates speech probability P_speech(t) over 32ms audio frames to locate silent gaps
@@ -39,6 +41,10 @@ export class SileroVadService {
       }
     } catch (err) {
       console.warn('[Silero VAD Engine]: Falling back to client-side VAD engine:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Silero VAD Silence Detection Engine');
     }
 
     // Mock VAD output for local preview

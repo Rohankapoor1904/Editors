@@ -13,6 +13,8 @@ export interface NativeFFmpegCommand {
   args: string[];
 }
 
+import { isLiveMode, NotImplementedError } from '../services/runtimeConfig';
+
 export class HardwareExportEngine {
   /**
    * Generates FFmpeg command-line flags for specified hardware video encoder
@@ -73,6 +75,10 @@ export class HardwareExportEngine {
       }
     } catch (err) {
       console.warn('[Export Engine]: Native hardware export fallback:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Hardware Export Render Engine');
     }
 
     // Simulate hardware encoding progress loop

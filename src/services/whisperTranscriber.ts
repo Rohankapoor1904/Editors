@@ -11,6 +11,8 @@ export interface TranscriptResult {
   words: WordTimestamp[];
 }
 
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export class WhisperTranscriberService {
   /**
    * Invokes local Whisper ONNX pipeline for offline, frame-accurate transcript generation
@@ -42,6 +44,10 @@ export class WhisperTranscriberService {
       }
     } catch (err) {
       console.warn('[Whisper Engine]: Falling back to local client STT engine:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Whisper Transcriber ONNX Engine');
     }
 
     // Client/browser fallback output

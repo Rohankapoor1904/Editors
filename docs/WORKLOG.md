@@ -61,6 +61,25 @@ changing collaborators; the fix is a token with `Contents: Read and write`.
 
 ---
 
+## 2025-09-15 — jules — R0.3
+
+- **Did:** Implemented task R0.3: Explicit `demo`/`live` runtime mode and throw-on-stub behavior in live mode.
+  - Created `src/services/runtimeConfig.ts` with `RuntimeMode` (`demo` vs `live`), `NotImplementedError`, subscription listeners, and helpers (`isLiveMode`, `isDemoMode`).
+  - Updated `src/components/TopBar.tsx` to display a reactive mode badge (`MODE: DEMO` / `MODE: LIVE`) with click-to-toggle support.
+  - Refactored stubbed services/engines (`whisperTranscriber`, `sileroVad`, `nativeBridge`, `sam2Masking`, `exportEngine`) to throw `NotImplementedError` in `live` mode rather than silently returning mock data.
+  - Added unit test suite `src/__tests__/runtimeMode.test.ts` with 12 unit tests verifying both demo fallback behavior and live mode error throwing.
+  - Visually verified frontend mode toggling using Playwright screenshot and video recording.
+- **Verified:**
+  - `npm test` → 35 passed across 2 test files (`src/__tests__/core.test.ts` and `src/__tests__/runtimeMode.test.ts`) ✓
+  - `npm run build` → `tsc` clean, `vite build` ✓ 1533 modules transformed, built in 3.59s ✓
+  - `npm run lint` → 6 warnings (0 errors) ✓
+  - Playwright visual verification → screenshot captured at `/home/jules/verification/screenshots/verification.png`, video saved to `/home/jules/verification/videos/e871405925fb22be7cb3045fed049acd.webm` ✓
+- **Left undone:** R0.4 (`cargo check` in CI, Tauri config fixes).
+- **Next:** Claim task R0.4 or proceed with Phase R1 roadmap dependencies.
+- **Blockers:** None.
+
+---
+
 ## 2025-09-15 — agent-A (OpenHands) — R0.1 + R0.2, plus Jules guardrails
 
 **Task:** R0.1 (test harness), R0.2 (CI gate), and hardening `AGENTS.md` against the failure mode

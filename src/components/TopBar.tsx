@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { TimelineState } from '../types/timeline';
-import { Video, Sparkles, Palette, Volume2, Share2, Magnet, Cpu, Zap, Download } from 'lucide-react';
+import { getRuntimeMode, setRuntimeMode, subscribeRuntimeMode, RuntimeMode } from '../services/runtimeConfig';
+import { Video, Sparkles, Palette, Volume2, Share2, Magnet, Cpu, Zap, Download, Activity } from 'lucide-react';
 
 export const TopBar: React.FC = () => {
   const { activeWorkspace, setWorkspace, magneticSnapping, toggleMagneticSnapping, metadata } =
     useTimelineStore();
+
+  const [runtimeMode, setModeState] = useState<RuntimeMode>(getRuntimeMode());
+
+  useEffect(() => {
+    return subscribeRuntimeMode((newMode) => setModeState(newMode));
+  }, []);
+
+  const toggleRuntimeMode = () => {
+    const nextMode: RuntimeMode = runtimeMode === 'demo' ? 'live' : 'demo';
+    setRuntimeMode(nextMode);
+  };
 
   const workspaces: { id: TimelineState['activeWorkspace']; label: string; icon: React.ReactNode }[] = [
     { id: 'edit', label: 'Edit & Cut', icon: <Video className="w-3.5 h-3.5 mr-1 shrink-0" /> },
@@ -60,8 +72,21 @@ export const TopBar: React.FC = () => {
         ))}
       </div>
 
-      {/* Right: GPU Accelerator, Project Info & Export CTA */}
+      {/* Right: GPU Accelerator, Runtime Mode, Project Info & Export CTA */}
       <div className="flex items-center space-x-2 shrink-0">
+        <button
+          onClick={toggleRuntimeMode}
+          className={`hidden lg:flex items-center space-x-1 px-2 py-0.5 rounded-panel border text-[10px] font-mono transition-all shrink-0 ${
+            runtimeMode === 'demo'
+              ? 'bg-amber-950/60 border-amber-500/50 text-amber-300'
+              : 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+          }`}
+          title={`Click to switch runtime mode (Current: ${runtimeMode.toUpperCase()})`}
+        >
+          <Activity className="w-3 h-3" />
+          <span>MODE: {runtimeMode.toUpperCase()}</span>
+        </button>
+
         <div className="hidden lg:flex items-center space-x-1.5 px-2 py-0.5 rounded-panel bg-dark-900 border border-subtle text-[10px] text-teal-accent font-mono shrink-0">
           <Cpu className="w-3 h-3 text-teal-accent" />
           <span>WebGPU Accel</span>

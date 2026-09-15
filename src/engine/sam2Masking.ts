@@ -19,6 +19,8 @@ export interface TrackedFrameMask {
   maskDataUrl: string;
 }
 
+import { isLiveMode, NotImplementedError } from '../services/runtimeConfig';
+
 export class Sam2MaskingEngine {
   /**
    * Invokes Segment Anything 2 (SAM 2) ONNX model for single-frame subject segmentation
@@ -28,6 +30,10 @@ export class Sam2MaskingEngine {
     clickPoint: { x: number; y: number }
   ): Promise<MaskResult> {
     console.log(`[SAM 2 Engine]: Generating dynamic mask for click point (${clickPoint.x}, ${clickPoint.y})...`);
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('SAM 2 Subject Masking');
+    }
 
     return {
       confidence: 0.96,
@@ -45,6 +51,10 @@ export class Sam2MaskingEngine {
     fps: number = 59.94
   ): Promise<TrackedFrameMask[]> {
     console.log(`[SAM 2 Engine]: Tracking object across ${frameCount} frames from (${initialClick.x}, ${initialClick.y})...`);
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('SAM 2 Temporal Sequence Tracking');
+    }
 
     const trackedSequence: TrackedFrameMask[] = [];
     const frameDuration = 1 / fps;

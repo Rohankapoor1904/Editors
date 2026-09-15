@@ -19,6 +19,8 @@ export interface DemuxedFrameInfo {
   data_buffer_len: number;
 }
 
+import { isLiveMode, NotImplementedError } from './runtimeConfig';
+
 export class NativeBridgeService {
   /**
    * Invokes native open file dialog via Tauri 2.0 IPC or fallback web file API
@@ -31,23 +33,30 @@ export class NativeBridgeService {
         const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('open_media_file_dialog');
         return response;
       }
-
-      // Fallback web probe generator for local development preview
-      return {
-        path: '/user_media/sample_interview_4k.mp4',
-        filename: 'sample_interview_4k.mp4',
-        durationSeconds: 42.8,
-        width: 3840,
-        height: 2160,
-        fps: 59.94,
-        codec: 'h264',
-        hasAudio: true,
-        sampleRate: 48000,
-      };
     } catch (err) {
       console.error('Failed to import media file:', err);
+      if (isLiveMode()) {
+        throw new NotImplementedError('Native Media Dialog Import');
+      }
       return null;
     }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Media Probe & File Dialog');
+    }
+
+    // Fallback web probe generator for local development preview
+    return {
+      path: '/user_media/sample_interview_4k.mp4',
+      filename: 'sample_interview_4k.mp4',
+      durationSeconds: 42.8,
+      width: 3840,
+      height: 2160,
+      fps: 59.94,
+      codec: 'h264',
+      hasAudio: true,
+      sampleRate: 48000,
+    };
   }
 
   /**
@@ -64,6 +73,10 @@ export class NativeBridgeService {
       }
     } catch (err) {
       console.warn('[Native Bridge]: Falling back to web demuxer mock:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native FFmpeg Video Frame Demuxer');
     }
 
     // Web preview fallback
@@ -83,6 +96,9 @@ export class NativeBridgeService {
    */
   async generateProxy(mediaPath: string): Promise<string> {
     console.log(`[Native Bridge]: Generating H.264 low-res proxy for ${mediaPath}...`);
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Proxy Generation');
+    }
     return `${mediaPath}.proxy.mp4`;
   }
 }
