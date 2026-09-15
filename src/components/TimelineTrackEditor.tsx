@@ -1,8 +1,48 @@
 import React, { useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
-import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity } from 'lucide-react';
+import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical } from 'lucide-react';
 
 export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
+
+// Audio Waveform Generator Component
+const AudioWaveform: React.FC<{ color: string }> = ({ color }) => {
+  // Generate deterministic bar heights for a realistic audio waveform
+  const barHeights = [
+    30, 45, 80, 60, 90, 40, 20, 55, 75, 100, 85, 45, 65, 95, 30, 50,
+    80, 70, 40, 90, 60, 85, 35, 75, 50, 90, 65, 40, 80, 95, 30, 60,
+    70, 85, 45, 90, 55, 75, 100, 60, 40, 80, 50, 95, 70, 30, 85, 60
+  ];
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-around opacity-30 pointer-events-none px-1 overflow-hidden">
+      {barHeights.map((h, i) => (
+        <div
+          key={i}
+          style={{ height: `${h}%` }}
+          className={`w-0.5 rounded-full ${color}`}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Video Filmstrip Generator Component
+const FilmstripPreview: React.FC = () => {
+  return (
+    <div className="absolute inset-0 flex items-center space-x-1 opacity-25 pointer-events-none overflow-hidden px-1">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-full w-12 bg-neutral-800/80 border border-neutral-700/50 rounded flex items-center justify-center shrink-0 overflow-hidden relative"
+        >
+          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900/40 via-purple-900/30 to-neutral-900/60" />
+          <Film className="w-3 h-3 text-indigo-300 opacity-60 z-10" />
+          <div className="absolute bottom-0.5 left-0.5 right-0.5 h-0.5 bg-indigo-500/40 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const TimelineTrackEditor: React.FC = () => {
   const [activeTool, setActiveTool] = useState<EditingTool>('select');
@@ -50,18 +90,18 @@ export const TimelineTrackEditor: React.FC = () => {
   ];
 
   return (
-    <div className="h-68 bg-neutral-900 border-t border-neutral-800/80 flex flex-col select-none text-xs">
+    <div className="h-72 bg-dark-900 border-t border-subtle flex flex-col select-none text-xs">
       {/* Timeline Controls Toolbar */}
-      <div className="h-10 bg-neutral-950/60 border-b border-neutral-800/80 flex items-center justify-between px-3 text-neutral-400">
+      <div className="h-10 bg-dark-950/80 border-b border-subtle flex items-center justify-between px-3 text-neutral-400">
         {/* Editing Tools Selector */}
-        <div className="flex items-center space-x-1 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
+        <div className="flex items-center space-x-1 bg-dark-900 p-1 rounded-panel border border-subtle">
           {tools.map((tool) => (
             <button
               key={tool.id}
               onClick={() => setActiveTool(tool.id)}
               className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md transition-all text-[11px] font-medium ${
                 activeTool === tool.id
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow'
+                  ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
                   : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
               }`}
               title={`${tool.label} Tool (${tool.key})`}
@@ -74,7 +114,7 @@ export const TimelineTrackEditor: React.FC = () => {
 
         {/* Zoom & Track Controls */}
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5 bg-neutral-950 px-2 py-1 rounded-lg border border-neutral-800">
+          <div className="flex items-center space-x-2 bg-dark-900 px-2.5 py-1 rounded-panel border border-subtle">
             <ZoomOut
               className="w-3.5 h-3.5 hover:text-white cursor-pointer transition-colors"
               onClick={() => setZoomLevel(Math.max(5, zoomLevel - 5))}
@@ -85,7 +125,7 @@ export const TimelineTrackEditor: React.FC = () => {
               max="100"
               value={zoomLevel}
               onChange={(e) => setZoomLevel(Number(e.target.value))}
-              className="w-24 accent-indigo-500 h-1 bg-neutral-800 rounded-lg cursor-pointer"
+              className="w-24 accent-indigo-accent h-1 bg-neutral-800 rounded-lg cursor-pointer"
             />
             <ZoomIn
               className="w-3.5 h-3.5 hover:text-white cursor-pointer transition-colors"
@@ -96,22 +136,22 @@ export const TimelineTrackEditor: React.FC = () => {
       </div>
 
       {/* Track List + Timeline Canvas View */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left Track Headers */}
-        <div className="w-60 bg-neutral-900 border-r border-neutral-800/80 flex flex-col divide-y divide-neutral-800/60 z-10 shadow-lg">
+        <div className="w-60 bg-dark-900 border-r border-subtle flex flex-col divide-y divide-subtle z-10 shadow-xl">
           {tracks.map((track) => {
             const st = trackStates[track.id] || { mute: false, solo: false, lock: false };
             return (
               <div
                 key={track.id}
                 style={{ height: `${track.height}px` }}
-                className="flex items-center justify-between px-3 bg-neutral-900/90 hover:bg-neutral-850 transition-colors"
+                className="flex items-center justify-between px-3 bg-dark-900/90 hover:bg-dark-850 transition-colors"
               >
                 <div className="flex items-center space-x-2 font-semibold text-neutral-300 text-[11px] truncate">
                   {track.type === 'video' ? (
-                    <Film className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <Film className="w-3.5 h-3.5 text-indigo-accent shrink-0" />
                   ) : (
-                    <Music className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Music className="w-3.5 h-3.5 text-teal-accent shrink-0" />
                   )}
                   <span className="truncate">{track.name}</span>
                 </div>
@@ -121,7 +161,7 @@ export const TimelineTrackEditor: React.FC = () => {
                   <button
                     onClick={() => toggleTrackState(track.id, 'mute')}
                     className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      st.mute ? 'bg-red-600 text-white' : 'bg-neutral-950 text-neutral-500 hover:text-neutral-300 border border-neutral-800'
+                      st.mute ? 'bg-red-600 text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
                     }`}
                     title="Mute Track"
                   >
@@ -130,7 +170,7 @@ export const TimelineTrackEditor: React.FC = () => {
                   <button
                     onClick={() => toggleTrackState(track.id, 'solo')}
                     className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      st.solo ? 'bg-yellow-500 text-black' : 'bg-neutral-950 text-neutral-500 hover:text-neutral-300 border border-neutral-800'
+                      st.solo ? 'bg-amber-500 text-black' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
                     }`}
                     title="Solo Track"
                   >
@@ -139,7 +179,7 @@ export const TimelineTrackEditor: React.FC = () => {
                   <button
                     onClick={() => toggleTrackState(track.id, 'lock')}
                     className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
-                      st.lock ? 'bg-indigo-600 text-white' : 'bg-neutral-950 text-neutral-500 hover:text-neutral-300 border border-neutral-800'
+                      st.lock ? 'bg-indigo-accent text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
                     }`}
                     title="Lock Track"
                   >
@@ -153,11 +193,11 @@ export const TimelineTrackEditor: React.FC = () => {
 
         {/* Right Tracks Sequence Canvas Area */}
         <div
-          className="flex-1 bg-neutral-950 overflow-x-auto relative divide-y divide-neutral-800/40"
+          className="flex-1 bg-dark-950 overflow-x-auto relative divide-y divide-subtle"
           onClick={handleTimelineClick}
         >
           {/* Timecode Ruler Bar */}
-          <div className="h-6 bg-neutral-900/80 border-b border-neutral-800/80 sticky top-0 flex items-center font-mono text-[10px] text-neutral-500 z-10">
+          <div className="h-6 bg-dark-900/90 border-b border-subtle sticky top-0 flex items-center font-mono tabular-nums text-[10px] text-neutral-500 z-10 backdrop-blur">
             {Array.from({ length: Math.ceil(totalDuration) }).map((_, sec) => (
               <div
                 key={sec}
@@ -174,7 +214,7 @@ export const TimelineTrackEditor: React.FC = () => {
             <div
               key={track.id}
               style={{ height: `${track.height}px` }}
-              className="relative w-full border-b border-neutral-900/80"
+              className="relative w-full border-b border-neutral-900/60"
             >
               {track.clips.map((clip) => {
                 const isSelected = selectedClipIds.includes(clip.id);
@@ -189,26 +229,42 @@ export const TimelineTrackEditor: React.FC = () => {
                       left: `${clip.startOffset * zoomLevel}px`,
                       width: `${clip.duration * zoomLevel}px`,
                     }}
-                    className={`absolute top-1 bottom-1 rounded-lg px-2.5 flex items-center justify-between text-[11px] font-semibold truncate cursor-pointer transition-all shadow-md group ${
+                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate cursor-pointer transition-all shadow-md group relative overflow-hidden ${
                       track.type === 'video'
                         ? isSelected
-                          ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white ring-2 ring-indigo-300 shadow-indigo-500/30'
-                          : 'bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-100 border border-indigo-700/60'
+                          ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white ring-2 ring-indigo-400 shadow-indigo-500/30'
+                          : 'bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-100 border border-indigo-500/40'
                         : isSelected
-                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white ring-2 ring-emerald-300 shadow-emerald-500/30'
-                        : 'bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-100 border border-emerald-800/60'
+                        ? 'bg-gradient-to-r from-teal-600 to-teal-500 text-white ring-2 ring-teal-400 shadow-teal-500/30'
+                        : 'bg-teal-950/80 hover:bg-teal-900/90 text-teal-100 border border-teal-500/40'
                     }`}
                   >
-                    <div className="flex items-center space-x-1.5 truncate">
-                      {track.type === 'audio' ? (
-                        <Activity className="w-3.5 h-3.5 text-emerald-400/80 shrink-0" />
-                      ) : (
-                        <Film className="w-3.5 h-3.5 text-indigo-300/80 shrink-0" />
-                      )}
-                      <span className="truncate">{clip.name}</span>
+                    {/* Visual Media Background Elements */}
+                    {track.type === 'video' ? (
+                      <FilmstripPreview />
+                    ) : (
+                      <AudioWaveform color={isSelected ? 'bg-white' : 'bg-teal-400'} />
+                    )}
+
+                    {/* Clip Edge Drag Handles (Hover / Glow Separators) */}
+                    <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-white/10 hover:bg-white/30 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-l">
+                      <GripVertical className="w-2.5 h-2.5 text-white/80" />
+                    </div>
+                    <div className="absolute right-0 top-0 bottom-0 w-2.5 bg-white/10 hover:bg-white/30 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-r">
+                      <GripVertical className="w-2.5 h-2.5 text-white/80" />
                     </div>
 
-                    <span className="text-[9px] opacity-80 font-mono ml-2 shrink-0 bg-neutral-950/50 px-1 py-0.5 rounded border border-white/10">
+                    {/* Content Header */}
+                    <div className="flex items-center space-x-1.5 truncate relative z-10">
+                      {track.type === 'audio' ? (
+                        <Activity className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      ) : (
+                        <Film className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+                      )}
+                      <span className="truncate drop-shadow">{clip.name}</span>
+                    </div>
+
+                    <span className="text-[9px] opacity-90 font-mono tabular-nums ml-2 shrink-0 bg-dark-950/70 px-1.5 py-0.5 rounded border border-white/10 relative z-10 backdrop-blur-sm">
                       {clip.duration.toFixed(1)}s
                     </span>
                   </div>
@@ -217,13 +273,19 @@ export const TimelineTrackEditor: React.FC = () => {
             </div>
           ))}
 
-          {/* Scrubbing Playhead Line & Badge */}
+          {/* Animated Scrubbing Playhead Line, Glow Trail & Badge */}
           <div
             style={{ left: `${playheadPosition * zoomLevel}px` }}
-            className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
+            className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none transition-all duration-75 ease-out shadow-[0_0_12px_2px_rgba(239,68,68,0.5)]"
           >
-            <div className="w-3 h-3 bg-red-500 -ml-1 rotate-45 transform -translate-y-1 shadow-md" />
-            <div className="absolute top-0 left-2 bg-red-600 text-white text-[9px] font-mono px-1 rounded shadow font-bold">
+            {/* Playhead Glow Trail */}
+            <div className="absolute top-0 bottom-0 -left-3 w-3 bg-gradient-to-r from-transparent to-red-500/20 opacity-80" />
+
+            {/* Playhead Head Marker */}
+            <div className="w-3.5 h-3.5 bg-red-500 -ml-1.5 rotate-45 transform -translate-y-1 shadow-lg shadow-red-500/50 border border-white/40" />
+
+            {/* Timecode Badge */}
+            <div className="absolute top-0 left-2.5 bg-red-600 text-white text-[9px] font-mono tabular-nums px-1.5 py-0.5 rounded shadow-lg shadow-red-600/30 font-bold border border-red-400/30 whitespace-nowrap">
               {playheadPosition.toFixed(2)}s
             </div>
           </div>
