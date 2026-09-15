@@ -17,7 +17,7 @@ export class ColorGradingEngine {
   /**
    * Generates WebGPU WGSL fragment shader code for 32-bit Float 3-Way Color Wheels & 3D LUT Evaluation
    */
-  getWGSLShaderCode(settings: ColorGradeSettings): string {
+  getWGSLShaderCode(_settings: ColorGradeSettings): string {
     return /* wgsl */ `
       struct ColorGradeUniforms {
         lift: vec3<f32>,

@@ -1,7 +1,7 @@
 export class WebAudioEngineManager {
   private ctx: AudioContext | null = null;
   private trackGainNodes: Map<string, GainNode> = new Map();
-  private isInitialized = false;
+  public isInitialized = false;
 
   init(sampleRate = 48000) {
     if (typeof window === 'undefined') return;
