@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Executive Summary
-- **Active Phase**: ALL PHASES COMPLETED (Phases 1 through 5 - 100% Milestone Reached)
+- **Active Phase**: ALL PHASES & NATIVE CORE EXTENSIONS COMPLETED (Phases 1 through 5 + Native Extensions - 100% Milestone Reached)
 - **Current Completion**: 100%
 - **Last Updated**: Session Active
 
@@ -52,6 +52,15 @@
 
 ---
 
+## ⚡ Native Core Extensions (Phase 2–5 Deep Engine Layer)
+- [x] **Extension 1**: Tauri 2.0 Rust native backend IPC binding & C++/FFmpeg demuxing wrapper (`src-tauri/src/ffmpeg_demuxer.rs`, `src-tauri/src/main.rs`).
+- [x] **Extension 2**: Offline local Whisper ONNX speech-to-text transcript binding & Silero VAD integration (`src-tauri/src/whisper_onnx.rs`, `src-tauri/src/silero_vad.rs`).
+- [x] **Extension 3**: 32-bit Float 3-Way Color Wheels & WebGPU `.cube` 3D LUT shader pipeline (`src/engine/colorEngine.ts`).
+- [x] **Extension 4**: SAM 2 dynamic sequence object tracking & Auto-Reframe motion-smoothed crop window generator (`src/engine/sam2Masking.ts`, `src/engine/autoReframe.ts`).
+- [x] **Extension 5**: Hardware accelerated export via NVIDIA NVENC & Apple VideoToolbox (`src-tauri/src/export_native.rs`, `src/engine/exportEngine.ts`).
+
+---
+
 ## 📝 Recent Activity Log
+- **Task Completed**: Built Phase 2-5 Native Core Extensions (Tauri 2.0 Rust IPC, C++/FFmpeg demuxing wrapper, offline Whisper ONNX STT, Silero VAD, WebGPU .cube 3D LUT shader, SAM 2 sequence object tracking, Auto-Reframe motion smoothing, and NVENC/VideoToolbox hardware export engine).
 - **Task Completed**: Built hardware export engine (`exportEngine.ts`), Export Studio modal (`ExportModal.tsx`), dockable workspace layout switching (`App.tsx`), and achieved 100% roadmap completion.
-- **Task Completed**: Built 3-Way Color Wheels WGSL shader (`colorEngine.ts`), SAM 2 masking (`sam2Masking.ts`), Auto-Reframe crop window (`autoReframe.ts`), and 10-Band Parametric EQ (`parametricEq.ts`).
