@@ -42,12 +42,22 @@ Entry format (copy this):
 - **Notable finding:** the Program Monitor renders its own status pill as **`Canvas2D`**, not `WebGPU` —
   the built app never initialised a WebGPU device, consistent with `webgpuRenderer.ts:69` having no
   pipeline. The UI badge is honest; the "WebGPU Render Pipeline Initialized" console message is not.
+- **Branch / PR:** `docs/consolidate-tracking-and-roadmap` → **PR #13** (open, mergeable_state
+  `clean`, 11 files, +1220/−198).
 - **Left undone:** Nothing in this change. All code tasks in `docs/ROADMAP.md` remain untouched;
   phase R0 is the current frontier.
 - **Next:** Claim **R0.1** — add `vitest`, write the first tests against the code that is already real
   (`snapping.ts`, `colorEngine.parseCubeLUT`, `autoReframe`, `parametricEq`). Do not begin any code
   feature before R0.1/R0.2 are done, or verification will collapse again.
 - **Blockers:** None.
+
+**Process note for future agents.** Pushing initially failed with HTTP 403 even after the account was
+granted collaborator access (`permissions.push` returned `true` while git still refused). Root cause:
+the `GITHUB_TOKEN` secret in the environment was a token whose own `Contents` permission was
+read-only — `x-oauth-scopes` was empty and the API returned *"Resource not accessible by
+integration"*. A repository role change does **not** grant a token permissions it does not already
+hold. If this recurs, check `x-oauth-scopes` and `GET /repos/{owner}/{repo}` `permissions` **before**
+changing collaborators; the fix is a token with `Contents: Read and write`.
 
 ---
 
