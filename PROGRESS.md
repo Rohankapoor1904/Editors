@@ -13,11 +13,11 @@
 | Metric | Value |
 | :--- | :--- |
 | **Frontier phase** | **R0 — Verification foundation** |
-| **Code phases complete** | **0 of 9** (R0–R8) |
+| **Code phases complete** | **0 of 9** (R0–R8); R0 tasks 1–2 done, R0 exit criteria not yet met |
 | **UI shell** | Working (React + Tailwind + Zustand) |
 | **Engine** | Largely stub — see `docs/GAP_ANALYSIS.md` |
-| **Tests** | **0** — no runner configured |
-| **CI** | **None** |
+| **Tests** | **23 passing** — `vitest`, 1 file, `src/__tests__/core.test.ts` |
+| **CI** | `.github/workflows/verify.yml` exists — build + test + lint + stub guard. **Execution unverified:** Actions jobs blocked by an account billing lock |
 | **Build verified** | **Yes** — `npm run build` (tsc + vite) passes; app serves and renders (see evidence log) |
 
 **Honest summary.** The previous tracker claimed 100% completion across five phases. The audit in
@@ -53,8 +53,8 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 
 | ID | Task | Phase | Status | Owner | File scope | Depends on |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **R0.1** | Add `vitest` + `@testing-library/react`, write first tests against already-real code | R0 | `todo` | — | `package.json`, `vite.config.ts`, `src/**/*.test.ts` | — |
-| **R0.2** | CI workflow: build + test + lint on every PR | R0 | `todo` | — | `.github/workflows/ci.yml` | R0.1 |
+| **R0.1** | Add `vitest` + `@testing-library/react`, write first tests against already-real code | R0 | `done` | `npm run test` → 23 passed | `package.json`, `src/__tests__/core.test.ts` | — |
+| **R0.2** | CI workflow: build + test + lint on every PR | R0 | `partial` | Workflow + working lint committed. **Not observed running** — Actions blocked by account billing lock | `.github/workflows/verify.yml`, `.eslintrc.cjs`, `package.json` | R0.1 |
 | **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `todo` | — | `src/services/*`, `src/engine/*` | R0.1 |
 | **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `todo` | — | `src-tauri/*` | R0.2 |
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `todo` | — | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
@@ -112,10 +112,10 @@ Derived from `docs/GAP_ANALYSIS.md`. Do not change a row to `real` without an ev
 | :--- | :--- | :--- |
 | UI shell / layout / workspace switching | `real` | Visually functional; `src/App.tsx`, `src/components/*` |
 | Zustand timeline store | `real` | `src/store/timelineStore.ts:117-211` |
-| Magnetic snapping | `real` | `src/utils/snapping.ts` — pending R0.1 test |
-| `.cube` LUT parser | `real` | `src/engine/colorEngine.ts:34-100` — pending R0.1 test |
-| Auto-reframe EMA smoothing | `real` | `src/engine/autoReframe.ts:34-73` — pending R0.1 test |
-| Parametric EQ node chain | `real` | `src/engine/parametricEq.ts:11-39` — pending R0.1 test |
+| Magnetic snapping | `real` | `src/utils/snapping.ts` — 6 tests in `src/__tests__/core.test.ts` |
+| `.cube` LUT parser | `real` | `src/engine/colorEngine.ts:34-100` — 4 tests, incl. `size^3*3` float count |
+| Auto-reframe EMA smoothing | `real` | `src/engine/autoReframe.ts:34-73` — still untested (R0.1 covered 3 of 4 modules) |
+| Parametric EQ node chain | `real` | `src/engine/parametricEq.ts:11-39` — still untested (needs Web Audio mock or offline context) |
 | Audio ducking gain automation | `real` | `src/engine/audioEngine.ts:33-43` |
 
 ### Stub / partial / missing
@@ -157,6 +157,9 @@ Each `real` claim gets a line proving it. Format: `<command or test> → <result
 | TypeScript is clean; production build succeeds | `npm run build` → `tsc` clean, `vite build` ✓ `1532 modules transformed, built in 2.08s` | 2025-09-15 |
 | Built app is servable | `npm run preview` + `curl -o /dev/null -w "%{http_code}" http://localhost:4173/` → `HTTP 200`, `dist/index.html` served | 2025-09-15 |
 | UI shell is genuinely `real` | Browser render of built app: TopBar, AssetBin (5 assets), Program Monitor, timeline with 4 tracks/clips, AI Copilot Console, tool selector all mount and render | 2025-09-15 |
+| R0.1 — test harness works and the real modules behave correctly | `npm run test` → `✓ src/__tests__/core.test.ts (23 tests) 8ms`, `Test Files 1 passed (1)`, `Tests 23 passed (23)` | 2025-09-15 |
+| R0.2 — lint executes | `npm run lint` → `✖ 6 problems (0 errors, 6 warnings)` — exit 0. Before this, ESLint *had no config file at all*, so the script never ran | 2025-09-15 |
+| R0.2 — build still green after adding tooling | `npm run build` → `tsc` clean, `vite build ✓ 1532 modules transformed` | 2025-09-15 |
 
 **Notable finding from the render:** the Program Monitor's own status pill reads **`Canvas2D`**, not
 `WebGPU` — the running build did not initialise a WebGPU device, consistent with
@@ -170,9 +173,9 @@ Initialized" console message is not.
 | Item | Status | Resolved by |
 | :--- | :--- | :--- |
 | `npm run build` never executed in this environment | verified passing ✓ | — |
-| No test runner configured | unverified | R0.1 |
-| No CI gate | unverified | R0.2 |
-| `npm run lint` cannot execute — `eslint` missing from `devDependencies` | broken | R0.2 |
+| No test runner configured | resolved ✓ | R0.1 |
+| No CI gate | workflow written; **execution blocked** — "The job was not started because your account is locked due to a billing issue" | R0.2 + owner action |
+| `npm run lint` cannot execute — `eslint` missing from `devDependencies` | resolved ✓ (config was also absent; `.eslintrc.cjs` added) | R0.2 |
 | `cargo check` never executed — no Rust toolchain in environment | unverified | R0.4 |
 | Tauri config references `src-tauri/icons/*`, directory absent from repo | broken | R0.4 |
 | `webgpuRenderer.ts` uses `any` throughout | debt | R4.1 |
@@ -184,7 +187,7 @@ Initialized" console message is not.
 
 | Phase | Name | Status | Exit criteria met |
 | :--- | :--- | :--- | :--- |
-| R0 | Verification foundation | `todo` | No |
+| R0 | Verification foundation | `partial` | No — R0.1/R0.2 done, R0.3/R0.4 pending |
 | R1 | Editorial core | `todo` | No |
 | R2 | Playback, decode, transport | `todo` | No |
 | R3 | Compositing, transforms, keyframes | `todo` | No |

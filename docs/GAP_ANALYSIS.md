@@ -51,7 +51,7 @@ present almost nowhere. Named files and descriptive comments are not implementat
 | 3 | "Integrate SAM 2 (Segment Anything) object tracking" | Single-frame mask is a **1×1 transparent PNG data URI**. Sequence tracking invents a trajectory with `Math.sin(i * 0.1) * 3`. No model, no inference. | `src/engine/sam2Masking.ts:34`, `:58`, `:70` |
 | 4 | "Build C++/Rust FFmpeg demuxing engine wrapper" | `probe_file` returns **fixed** `3840×2160 @ 59.94fps, 124.5s, h264` for any path. `extract_frames` synthesises frame metadata; no byte buffer is ever read. `filename` is derived from the string, nothing is opened. | `src-tauri/src/ffmpeg_demuxer.rs:44-48`, `:61-77` |
 | 5 | "Integrate NVIDIA NVENC and Apple VideoToolbox hardware exporters" | Only **builds an FFmpeg argument array**. Nothing is executed. The engine then runs a `setTimeout` loop stepping 0→100% and reports success. | `src/engine/exportEngine.ts:28-55`, `:79-84` |
-| 6 | "32-bit Float 3-Way Color Wheels & .cube LUT WebGPU shader" | Parser is real (§2.1) but **no shader exists**. `renderFrame` opens a render pass, clears, and ends it — the literal comment `// Draw quad with WebGPU fragment shader pipeline` sits above `passEncoder.end()` with no pipeline created. No `createShaderModule`, no WGSL anywhere in the repo. | `src/engine/webgpuRenderer.ts:59-71`; `find . -name '*.wgsl'` → empty |
+| 6 | "32-bit Float 3-Way Color Wheels & .cube LUT WebGPU shader" | **Corrected during follow-up verification.** A full WGSL fragment shader *does* exist: `colorEngine.getWGSLShaderCode()` emits a 3-way grade — temperature/tint, lift, gamma, gain, offset, contrast, saturation, and conditional trilinear LUT sampling. The earlier claim in this table that "no WGSL exists anywhere in the repo" was **wrong** and is retracted. The real defect is narrower but still fatal: the shader is **orphaned**. `getWGSLShaderCode` has **zero call sites** (`grep -rn getWGSLShaderCode src` returns only its definition), there is **no `createShaderModule`** anywhere in the codebase, and `renderFrame` opens a render pass and ends it with no pipeline. So the shader is never compiled and never reaches the GPU — it is `partial`, not `missing`. | `src/engine/colorEngine.ts:83-134` (shader source); `src/engine/webgpuRenderer.ts:54,70` (`createCommandEncoder` → `passEncoder.end()`, nothing between) |
 | 7 | "WebGPU YUV420p-to-RGB color conversion pipeline" | No YUV conversion code. No texture upload. `lutIntensity` is accepted in `RenderOptions` and never read. | `src/engine/webgpuRenderer.ts:1-6`, `:59-71` |
 | 8 | "Connect ReAct agent tool loop" | Two `if (lower.includes(...))` branches. No LLM, no tool schema, no planning, no tool-call validation. The tool specs in `docs/AGENT_TOOLS.md` are never referenced by code. | `src/services/agentOrchestrator.ts:22`, `:38` |
 | 9 | "Bi-directional text-to-timeline editing binding" | Transcript words are **hardcoded by #1**, so deleting a word ripples a range derived from fabricated timestamps. The direction works; the data is fiction. | `src/components/TranscriptEditor.tsx:14-17`, `:39-51` |
@@ -123,8 +123,16 @@ Stated explicitly so no reader over-trusts §2:
   Monitor, 4-track timeline with clips, AI Copilot Console, tool selector).
 - **Browser render additionally showed** the Program Monitor's own status pill reading **`Canvas2D`**
   rather than `WebGPU` — the running build initialised no WebGPU device. This independently corroborates
-  §2.2 #6/#7: there is no working WebGPU pipeline. The badge is honest; the
+  §2.2 #6/#7: there is no **working** WebGPU pipeline. The badge is honest; the
   "WebGPU Render Pipeline Initialized" console message is not.
+
+- **Correction to an earlier draft of this audit.** The first version of §2.2 #6 claimed "no WGSL
+  exists anywhere in the repo". Follow-up verification found that claim to be **false** and it has been
+  retracted in place. `colorEngine.ts:83-134` contains a complete WGSL fragment shader. The accurate
+  finding is that the shader is **orphaned** — zero call sites, no `createShaderModule`, so it never
+  compiles. This is recorded here rather than silently fixed because the audit's whole purpose is to
+  establish that claims must be checked against code, and that applies to this document too. Any reader
+  should treat any remaining unverified claim in §2 as a hypothesis, not a fact.
 - **`npm run lint` FAILS to execute:** `sh: 1: eslint: not found`. `eslint` is invoked by the script
   but is absent from `devDependencies`. Recorded as verification debt (R0.2).
 - **`cargo check` was NOT executed** — no Rust toolchain in the audit environment. The Rust modules may

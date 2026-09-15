@@ -61,12 +61,79 @@ changing collaborators; the fix is a token with `Contents: Read and write`.
 
 ---
 
+## 2025-09-15 — agent-A (OpenHands) — R0.1 + R0.2, plus Jules guardrails
+
+**Task:** R0.1 (test harness), R0.2 (CI gate), and hardening `AGENTS.md` against the failure mode
+that produced this repository's state.
+
+**Files touched:** `package.json`, `.eslintrc.cjs`, `src/__tests__/core.test.ts`,
+`.github/workflows/verify.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, `AGENTS.md`, `PROGRESS.md`,
+`docs/GAP_ANALYSIS.md`, `docs/WORKLOG.md`.
+
+**Did:**
+- Installed `vitest`, `@vitest/coverage-v8`, and the missing `eslint` + `@typescript-eslint` packages.
+  `eslint` was called by `npm run lint` but was absent from `devDependencies` **and** had no config
+  file, so that script had never actually run.
+- Added `test` / `test:watch` scripts; added `src/__tests__/core.test.ts` with 23 tests against the
+  modules confirmed `real` by the audit: snapping, keyframing, `.cube` LUT parsing,
+  `evaluateColorOnCPU`, and the WGSL generator.
+- Added `.eslintrc.cjs` and `.github/workflows/verify.yml` (build + test + lint + a stub guard).
+- Added `.github/PULL_REQUEST_TEMPLATE.md` with a mandatory "What is NOT verified" section.
+- Added `AGENTS.md` §10 "If you are Jules", and documented four new anti-patterns found this session.
+
+**Verified:**
+- `npm run test` → `✓ src/__tests__/core.test.ts (23 tests) 8ms`; `Test Files 1 passed (1)`;
+  `Tests 23 passed (23)` ✓
+- `npm run lint` → `✖ 6 problems (0 errors, 6 warnings)`, exit 0 ✓ (previously could not run at all)
+- `npm run build` → `tsc` clean, `vite build ✓ 1532 modules transformed` ✓
+
+**Correction made to my own prior work (important):** the previous session's `docs/GAP_ANALYSIS.md`
+claimed "no WGSL exists anywhere in the repo". That was **wrong**. `colorEngine.ts:83-134` contains a
+complete WGSL grading body (struct, bindings, `apply3WayColorGrade`). The accurate finding is narrower
+and was found *by a test I wrote*: the shader has **no `@fragment`/`@vertex` entry point** and **zero
+call sites**, so it can never be compiled into a pipeline. Retracted in place in `docs/GAP_ANALYSIS.md`
+§4 rather than silently fixed. This is the second false claim I have found in my own documents; the
+lesson is that the audit itself must be tested, which is exactly why R0.1 mattered.
+
+**Left undone:**
+- Tests for `autoReframe.ts` and `parametricEq.ts` (the other two `real` modules). The former is
+  pure and should be easy; the latter needs a Web Audio mock or an `OfflineAudioContext`.
+- R0.3 (explicit demo/live runtime mode; remove silent mock fallbacks) and R0.4 (`cargo check` in CI,
+  fix Tauri `icons/` + version pin). R0 exit criteria are therefore **not** met.
+- UI component tests — no `@testing-library/react` yet; only pure-logic modules are covered.
+
+**Next:** Claim **R0.3** next. It is the highest-value remaining item: every stub in this repo
+currently returns plausible fake data, and R0.3 is what turns those into loud failures so that the
+remaining 11 gaps become impossible to mistake for working features.
+
+**Blockers:** None.
+
+**CI could not actually execute (new finding, verified).** The `Verify` workflow was created and
+GitHub did pick it up, but the run failed in 4 seconds with **0 steps executed and no runner
+assigned**. The check-run annotation reads verbatim:
+
+> The job was not started because your account is locked due to a billing issue.
+
+This is an **account-level** condition on the repository owner, not a defect in the workflow. The YAML
+is valid, the `pull_request` trigger fires, and `allowed_actions: all` is set. Until the billing issue
+is resolved, **no GitHub Actions job can run on this repo** — so R0.2's workflow is written but its
+execution is unverified. `PROGRESS.md` records R0.2 as `done` (workflow and lint gate exist; lint
+passes locally) with this caveat attached, because the honest claim is "configured, not yet observed
+running".
+
+**Note for the human reviewer.** `AGENTS.md` §10 is written directly for Jules, and the PR template
+now requires an explicit "not verified" section. These are the two levers most likely to prevent a
+repeat: Jules reads `AGENTS.md` automatically, and the template forces the disclosure at merge time.
+
+---
+
 ## 2025-09-15 — agent-A (OpenHands) — audit of prior implementation round
 
 - **Did:** Audited the repository against the claims in the previous `PROGRESS.md` and merged PR
   titles #1–#12. Findings recorded in `docs/GAP_ANALYSIS.md`.
 - **Verified:** Static reading of all 36 source files. `grep` sweeps confirmed the absence of
-  `*.wgsl`, ONNX/ML dependencies, and any VLM/CLIP/SigLIP/ViT/OCR code.
+  ONNX/ML dependencies and any VLM/CLIP/SigLIP/ViT/OCR code. (One static claim from this entry was
+  later **disproven** — see the correction in the entry above.)
 - **Left undone:** No code changes; audit only.
 - **Next:** See entry above.
 - **Blockers:** None.
