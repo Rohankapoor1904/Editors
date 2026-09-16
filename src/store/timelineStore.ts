@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { TimelineState, Track, Clip } from '../types/timeline';
 import { secondsToRational, compareRational, RationalTime } from '../types/time';
 import { Command } from '../core/commands';
-import { AddTrackCommand, AddClipCommand, RemoveClipCommand } from '../core/commands/storeCommands';
+import { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand } from '../core/commands/storeCommands';
 import {
   SplitCommand,
   TrimCommand,
@@ -27,6 +27,7 @@ interface TimelineStoreActions {
   toggleMagneticSnapping: () => void;
   setZoomLevel: (zoom: number) => void;
   selectClip: (clipId: string, multiSelect?: boolean) => void;
+  toggleTrackState: (trackId: string, property: 'muted' | 'locked' | 'solo') => void;
   addTrack: (type: Track['type'], name?: string) => void;
   addClipToTrack: (trackId: string, clip: Clip) => void;
   removeClip: (clipId: string) => void;
@@ -234,6 +235,10 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
           : [...state.selectedClipIds, clipId]
         : [clipId],
     })),
+
+  toggleTrackState: (trackId, property) => {
+    get().executeCommand(new ToggleTrackStateCommand(trackId, property));
+  },
 
   addTrack: (type, name) => {
     const state = get();

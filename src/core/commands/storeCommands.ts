@@ -150,3 +150,32 @@ export class RippleDeleteCommand implements Command {
     return this.previousState;
   }
 }
+
+export class ToggleTrackStateCommand implements Command {
+  constructor(
+    private readonly trackId: string,
+    private readonly property: 'muted' | 'locked' | 'solo'
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    return {
+      ...state,
+      tracks: state.tracks.map((track) =>
+        track.id === this.trackId
+          ? { ...track, [this.property]: !track[this.property] }
+          : track
+      ),
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    return {
+      ...state,
+      tracks: state.tracks.map((track) =>
+        track.id === this.trackId
+          ? { ...track, [this.property]: !track[this.property] }
+          : track
+      ),
+    };
+  }
+}

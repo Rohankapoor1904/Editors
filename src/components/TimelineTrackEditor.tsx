@@ -47,12 +47,6 @@ const FilmstripPreview: React.FC = () => {
 
 export const TimelineTrackEditor: React.FC = () => {
   const [activeTool, setActiveTool] = useState<EditingTool>('select');
-  const [trackStates, setTrackStates] = useState<Record<string, { mute: boolean; solo: boolean; lock: boolean }>>({
-    track_v2: { mute: false, solo: false, lock: false },
-    track_v1: { mute: false, solo: false, lock: false },
-    track_a1: { mute: false, solo: false, lock: false },
-    track_a2: { mute: false, solo: false, lock: false },
-  });
 
   const {
     tracks,
@@ -61,6 +55,7 @@ export const TimelineTrackEditor: React.FC = () => {
     selectedClipIds,
     setPlayheadPosition,
     setZoomLevel,
+    toggleTrackState,
     selectClip,
     splitClip,
     trimClip,
@@ -69,16 +64,6 @@ export const TimelineTrackEditor: React.FC = () => {
   } = useTimelineStore();
 
   const totalDuration = 60; // 60 seconds view window
-
-  const toggleTrackState = (trackId: string, key: 'mute' | 'solo' | 'lock') => {
-    setTrackStates((prev) => ({
-      ...prev,
-      [trackId]: {
-        ...prev[trackId],
-        [key]: !prev[trackId]?.[key],
-      },
-    }));
-  };
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -227,7 +212,6 @@ export const TimelineTrackEditor: React.FC = () => {
         {/* Left Track Headers */}
         <div className="w-60 bg-dark-900 border-r border-subtle flex flex-col divide-y divide-subtle z-10 shadow-xl">
           {tracks.map((track) => {
-            const st = trackStates[track.id] || { mute: false, solo: false, lock: false };
             return (
               <div
                 key={track.id}
@@ -246,9 +230,9 @@ export const TimelineTrackEditor: React.FC = () => {
                 {/* Track Controls M/S/L */}
                 <div className="flex items-center space-x-1">
                   <button
-                    onClick={() => toggleTrackState(track.id, 'mute')}
+                    onClick={() => toggleTrackState(track.id, 'muted')}
                     className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      st.mute ? 'bg-red-600 text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                      track.muted ? 'bg-red-600 text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
                     }`}
                     title="Mute Track"
                   >
@@ -257,16 +241,16 @@ export const TimelineTrackEditor: React.FC = () => {
                   <button
                     onClick={() => toggleTrackState(track.id, 'solo')}
                     className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      st.solo ? 'bg-amber-500 text-black' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                      track.solo ? 'bg-amber-500 text-black' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
                     }`}
                     title="Solo Track"
                   >
                     S
                   </button>
                   <button
-                    onClick={() => toggleTrackState(track.id, 'lock')}
+                    onClick={() => toggleTrackState(track.id, 'locked')}
                     className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
-                      st.lock ? 'bg-indigo-accent text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                      track.locked ? 'bg-indigo-accent text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
                     }`}
                     title="Lock Track"
                   >
