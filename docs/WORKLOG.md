@@ -35,6 +35,21 @@ Entry format (copy this):
 - **Next:** Jules to complete R1.3, orchestrator will detect open PR, independently verify, auto-approve, and auto-merge.
 - **Blockers:** None.
 
+## 2026-09-16 — Jules — R1.3
+- **Did:** Implemented real ffprobe-backed media probe.
+  - Changed `importMediaFile` in `src/services/nativeBridge.ts` to take `file_path` as parameter and pass it to Tauri IPC.
+  - Updated `src-tauri/src/main.rs` signature for `open_media_file_dialog` to accept `file_path`.
+  - Replaced the mock implementation of `probe_file` in `src-tauri/src/ffmpeg_demuxer.rs` with real `Command::new("ffprobe")` call.
+  - Fixed broken TS usages.
+  - Added unit test in `src-tauri/src/ffmpeg_demuxer.rs` using ffmpeg generated test fixture.
+- **Verified:**
+  - `cd src-tauri && cargo test` -> ok.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> 38 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** R1.4
+
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
@@ -113,6 +128,20 @@ Entry format (copy this):
 - **Blockers:** GitHub Actions execution on repository remains subject to account billing status.
 
 ---
+## 2026-09-16 — Jules — R1.3
+- **Did:** Implemented real ffprobe-backed media probe.
+  - Changed `importMediaFile` in `src/services/nativeBridge.ts` to take `file_path` as parameter and pass it to Tauri IPC.
+  - Updated `src-tauri/src/main.rs` signature for `open_media_file_dialog` to accept `file_path`.
+  - Replaced the mock implementation of `probe_file` in `src-tauri/src/ffmpeg_demuxer.rs` with real `Command::new("ffprobe")` call.
+  - Fixed broken TS usages.
+  - Added unit test in `src-tauri/src/ffmpeg_demuxer.rs` using ffmpeg generated test fixture.
+- **Verified:**
+  - `cd src-tauri && cargo test` -> ok.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> 38 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** R1.4
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
@@ -145,6 +174,20 @@ Entry format (copy this):
 - **Blockers:** GitHub Actions execution on repository remains subject to account billing status.
 
 ---
+## 2026-09-16 — Jules — R1.3
+- **Did:** Implemented real ffprobe-backed media probe.
+  - Changed `importMediaFile` in `src/services/nativeBridge.ts` to take `file_path` as parameter and pass it to Tauri IPC.
+  - Updated `src-tauri/src/main.rs` signature for `open_media_file_dialog` to accept `file_path`.
+  - Replaced the mock implementation of `probe_file` in `src-tauri/src/ffmpeg_demuxer.rs` with real `Command::new("ffprobe")` call.
+  - Fixed broken TS usages.
+  - Added unit test in `src-tauri/src/ffmpeg_demuxer.rs` using ffmpeg generated test fixture.
+- **Verified:**
+  - `cd src-tauri && cargo test` -> ok.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> 38 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** R1.4
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
@@ -203,6 +246,20 @@ hold. If this recurs, check `x-oauth-scopes` and `GET /repos/{owner}/{repo}` `pe
 changing collaborators; the fix is a token with `Contents: Read and write`.
 
 ---
+## 2026-09-16 — Jules — R1.3
+- **Did:** Implemented real ffprobe-backed media probe.
+  - Changed `importMediaFile` in `src/services/nativeBridge.ts` to take `file_path` as parameter and pass it to Tauri IPC.
+  - Updated `src-tauri/src/main.rs` signature for `open_media_file_dialog` to accept `file_path`.
+  - Replaced the mock implementation of `probe_file` in `src-tauri/src/ffmpeg_demuxer.rs` with real `Command::new("ffprobe")` call.
+  - Fixed broken TS usages.
+  - Added unit test in `src-tauri/src/ffmpeg_demuxer.rs` using ffmpeg generated test fixture.
+- **Verified:**
+  - `cd src-tauri && cargo test` -> ok.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> 38 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** R1.4
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
@@ -282,6 +339,20 @@ now requires an explicit "not verified" section. These are the two levers most l
 repeat: Jules reads `AGENTS.md` automatically, and the template forces the disclosure at merge time.
 
 ---
+## 2026-09-16 — Jules — R1.3
+- **Did:** Implemented real ffprobe-backed media probe.
+  - Changed `importMediaFile` in `src/services/nativeBridge.ts` to take `file_path` as parameter and pass it to Tauri IPC.
+  - Updated `src-tauri/src/main.rs` signature for `open_media_file_dialog` to accept `file_path`.
+  - Replaced the mock implementation of `probe_file` in `src-tauri/src/ffmpeg_demuxer.rs` with real `Command::new("ffprobe")` call.
+  - Fixed broken TS usages.
+  - Added unit test in `src-tauri/src/ffmpeg_demuxer.rs` using ffmpeg generated test fixture.
+- **Verified:**
+  - `cd src-tauri && cargo test` -> ok.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> 38 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** R1.4
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
@@ -308,6 +379,20 @@ repeat: Jules reads `AGENTS.md` automatically, and the template forces the discl
 - **Blockers:** None.
 
 ---
+## 2026-09-16 — Jules — R1.3
+- **Did:** Implemented real ffprobe-backed media probe.
+  - Changed `importMediaFile` in `src/services/nativeBridge.ts` to take `file_path` as parameter and pass it to Tauri IPC.
+  - Updated `src-tauri/src/main.rs` signature for `open_media_file_dialog` to accept `file_path`.
+  - Replaced the mock implementation of `probe_file` in `src-tauri/src/ffmpeg_demuxer.rs` with real `Command::new("ffprobe")` call.
+  - Fixed broken TS usages.
+  - Added unit test in `src-tauri/src/ffmpeg_demuxer.rs` using ffmpeg generated test fixture.
+- **Verified:**
+  - `cd src-tauri && cargo test` -> ok.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> 38 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** R1.4
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
