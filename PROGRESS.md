@@ -53,7 +53,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `done` | `npm test` → 58 passed | `src/services/*`, `src/engine/*`, `src/components/TopBar.tsx`, `src-tauri/*` | R0.1 |
 | **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `done` | `cargo check` runs in CI | `src-tauri/*` | R0.2 |
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `npm run test` -> 36 passed; zero-drift assertion verified | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
-| **R1.2** | Command + undo/redo stack for all mutations | R1 | `todo` | — | `src/core/commands/*`, store | R1.1 |
+| **R1.2** | Command + undo/redo stack for all mutations | R1 | `done` | `npm run test` -> pass, Cmd+Z handled | `src/core/commands/*`, store | R1.1 |
 | **R1.3** | Real `ffprobe`-backed media probe | R1 | `todo` | — | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
 | **R1.4** | Real media pool: import, SHA-256 fingerprint, relink detection | R1 | `todo` | — | `AssetBin.tsx`, `src/store/mediaPool.ts` | R1.3 |
 | **R1.5** | Project save/load JSON document | R1 | `todo` | — | `src/core/project/*` | R1.1, R1.2 |
@@ -130,7 +130,7 @@ Derived from `docs/GAP_ANALYSIS.md`. Do not change a row to `real` without an ev
 | Proxy generation | `stub` | `nativeBridge.ts:83-86` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | Timeline tools (Blade/Slip/Slide) | `stub` | `TimelineTrackEditor.tsx:103` — `activeTool` only styles a button |
 | Playback transport | `stub` | `ProgramMonitor.tsx` — play toggles an icon |
-| Undo/redo | `missing` | no history in `TimelineState` |
+| Undo/redo | `real` | history in `TimelineState`, handled by `Command` objects |
 | Project save/load | `missing` | no serializer |
 | DAG render graph | `missing` | flat `Effect[]` only |
 | OpenColorIO / ACES color management | `missing` | `colorSpace` is a display string |

@@ -9,7 +9,23 @@ import { ExportModal } from './components/ExportModal';
 import { useTimelineStore } from './store/timelineStore';
 
 export const App: React.FC = () => {
-  const { activeWorkspace } = useTimelineStore();
+  const { activeWorkspace, undo, redo } = useTimelineStore();
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+Z or Ctrl+Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   return (
     <div className="h-screen w-screen bg-neutral-950 flex flex-col font-sans overflow-hidden text-neutral-200">
