@@ -9,7 +9,7 @@ module.exports = {
   rules: {
     // Stubs in this repo are deliberate and documented; unused params mark them.
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-explicit-any': 'off',
     'no-empty': ['error', { allowEmptyCatch: false }],
   },
 };
