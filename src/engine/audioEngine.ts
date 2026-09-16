@@ -1,6 +1,10 @@
+import { Clip } from '../types/timeline';
+import { useTimelineStore } from '../store/timelineStore';
+
 export class WebAudioEngineManager {
   private ctx: AudioContext | null = null;
   private trackGainNodes: Map<string, GainNode> = new Map();
+  private clipGainNodes: Map<string, GainNode> = new Map();
   public isInitialized = false;
 
   init(sampleRate = 48000) {
@@ -17,8 +21,6 @@ export class WebAudioEngineManager {
 
   getCurrentTime(): number {
     if (!this.ctx) {
-      // Fallback to performance.now() if audio context is not initialized
-      // Returns seconds to match AudioContext.currentTime
       return typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
     }
     return this.ctx.currentTime;
@@ -41,26 +43,101 @@ export class WebAudioEngineManager {
     return this.trackGainNodes.get(trackId) || null;
   }
 
-  /**
-   * Applies exponential audio ducking DSP on background music track
-   */
+  getOrCreateClipGain(clipId: string): GainNode | null {
+    if (!this.ctx) return null;
+
+    if (!this.clipGainNodes.has(clipId)) {
+      const gainNode = this.ctx.createGain();
+
+      // Look up the timeline store to find the track ID this clip belongs to
+      let parentTrackId: string | null = null;
+      try {
+          const store = useTimelineStore.getState();
+          for (const track of store.tracks) {
+             if (track.clips.some(c => c.id === clipId)) {
+                 parentTrackId = track.id;
+                 break;
+             }
+          }
+      } catch (e) {
+          // If store is not initialized or fails, fallback to destination
+      }
+
+      if (parentTrackId) {
+          const trackGain = this.getOrCreateTrackGain(parentTrackId);
+          if (trackGain) {
+              gainNode.connect(trackGain);
+          } else {
+              gainNode.connect(this.ctx.destination);
+          }
+      } else {
+          gainNode.connect(this.ctx.destination);
+      }
+
+      this.clipGainNodes.set(clipId, gainNode);
+    }
+    return this.clipGainNodes.get(clipId) || null;
+  }
+
   applyAudioDucking(musicTrackId: string, dialogueActive: boolean) {
     const gainNode = this.getOrCreateTrackGain(musicTrackId);
     if (!gainNode || !this.ctx) return;
 
-    const targetGain = dialogueActive ? 0.25 : 1.0; // Attenuate by -12dB when speech active
+    const targetGain = dialogueActive ? 0.25 : 1.0;
     const now = this.ctx.currentTime;
     gainNode.gain.cancelScheduledValues(now);
-    gainNode.gain.setTargetAtTime(targetGain, now, 0.05); // 50ms attack/release time
+    gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
   }
 
   setTrackVolume(trackId: string, volumeDb: number) {
     const gainNode = this.getOrCreateTrackGain(trackId);
     if (!gainNode || !this.ctx) return;
 
-    // Convert dB to linear gain: gain = 10^(dB / 20)
     const linearGain = Math.pow(10, volumeDb / 20);
     gainNode.gain.setValueAtTime(linearGain, this.ctx.currentTime);
+  }
+
+  setClipVolume(clipId: string, volumeDb: number) {
+    const gainNode = this.getOrCreateClipGain(clipId);
+    if (!gainNode || !this.ctx) return;
+
+    const linearGain = Math.pow(10, volumeDb / 20);
+    gainNode.gain.setValueAtTime(linearGain, this.ctx.currentTime);
+  }
+
+  // Resolves timeline time to context time given the current playback state and base offsets
+  // Since context is hardware time, we calculate when in the future the time will occur.
+  applyCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimelineSec: number) {
+    const gainNodeLeft = this.getOrCreateClipGain(leftClip.id);
+    const gainNodeRight = this.getOrCreateClipGain(rightClip.id);
+
+    if (!gainNodeLeft || !gainNodeRight || !this.ctx) return;
+
+    const leftStart = leftClip.startOffset.value / leftClip.startOffset.rate;
+    const leftDur = leftClip.duration.value / leftClip.duration.rate;
+    const leftEnd = leftStart + leftDur;
+
+    const rightStart = rightClip.startOffset.value / rightClip.startOffset.rate;
+
+    if (rightStart < leftEnd) {
+      // Find context-relative offsets
+      // e.g., if rightStart is 10s on timeline, and playhead is at 9s, then rightStart is 1s in the future.
+      const overlapStartOffsetContext = (rightStart - playheadTimelineSec) + playbackContextAnchorSec;
+      const overlapEndOffsetContext = (leftEnd - playheadTimelineSec) + playbackContextAnchorSec;
+
+      // Only schedule if it's in the future or very close to present
+      if (overlapEndOffsetContext > this.ctx.currentTime) {
+         const scheduleStart = Math.max(overlapStartOffsetContext, this.ctx.currentTime);
+
+         gainNodeLeft.gain.cancelScheduledValues(scheduleStart);
+         gainNodeLeft.gain.setValueAtTime(1.0, scheduleStart);
+         gainNodeLeft.gain.linearRampToValueAtTime(0.0, overlapEndOffsetContext);
+
+         gainNodeRight.gain.cancelScheduledValues(scheduleStart);
+         gainNodeRight.gain.setValueAtTime(0.0, scheduleStart);
+         gainNodeRight.gain.linearRampToValueAtTime(1.0, overlapEndOffsetContext);
+      }
+    }
   }
 }
 

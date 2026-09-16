@@ -5,3 +5,7 @@ export interface Command {
   invert: (state: TimelineState) => TimelineState;
   coalesceKey?: string;
 }
+
+export * from './edits';
+export { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand } from './storeCommands';
+export * from './audio';
