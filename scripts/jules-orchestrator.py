@@ -745,6 +745,17 @@ def reset_for_next_task(state):
 
 def advance(state, jules_key, gh_token, md):
     phase = state["phase"]
+    task_id = state.get("task_id")
+
+    # If the state is tracking a task that is already marked 'done' in PROGRESS.md (e.g. merged),
+    # reset to idle immediately so we dispatch the next claimable task.
+    if task_id:
+        queue_rows = parse_queue(md)
+        current_row = next((r for r in queue_rows if r["id"] == task_id), None)
+        if current_row and current_row.get("status") == "done":
+            log(f"Task {task_id} is already marked done in PROGRESS.md; resetting to idle for next task")
+            reset_for_next_task(state)
+            return advance(state, jules_key, gh_token, md)
 
     # ------------------------------------------------------------------ idle: dispatch
     if phase == "idle":
