@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
-import { rationalToSeconds, secondsToRational, createRational, addRational, compareRational } from '../types/time';
+import { rationalToSeconds, secondsToRational } from '../types/time';
 import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
+import { transportEngine } from '../engine/transport';
 
 export const ProgramMonitor: React.FC = () => {
   const { playheadPosition, metadata, setPlayheadPosition } = useTimelineStore();
@@ -10,8 +11,15 @@ export const ProgramMonitor: React.FC = () => {
   const [isWebGPUActive, setIsWebGPUActive] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('9:16');
   const [previewQuality, setPreviewQuality] = useState<'Full' | '1/2' | '1/4'>('Full');
-  const [isLooping, setIsLooping] = useState(false);
+  const [isLooping, setIsLooping] = useState(transportEngine.isLooping);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = transportEngine.subscribe((playing) => {
+      setIsPlaying(playing);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -41,18 +49,6 @@ export const ProgramMonitor: React.FC = () => {
       .padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames
       .toString()
       .padStart(2, '0')}`;
-  };
-
-  const stepFrame = (deltaFrames: number) => {
-    const isDropFrame = !Number.isInteger(metadata.fps);
-    const num = isDropFrame ? 1001 : 1;
-    const den = isDropFrame ? Math.round(metadata.fps * 1001) : Math.round(metadata.fps);
-
-    const delta = createRational(deltaFrames * num, den);
-    const newPos = addRational(playheadPosition, delta);
-    const zero = createRational(0, den);
-
-    setPlayheadPosition(compareRational(newPos, zero) < 0 ? zero : newPos);
   };
 
   return (
@@ -154,7 +150,7 @@ export const ProgramMonitor: React.FC = () => {
           </button>
 
           <button
-            onClick={() => stepFrame(-1)}
+            onClick={() => transportEngine.stepFrame(-1)}
             className="p-1.5 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors"
             title="Step Back 1 Frame (Left Arrow)"
           >
@@ -162,7 +158,7 @@ export const ProgramMonitor: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => transportEngine.togglePlayback()}
             className="p-2.5 bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-full text-white shadow-lg shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95"
             title="Play / Pause (Space)"
           >
@@ -170,7 +166,7 @@ export const ProgramMonitor: React.FC = () => {
           </button>
 
           <button
-            onClick={() => stepFrame(1)}
+            onClick={() => transportEngine.stepFrame(1)}
             className="p-1.5 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors"
             title="Step Forward 1 Frame (Right Arrow)"
           >
@@ -178,7 +174,10 @@ export const ProgramMonitor: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsLooping(!isLooping)}
+            onClick={() => {
+              transportEngine.toggleLoop();
+              setIsLooping(transportEngine.isLooping);
+            }}
             className={`p-1.5 rounded-lg transition-colors ${
               isLooping ? 'bg-indigo-950 text-indigo-300' : 'hover:bg-neutral-800 text-neutral-400 hover:text-white'
             }`}
