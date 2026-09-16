@@ -735,8 +735,8 @@ def parse_ts(iso):
 
 
 def reset_for_next_task(state):
-    """Clear the per-task fields but keep session_id so the next task reuses it."""
-    state.update({"phase": "idle", "task_id": None, "branch": None, "pr": None,
+    """Clear per-task fields and session_id so every new task starts in a fresh Jules session."""
+    state.update({"phase": "idle", "task_id": None, "session_id": None, "branch": None, "pr": None,
                   "fix_attempts": 0, "nudges": 0, "last_error_sig": None,
                   "last_update": None, "stuck_since": None})
 
@@ -760,26 +760,11 @@ def advance(state, jules_key, gh_token, md):
             log("no claimable task in the work queue (nothing todo, or all candidates have an open PR)")
             return "COMPLETED"
 
-        session_id = state.get("session_id")
-        reuse = bool(session_id)
-        if reuse:
-            st, sess = get_session(session_id, jules_key)
-            jstate = str(sess.get("state")) if isinstance(sess, dict) else "UNKNOWN"
-            # A COMPLETED session is idle and MUST be reused: Jules re-clones the repo for
-            # every new session, so minting one per task is both slower and costlier. Only a
-            # dead or unreachable session forces a fresh one.
-            if st != 200 or jstate in ("FAILED", "UNKNOWN", "None"):
-                log(f"session {session_id} not reusable (HTTP {st}, state {jstate})")
-                reuse = False
-
-        prompt = build_prompt(task, reuse)
-        if reuse:
-            st, data = send_message(session_id, prompt, jules_key)
-            log(f"reused session {session_id} for {task['id']} -> HTTP {st}")
-        else:
-            st, data = create_session(prompt, f"{task['id']} {task['task'][:60]}", jules_key)
-            session_id = data.get("id") if isinstance(data, dict) else None
-            log(f"created session {session_id} for {task['id']} -> HTTP {st}")
+        # Every new task starts in a brand new, clean Jules session from main
+        prompt = build_prompt(task, reuse=False)
+        st, data = create_session(prompt, f"{task['id']} {task['task'][:60]}", jules_key)
+        session_id = data.get("id") if isinstance(data, dict) else None
+        log(f"created fresh session {session_id} for new task {task['id']} -> HTTP {st}")
 
         if st not in (200, 201) or not session_id:
             log(f"dispatch failed: {data}")
@@ -790,7 +775,7 @@ def advance(state, jules_key, gh_token, md):
                       "fix_attempts": 0, "nudges": 0, "last_error_sig": None,
                       "last_update": None, "stuck_since": None,
                       "dispatched_at": now})
-        state["history"].append({"t": now, "ev": f"dispatch {task['id']}"})
+        state["history"].append({"t": now, "ev": f"dispatch {task['id']} (new session)"})
         return "COMPLETED"
 
     # ------------------------------------------------ awaiting_session / awaiting_fix
