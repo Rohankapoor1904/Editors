@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
+import { rationalToSeconds, secondsToRational } from '../types/time';
 import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical } from 'lucide-react';
 
 export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
@@ -79,7 +80,7 @@ export const TimelineTrackEditor: React.FC = () => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = clickX / zoomLevel;
-    setPlayheadPosition(Math.max(0, newTime));
+    setPlayheadPosition(secondsToRational(Math.max(0, newTime)));
   };
 
   const tools: { id: EditingTool; label: string; icon: React.ReactNode; key: string }[] = [
@@ -226,8 +227,8 @@ export const TimelineTrackEditor: React.FC = () => {
                       selectClip(clip.id);
                     }}
                     style={{
-                      left: `${clip.startOffset * zoomLevel}px`,
-                      width: `${clip.duration * zoomLevel}px`,
+                      left: `${rationalToSeconds(clip.startOffset) * zoomLevel}px`,
+                      width: `${rationalToSeconds(clip.duration) * zoomLevel}px`,
                     }}
                     className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate cursor-pointer transition-all shadow-md group relative overflow-hidden ${
                       track.type === 'video'
@@ -265,7 +266,7 @@ export const TimelineTrackEditor: React.FC = () => {
                     </div>
 
                     <span className="text-[9px] opacity-90 font-mono tabular-nums ml-2 shrink-0 bg-dark-950/70 px-1.5 py-0.5 rounded border border-white/10 relative z-10 backdrop-blur-sm">
-                      {clip.duration.toFixed(1)}s
+                      {rationalToSeconds(clip.duration).toFixed(1)}s
                     </span>
                   </div>
                 );
@@ -275,7 +276,7 @@ export const TimelineTrackEditor: React.FC = () => {
 
           {/* Animated Scrubbing Playhead Line, Glow Trail & Badge */}
           <div
-            style={{ left: `${playheadPosition * zoomLevel}px` }}
+            style={{ left: `${rationalToSeconds(playheadPosition) * zoomLevel}px` }}
             className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none transition-all duration-75 ease-out shadow-[0_0_12px_2px_rgba(239,68,68,0.5)]"
           >
             {/* Playhead Glow Trail */}
@@ -286,7 +287,7 @@ export const TimelineTrackEditor: React.FC = () => {
 
             {/* Timecode Badge */}
             <div className="absolute top-0 left-2.5 bg-red-600 text-white text-[9px] font-mono tabular-nums px-1.5 py-0.5 rounded shadow-lg shadow-red-600/30 font-bold border border-red-400/30 whitespace-nowrap">
-              {playheadPosition.toFixed(2)}s
+              {rationalToSeconds(playheadPosition).toFixed(2)}s
             </div>
           </div>
         </div>

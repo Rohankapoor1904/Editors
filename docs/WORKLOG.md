@@ -175,3 +175,16 @@ describe claims made at the time, **not verified reality** — several were disp
 **Reality check:** the deep-research documents were uploaded *after* the "100% complete" claim, and
 none of their core requirements (rational time, command stack, DAG graph, proxy system, multimodal
 AI, real ASR/export) were implemented. See `docs/GAP_ANALYSIS.md` §2–§3.
+
+
+## [2025-10-24] Agent Session — R1.1 Rational Time Model
+
+- **Agent**: Jules
+- **Objective**: Implement `RationalTime` and migrate float seconds in timeline types to prevent accumulation drift (Task R1.1).
+- **Work done**:
+  - Created `src/types/time.ts` with exact rational arithmetic functions (`addRational`, `subRational`, `compareRational`, `rationalToSeconds`, `secondsToRational`, `rationalToFrames`).
+  - Authored acceptance test in `src/__tests__/rationalTime.test.ts` simulating 1000 sequential additions of 1/59.94s and verifying zero drift, alongside proving the explicit failure of raw float addition.
+  - Refactored `Clip` properties and `TimelineState.playheadPosition` in `src/types/timeline.ts` to use `RationalTime`.
+  - Updated `useTimelineStore` initial state, action payloads, and `rippleDelete` logic.
+  - Resolved downstream compilation type-errors in `TimelineTrackEditor.tsx`, `AssetBin.tsx`, `ProgramMonitor.tsx`, `TranscriptEditor.tsx`, `agentOrchestrator.ts`, `snapping.ts`, and `core.test.ts`.
+- **Verification**: `npm run build`, `npm run test` (36/36 tests passed, including zero-drift), and `npm run lint` passed without regression.
