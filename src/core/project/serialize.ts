@@ -1,7 +1,7 @@
 import { TimelineState, Track, Clip } from '../../types/timeline';
 import { MediaAsset } from '../../store/mediaPool';
 import { ProjectDocumentSchema, MediaPoolAssetSchema, SequenceSchema, ProjectTrackSchema, ProjectClipSchema, RationalTimeSchema } from './schema';
-import { createRational, RationalTime } from '../../types/time';
+import { createRational } from '../../types/time';
 
 export function serializeProject(
   timelineState: TimelineState,
@@ -132,7 +132,7 @@ function serializeClip(clip: Clip): ProjectClipSchema {
     const convertKeyframes = (kfs: any[] | undefined) => kfs || [];
     const buildProp = (staticVal: number | null | undefined, kfs?: any[]) => {
       return {
-        static_value: staticVal ?? null,
+        static_value: staticVal ?? 0,
         keyframes: convertKeyframes(kfs)
       };
     };

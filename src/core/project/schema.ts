@@ -41,7 +41,7 @@ export interface ProjectClipSchema {
   transforms?: {
     position_x?: { static_value: number; keyframes: any[] };
     position_y?: { static_value: number; keyframes: any[] };
-    scale?: { static_value: number | null; keyframes: any[] };
+    scale?: { static_value: number; keyframes: any[] };
     rotation?: { static_value: number; keyframes: any[] };
     opacity?: { static_value: number; keyframes: any[] };
     blend_mode?: string;
