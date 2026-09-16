@@ -274,6 +274,21 @@ changing collaborators; the fix is a token with `Contents: Read and write`.
 - **Left undone:** None
 - **Next:** R1.3
 
+## 2026-09-16 — Jules — R1.4
+- **Did:** Implemented real media pool with SHA-256 fingerprinting and relink detection.
+  - Created `src/store/mediaPool.ts` (Zustand store) to manage assets (`addAsset`, `removeAsset`, `updateAssetStatus`, `relinkAsset`).
+  - Added async Rust native commands `get_file_fingerprint` (using `tokio::fs::File`, `sha2`, `hex`) and `check_file_exists` to `src-tauri/src/main.rs`.
+  - Added corresponding JS wrappers to `nativeBridge.ts`.
+  - Refactored `AssetBin.tsx` to read from and modify the real `useMediaPoolStore` instead of mocked local state.
+  - Added periodic offline checks in `AssetBin.tsx` and a functional "Relink" button for disconnected media.
+- **Verified:**
+  - `cd src-tauri && cargo check` -> pass.
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `npm run test` -> 38 tests passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** UI File Picker doesn't trigger a real desktop dialog yet, relies on an empty string mock for now in `demo` mode.
+- **Next:** R1.5
+
 ## 2025-09-15 — agent-A (OpenHands) — R0.1 + R0.2, plus Jules guardrails
 
 **Task:** R0.1 (test harness), R0.2 (CI gate), and hardening `AGENTS.md` against the failure mode

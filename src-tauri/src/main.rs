@@ -11,6 +11,32 @@ use whisper_onnx::{WhisperOnnxEngine, WhisperTranscriptNative};
 use silero_vad::{SileroVadEngine, SilenceSegmentNative};
 use export_native::{HardwareExportNative, ExportTaskConfig, FFmpegCommandSpec};
 
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+use sha2::{Sha256, Digest};
+
+#[tauri::command]
+async fn get_file_fingerprint(file_path: String) -> Result<String, String> {
+    let mut file = File::open(&file_path).await.map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 8192];
+
+    loop {
+        let count = file.read(&mut buffer).await.map_err(|e| format!("Failed to read file: {}", e))?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+
+    Ok(hex::encode(hasher.finalize()))
+}
+
+#[tauri::command]
+fn check_file_exists(file_path: String) -> Result<bool, String> {
+    Ok(std::path::Path::new(&file_path).exists())
+}
+
 #[tauri::command]
 fn open_media_file_dialog(file_path: String) -> Result<MediaProbeInfo, String> {
     FFmpegDemuxerEngine::probe_file(&file_path)
@@ -43,7 +69,9 @@ fn main() {
             demux_video_frames,
             run_whisper_stt,
             detect_vad_silence,
-            get_export_ffmpeg_command
+            get_export_ffmpeg_command,
+            get_file_fingerprint,
+            check_file_exists
         ])
         .run(tauri::generate_context!())
         .expect("error while running CineCraft AI Tauri application");

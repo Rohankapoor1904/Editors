@@ -55,7 +55,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `npm run test` -> 36 passed; zero-drift assertion verified | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
 | **R1.2** | Command + undo/redo stack for all mutations | R1 | `done` | `npm run test` -> pass, Cmd+Z handled | `src/core/commands/*`, store | R1.1 |
 | **R1.3** | Real `ffprobe`-backed media probe | R1 | `done` | `cargo test` passes, native probe implemented | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
-| **R1.4** | Real media pool: import, SHA-256 fingerprint, relink detection | R1 | `todo` | — | `AssetBin.tsx`, `src/store/mediaPool.ts` | R1.3 |
+| **R1.4** | Real media pool: import, SHA-256 fingerprint, relink detection | R1 | `done` | `npm test` passed, verified native IPC async command | `AssetBin.tsx`, `src/store/mediaPool.ts` | R1.3 |
 | **R1.5** | Project save/load JSON document | R1 | `todo` | — | `src/core/project/*` | R1.1, R1.2 |
 | **R1.6** | Real Split/Trim/Ripple Delete/Move/Overwrite commands | R1 | `todo` | — | `src/core/commands/edits.ts` | R1.2 |
 | **R1.7** | Wire Select/Blade/Slip/Slide tools to real behaviour | R1 | `todo` | — | `TimelineTrackEditor.tsx` | R1.6 |
