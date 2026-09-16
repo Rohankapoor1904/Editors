@@ -1,0 +1,43 @@
+Task: R1.8
+
+Output of `npm run build`:
+> cinecraft-ai-desktop@1.0.0 build
+> tsc && vite build
+vite v5.4.21 building for production...
+transforming...
+✓ 1537 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.50 kB │ gzip:  0.34 kB
+dist/assets/index-B9mlqUBh.css   37.36 kB │ gzip:  6.87 kB
+dist/assets/index-sqs3P_JW.js   240.09 kB │ gzip: 69.66 kB
+✓ built in 4.08s
+
+Output of `npm run test`:
+> cinecraft-ai-desktop@1.0.0 test
+> node scripts/verify-invariants.mjs && vitest run
+🔍 Running Mechanical Invariant Checks...
+✅ All mechanical invariants passed cleanly.
+ RUN  v2.1.9 /app
+ ✓ src/core/project/schema.test.ts (3 tests) 12ms
+ ✓ __tests__/core/commands/edits.test.ts (8 tests) 14ms
+ ✓ src/__tests__/core.test.ts (23 tests) 15ms
+ ✓ src/__tests__/rationalTime.test.ts (1 test) 6ms
+ ✓ src/__tests__/commands.test.ts (2 tests) 9ms
+ ✓ src/__tests__/runtimeMode.test.ts (12 tests) 14ms
+ Test Files  6 passed (6)
+      Tests  49 passed (49)
+   Start at  20:53:59
+   Duration  1.33s (transform 488ms, setup 0ms, collect 844ms, tests 70ms, environment 2ms, prepare 604ms)
+
+Output of `npm run lint`:
+> cinecraft-ai-desktop@1.0.0 lint
+> eslint . --ext .ts,.tsx
+
+Changed files:
+- src/components/TimelineTrackEditor.tsx
+- src/core/commands/storeCommands.ts
+- src/store/timelineStore.ts
+
+Honest Limitations:
+The `muting V1 excludes it from the render list` acceptance criteria cannot be thoroughly checked via the render pipeline right now, as `webgpuRenderer` does not yet accept track state data or a full render tree; that work belongs to task R2.2.
