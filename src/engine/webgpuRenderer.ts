@@ -1,8 +1,15 @@
+import yuvToRgbWgsl from './shaders/yuv_to_rgb.wgsl?raw';
+
 export interface RenderOptions {
   width: number;
   height: number;
   timecode: number;
   lutIntensity?: number;
+  yuvData?: {
+    y: Uint8Array;
+    u: Uint8Array;
+    v: Uint8Array;
+  };
 }
 
 export class WebGPURendererEngine {
@@ -10,6 +17,8 @@ export class WebGPURendererEngine {
   private device: any = null;
   private context: any = null;
   private isInitialized = false;
+  private pipeline: any = null;
+  private sampler: any = null;
 
   /**
    * Initializes WebGPU Device and Canvas Context
@@ -35,6 +44,46 @@ export class WebGPURendererEngine {
           format: presentationFormat,
           alphaMode: 'premultiplied',
         });
+
+        const shaderModule = this.device.createShaderModule({
+          label: 'YUV to RGB Shader',
+          code: yuvToRgbWgsl,
+        });
+
+        const bindGroupLayout = this.device.createBindGroupLayout({
+          entries: [
+            { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d', multisampled: false } },
+            { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d', multisampled: false } },
+            { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d', multisampled: false } },
+            { binding: 3, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+          ],
+        });
+
+        const pipelineLayout = this.device.createPipelineLayout({
+          bindGroupLayouts: [bindGroupLayout],
+        });
+
+        this.pipeline = this.device.createRenderPipeline({
+          layout: pipelineLayout,
+          vertex: {
+            module: shaderModule,
+            entryPoint: 'vs_main',
+          },
+          fragment: {
+            module: shaderModule,
+            entryPoint: 'fs_main',
+            targets: [{ format: presentationFormat }],
+          },
+          primitive: {
+            topology: 'triangle-list',
+          },
+        });
+
+        this.sampler = this.device.createSampler({
+          magFilter: 'linear',
+          minFilter: 'linear',
+        });
+
         this.isInitialized = true;
         console.log('[WebGPU Engine]: WebGPU Render Pipeline Initialized (32-bit Float Color Space)');
         return true;
@@ -48,7 +97,7 @@ export class WebGPURendererEngine {
   /**
    * Renders a YUV420p video frame with Rec.709 color conversion & 3D LUT shader processing
    */
-  renderFrame(_options: RenderOptions) {
+renderFrame(_options: RenderOptions) {
     if (!this.isInitialized || !this.device || !this.context) return;
 
     const commandEncoder = this.device.createCommandEncoder();
@@ -66,10 +115,60 @@ export class WebGPURendererEngine {
     };
 
     const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-    // Draw quad with WebGPU fragment shader pipeline
-    passEncoder.end();
 
+    let yTexture: any = null;
+    let uTexture: any = null;
+    let vTexture: any = null;
+
+    if (_options.yuvData && this.pipeline) {
+      // YUV420p dimensions
+      const yWidth = _options.width;
+      const yHeight = _options.height;
+      const uvWidth = Math.ceil(yWidth / 2);
+      const uvHeight = Math.ceil(yHeight / 2);
+
+      const createTexture = (data: Uint8Array, w: number, h: number) => {
+        const texture = this.device.createTexture({
+          size: [w, h, 1],
+          format: 'r8unorm',
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+
+        this.device.queue.writeTexture(
+          { texture },
+          data,
+          { bytesPerRow: w, rowsPerImage: h },
+          [w, h, 1]
+        );
+        return texture;
+      };
+
+      yTexture = createTexture(_options.yuvData.y, yWidth, yHeight);
+      uTexture = createTexture(_options.yuvData.u, uvWidth, uvHeight);
+      vTexture = createTexture(_options.yuvData.v, uvWidth, uvHeight);
+
+      const bindGroup = this.device.createBindGroup({
+        layout: this.pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: yTexture.createView() },
+          { binding: 1, resource: uTexture.createView() },
+          { binding: 2, resource: vTexture.createView() },
+          { binding: 3, resource: this.sampler },
+        ],
+      });
+
+      passEncoder.setPipeline(this.pipeline);
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.draw(3, 1, 0, 0);
+    }
+
+    passEncoder.end();
     this.device.queue.submit([commandEncoder.finish()]);
+
+    // Zero-copy / lifetime: release textures immediately after submission
+    if (yTexture) yTexture.destroy();
+    if (uTexture) uTexture.destroy();
+    if (vTexture) vTexture.destroy();
   }
 }
 
