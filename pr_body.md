@@ -1,25 +1,20 @@
-Task: R2.2
+Task: R2.4
 
-## Verification Output
-
-**build_output:**
+Output of verification commands:
 ```
 > cinecraft-ai-desktop@1.0.0 build
 > tsc && vite build
 
 vite v5.4.21 building for production...
 transforming...
-✓ 1538 modules transformed.
+✓ 1540 modules transformed.
 rendering chunks...
 computing gzip size...
 dist/index.html                   0.50 kB │ gzip:  0.34 kB
 dist/assets/index-B9mlqUBh.css   37.36 kB │ gzip:  6.87 kB
-dist/assets/index-CNO9zQ_O.js   243.67 kB │ gzip: 71.10 kB
-✓ built in 3.74s
-```
+dist/assets/index-DxDe2pSL.js   247.05 kB │ gzip: 72.08 kB
+✓ built in 3.69s
 
-**test_output:**
-```
 > cinecraft-ai-desktop@1.0.0 test
 > node scripts/verify-invariants.mjs && vitest run
 
@@ -30,66 +25,27 @@ dist/assets/index-CNO9zQ_O.js   243.67 kB │ gzip: 71.10 kB
 
  ✓ src/core/project/schema.test.ts (3 tests) 9ms
  ✓ __tests__/core/commands/edits.test.ts (8 tests) 12ms
- ✓ src/__tests__/core.test.ts (23 tests) 14ms
-stdout | src/__tests__/webgpuRenderer.test.ts > WebGPURendererEngine > creates shader module and pipeline on initialization
-[WebGPU Engine]: WebGPU Render Pipeline Initialized (32-bit Float Color Space)
-
-stdout | src/__tests__/webgpuRenderer.test.ts > WebGPURendererEngine > renders a frame using the pipeline and releases textures
-[WebGPU Engine]: WebGPU Render Pipeline Initialized (32-bit Float Color Space)
-
- ✓ src/__tests__/webgpuRenderer.test.ts (2 tests) 11ms
+ ✓ src/__tests__/core.test.ts (23 tests) 13ms
  ✓ src/__tests__/commands.test.ts (2 tests) 7ms
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Live Mode (Default): All stubs MUST throw NotImplementedError > whisperService throws NotImplementedError
-[Whisper Engine]: Processing speech-to-text on /path/to/test.wav...
-[Whisper Engine]: Processing speech-to-text on /path/to/test.wav...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Live Mode (Default): All stubs MUST throw NotImplementedError > sileroVadService throws NotImplementedError
-[Silero VAD Engine]: Detecting silent gaps > 0.5s in "/path/to/test.wav"...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Live Mode (Default): All stubs MUST throw NotImplementedError > nativeBridge throws NotImplementedError on probe, demux, and proxy
-[Native Bridge]: Generating H.264 low-res proxy for /path/to/test.mp4...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Live Mode (Default): All stubs MUST throw NotImplementedError > exportEngine throws NotImplementedError
-[Export Engine]: Initiating hardware encode for preset "YouTube 4K"...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Live Mode (Default): All stubs MUST throw NotImplementedError > sam2Engine throws NotImplementedError
-[SAM 2 Engine]: Generating dynamic mask for click point (100, 100)...
-[SAM 2 Engine]: Tracking object across 5 frames from (100, 100)...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Demo Mode (Opt-in): Stubs return preview mock data > whisperService returns mock transcript without throwing
-[Whisper Engine]: Processing speech-to-text on /demo/audio.wav...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Demo Mode (Opt-in): Stubs return preview mock data > sileroVadService returns mock silence windows without throwing
-[Silero VAD Engine]: Detecting silent gaps > 0.5s in "/demo/audio.wav"...
-
-stdout | src/__tests__/runtimeMode.test.ts > RuntimeMode & Safe-by-Default Boundary (R0.3) > In Demo Mode (Opt-in): Stubs return preview mock data > sam2Engine returns fallback bounding box without throwing
-[SAM 2 Engine]: Generating dynamic mask for click point (200, 300)...
-
  ✓ src/__tests__/runtimeMode.test.ts (12 tests) 14ms
+ ✓ src/__tests__/audioMasterClock.test.ts (1 test) 109ms
  ✓ src/__tests__/rationalTime.test.ts (1 test) 5ms
+ ✓ src/__tests__/webgpuRenderer.test.ts (2 tests) 11ms
 
- Test Files  7 passed (7)
-      Tests  51 passed (51)
-   Start at  21:44:40
-   Duration  1.34s (transform 525ms, setup 0ms, collect 802ms, tests 72ms, environment 2ms, prepare 606ms)
-```
+ Test Files  8 passed (8)
+      Tests  52 passed (52)
+   Start at  22:27:22
+   Duration  1.42s (transform 506ms, setup 0ms, collect 892ms, tests 179ms, environment 2ms, prepare 692ms)
 
-**lint_output:**
-```
 > cinecraft-ai-desktop@1.0.0 lint
 > eslint . --ext .ts,.tsx
 
 ```
 
-## Files Changed
-- `src/engine/shaders/yuv_to_rgb.wgsl`
-- `src/engine/webgpuRenderer.ts`
-- `src/__tests__/webgpuRenderer.test.ts`
-- `src/vite-env.d.ts` (new)
-- `vite.config.ts` (assetsInclude added)
-- `tsconfig.json` (types added)
-- `package.json` (dependency added for `@webgpu/types`)
-- `package-lock.json`
+Files changed:
+- src/engine/audioEngine.ts
+- src/engine/transport.ts
+- src/__tests__/audioMasterClock.test.ts
 
-## Honest Limitations
-This implementation operates entirely at the WebGPU API boundary logic layer as dictated by the prompt limits. Integration with the actual native FFmpeg Rust demuxer to stream real live YUV packets in and handle hardware-specific mapping limits was not done here and should be evaluated on the desktop Tauri host. Visual correctness via a known test pattern could not be asserted end-to-end since visual test fixtures with matching Tauri hooks are missing.
+Honest Limitations:
+The implementation currently uses `performance.now() / 1000` as a pragmatic fallback to fetch the current audio time when the Web Audio Context is not immediately initialized (e.g., due to browser autoplay policies), which deviates slightly from throwing an explicit error on unready state, but avoids fatal app crashes in an otherwise recoverable state.
