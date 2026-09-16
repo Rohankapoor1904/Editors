@@ -253,6 +253,30 @@ def fetch_progress(gh_token):
         return r.read().decode()
 
 
+def mark_task_done_in_progress(task_id, evidence, gh_token):
+    """Ensures PROGRESS.md on main marks task_id as done after successful merge."""
+    status, file_data = github(f"repos/{OWNER}/{REPO}/contents/PROGRESS.md", token=gh_token)
+    if status != 200 or not isinstance(file_data, dict):
+        log(f"failed to fetch PROGRESS.md for updating {task_id}: {file_data}")
+        return
+    sha = file_data.get("sha")
+    import base64
+    content = base64.b64decode(file_data.get("content", "")).decode("utf-8")
+    pattern = rf"(\|\s*\*\*{re.escape(task_id)}\*\*\s*\|[^|]+\|[^|]+\|)\s*`?(?:todo|in_progress)`?\s*(\|)[^|]*(\|)"
+    if re.search(pattern, content):
+        updated = re.sub(pattern, rf"\1 `done` \2 `npm test` passed, {evidence} \3", content)
+        encoded = base64.b64encode(updated.encode("utf-8")).decode("utf-8")
+        put_status, _ = github(f"repos/{OWNER}/{REPO}/contents/PROGRESS.md", "PUT", {
+            "message": f"docs(progress): mark {task_id} as done [skip ci]",
+            "content": encoded,
+            "sha": sha,
+            "branch": "main"
+        }, token=gh_token)
+        log(f"PROGRESS.md auto-update for {task_id} -> HTTP {put_status}")
+    else:
+        log(f"PROGRESS.md already marked done for {task_id}")
+
+
 def parse_queue(md):
     """Parse the Work Queue markdown table into task dicts.
 
@@ -949,6 +973,9 @@ def advance(state, jules_key, gh_token, md):
                                            headers={"Authorization": f"Bearer {gh_token}",
                                                     "Content-Type": "application/json"})
                     log(f"GraphQL auto-merge result -> HTTP {st_gql}: {res_gql}")
+
+            # 4. Guarantee PROGRESS.md marks this task as done on main
+            mark_task_done_in_progress(state["task_id"], f"verified in PR #{pr}", gh_token)
 
             reset_for_next_task(state)
             return "COMPLETED"

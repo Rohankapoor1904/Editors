@@ -1,3 +1,16 @@
+## 2026-09-17 — Antigravity — Mark R1.5 Done & Add Automated PROGRESS.md Sync on PR Merge
+- **Did:**
+  - Diagnosed why Task R1.5 was dispatched twice: PR #25 implemented R1.5 cleanly, but omitted updating `PROGRESS.md` from `todo` to `done`. When PR #25 was merged, `main` still showed `R1.5` as `todo`, prompting the orchestrator to re-dispatch R1.5.
+  - Marked Task R1.5 as `done` in `PROGRESS.md`.
+  - Added `mark_task_done_in_progress()` in `scripts/jules-orchestrator.py` to automatically update `PROGRESS.md` on `main` via the GitHub API whenever a task PR is auto-merged, permanently preventing missed tracker updates.
+- **Verified:**
+  - `npm test` -> 77 tests passed (including project schema roundtrip tests).
+  - `npm run lint` -> 0 errors.
+  - `py -m py_compile scripts/jules-orchestrator.py` -> 0 syntax errors.
+- **Left undone:** None.
+- **Next:** Push changes; orchestrator will advance to Task R1.6 (Real Split/Trim/Ripple Delete/Move/Overwrite commands).
+- **Blockers:** None.
+
 ## [$(date '+%Y-%m-%d')] Task R1.5 — Project save/load JSON document
 
 **Did:**
