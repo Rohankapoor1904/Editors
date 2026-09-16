@@ -1,11 +1,12 @@
 import { useTimelineStore } from '../store/timelineStore';
 import { secondsToRational, createRational, addRational, subRational, compareRational, RationalTime } from '../types/time';
+import { audioEngine } from './audioEngine';
 
 export type TransportStateListener = (isPlaying: boolean) => void;
 
 export class TransportEngine {
   private requestRef: number | null = null;
-  private playbackStartTimeMs: number = 0;
+  private playbackStartTimeSec: number = 0;
   private playbackStartPlayhead: RationalTime = createRational(0, 1);
   private isPlaying: boolean = false;
   public isLooping: boolean = false;
@@ -39,10 +40,12 @@ export class TransportEngine {
     }
 
     this.playbackStartPlayhead = useTimelineStore.getState().playheadPosition;
-    this.playbackStartTimeMs = performance.now();
 
-    // Note: R2.4 task dictates replacing this with audio engine clock, but for R2.3 we provide
-    // absolute time accumulation based on performance clock to prevent float accumulation.
+    // Resume audio context in case it's suspended (e.g. autoplay policy)
+    audioEngine.resumeContext().catch(e => console.error('Failed to resume audio context', e));
+
+    this.playbackStartTimeSec = audioEngine.getCurrentTime();
+
     this.requestRef = requestAnimationFrame(() => this.loop());
     this.notifyListeners();
   }
@@ -56,7 +59,7 @@ export class TransportEngine {
     }
 
     // Perform final sync to store
-    this.updatePlayheadPosition(performance.now());
+    this.updatePlayheadPosition(audioEngine.getCurrentTime());
 
     this.notifyListeners();
   }
@@ -94,7 +97,7 @@ export class TransportEngine {
     // If playing, we need to reset the anchor time so playback continues correctly from new pos
     if (this.isPlaying) {
       this.playbackStartPlayhead = targetPos;
-      this.playbackStartTimeMs = performance.now();
+      this.playbackStartTimeSec = audioEngine.getCurrentTime();
     }
   }
 
@@ -124,13 +127,13 @@ export class TransportEngine {
       this.cachedDuration = null;
   }
 
-  private updatePlayheadPosition(currentTimeMs: number) {
+  private updatePlayheadPosition(currentTimeSec: number) {
     const store = useTimelineStore.getState();
     const duration = this.getTimelineDuration();
 
-    const elapsedMs = currentTimeMs - this.playbackStartTimeMs;
+    const elapsedSec = currentTimeSec - this.playbackStartTimeSec;
     // Base 60000 rate is a good lowest common multiple for sequence timing
-    const elapsedRational = secondsToRational(elapsedMs / 1000, 60000);
+    const elapsedRational = secondsToRational(elapsedSec, 60000);
     let newPos = addRational(this.playbackStartPlayhead, elapsedRational);
 
     if (compareRational(duration, createRational(0, 1)) > 0) {
@@ -141,7 +144,7 @@ export class TransportEngine {
           newPos = remainder;
 
           // Re-anchor to prevent float wrapping drift and ensure seamless loop
-          this.playbackStartTimeMs = currentTimeMs;
+          this.playbackStartTimeSec = currentTimeSec;
           this.playbackStartPlayhead = newPos;
         } else {
           // Pause at end
@@ -159,7 +162,7 @@ export class TransportEngine {
   private loop() {
     if (!this.isPlaying) return;
 
-    this.updatePlayheadPosition(performance.now());
+    this.updatePlayheadPosition(audioEngine.getCurrentTime());
 
     if (this.isPlaying) {
       this.requestRef = requestAnimationFrame(() => this.loop());

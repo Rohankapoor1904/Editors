@@ -14,6 +14,22 @@ export class WebAudioEngineManager {
     }
   }
 
+
+  getCurrentTime(): number {
+    if (!this.ctx) {
+      // Fallback to performance.now() if audio context is not initialized
+      // Returns seconds to match AudioContext.currentTime
+      return typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+    }
+    return this.ctx.currentTime;
+  }
+
+  async resumeContext(): Promise<void> {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      await this.ctx.resume();
+    }
+  }
+
   getOrCreateTrackGain(trackId: string): GainNode | null {
     if (!this.ctx) return null;
 
