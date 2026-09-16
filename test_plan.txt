@@ -1,0 +1,36 @@
+Feedback to address:
+1. "The cache hit logic is fundamentally broken... audio-driven temporal queries won't perfectly match the exact PTS... the cache will miss on almost every frame."
+If they don't perfectly match, the caller is asking for a frame *nearest* to the requested time.
+But we can't do exact string matching if the caller asks for arbitrary time! Wait, how do video editors handle this? They map the requested timeline time to the *clip time*, and then find the closest decoded frame. If our cache key is just time, and time is arbitrary, we will always miss.
+To fix this, we should cache frames by their exact PTS (as we do now). But `getFrame` must find the *closest* frame in the cache instead of an exact match? No, if we do a linear search in the cache to find the closest, it's slow.
+Alternatively, the *caller* should request exact frame times! Wait, the prompt says "Audio is the master clock... never slave sequence timing to video frames". The playback loop asks for frames at current time.
+If the playback loop asks for `time`, we should return the frame that covers `time`. A frame covers `[pts, pts + frameDuration)`. We don't know `frameDuration` exactly. But if we cache it under the exact requested time, it's an alias. But aliasing caused a UAF bug before.
+How to alias safely? If we alias, the Map will have two keys pointing to the same FrameBuffer. If LRU eviction releases one, the other key points to a freed buffer.
+To fix aliasing: we can use a `WeakRef`? No. We can keep a reference count in `FrameBuffer`? `FrameBuffer` is defined in `nativeBridge.ts`. We cannot change it easily unless we wrap it in a `CacheEntry` that has a ref count. Or, we just don't alias in the Map, but we store a separate Map of `requestedTimeKey -> exactPtsKey`.
+Yes! A `keyAlias: Map<string, string>` that maps the requested time string to the actual frame's exact PTS string.
+When we evict `exactPtsKey`, we don't need to clean up `keyAlias` immediately (it can just result in a miss if `cache.get(exactPtsKey)` is undefined), or we can periodically clean it up.
+Wait, if the user asks for `T1`, we fetch, get frame at `PTS1`. We store `cache.set(PTS1, frame)`. We set `keyAlias.set(T1, PTS1)`. Next time they ask for `T1`, we look up `keyAlias`, get `PTS1`, and get it from `cache`. This solves the miss issue for identical queries!
+
+2. "identical temporal values with different timebases (e.g., 1/2 vs 2/4) will result in cache misses because the key generation doesn't normalize the RationalTime"
+I will use the `simplify(time)` function or just evaluate `time.value / time.rate` to a float? The prompt says "Converting a RationalTime to float... counts as a violation", but for a cache key, maybe we can simplify it. Wait, if we use `simplify`, `1/2` becomes `1/2`. Let's just use `simplify(time)` to normalize it before generating the key! But wait, `simplify` is exported from `src/types/time.ts` as `secondsToRational`? No, let me check `src/types/time.ts` again. It exports `createRational` and others. Is `simplify` exported? No, it's not exported. But I can implement GCD locally in `frameCache.ts` or just use the simplest form.
+
+3. "Use-After-Free (UAF) vulnerability. In executeFetch... targetFrame... can be evicted and have .release() called on it *before* the function even returns."
+To fix this, we should NOT put `targetFrame` in the cache until AFTER we have finished returning it? No, if we return it, it's in use. If it's in the cache, it can be evicted while in use.
+Wait! If the cache evicts a frame that is currently being used by the renderer, it crashes. In a real video editor, the cache MUST hold a reference count, and only `release` when ref count reaches 0. But we can't easily add ref counting to `FrameBuffer` without modifying it.
+If the cache returns a `FrameBuffer`, the renderer uses it and it is *responsible* for releasing it?
+The prompt says: "Zero-copy frame lifetime: release GPU and VideoFrame handles immediately after submission."
+Wait, `webgpuRenderer` does `frame.destroy()` or releases textures immediately. The `FrameBuffer` itself holds a `Uint8Array`.
+If the cache evicts it and calls `release()`, it sets `_data = null`.
+If the cache is an LRU cache, it keeps frames alive. If the renderer needs it, it gets it from the cache. If the cache evicts it while the renderer is using it... well, JS is single-threaded, so the renderer uses it synchronously right after `getOrFetchFrame` resolves. It won't be evicted during the same tick unless `executeFetch` evicts it!
+In `executeFetch`, we fetch N frames, and add them to the cache. Since we add N frames in a loop, if `N >= maxFrames`, the first frames added (including `targetFrame`) will be evicted in the SAME loop!
+To prevent this, `maxFrames` MUST be > `prefetchCount`. We should enforce `maxFrames = Math.max(config.maxFrames, config.prefetchCount + 5)`.
+Or, simply, we pin the `targetFrame` so it cannot be evicted during `executeFetch`. We can do this by updating its LRU position, but if `prefetchCount > maxFrames`, it's impossible to keep all. I'll just enforce `maxFrames > prefetchCount`.
+
+Wait, the prompt says "Zero-copy frame lifetime: release GPU and VideoFrame handles immediately after submission."
+If the renderer releases the frame immediately after submission, then the frame in the cache becomes INVALID!
+Wait, look at `webgpuRenderer.test.ts`:
+`engine.renderFrame` creates GPU textures from the `yuvData`, then `yTexture.destroy()` is called. It does NOT call `frame.release()` on the `FrameBuffer`.
+So the `FrameBuffer` (which holds CPU `Uint8Array`) is NOT destroyed by the renderer! The renderer only destroys the GPU textures it created. The cache manages the `FrameBuffer` lifetime.
+Therefore, the cache MUST call `release()` upon eviction.
+To fix the UAF in `executeFetch`: I will ensure `targetFrame` is the LAST thing added to the cache, so it is the most recently used and won't be evicted.
+Also I will add an `aliases: Map<string, string>` for time-to-PTS mapping.

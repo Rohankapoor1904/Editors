@@ -517,3 +517,28 @@ AI, real ASR/export) were implemented. See `docs/GAP_ANALYSIS.md` §2–§3.
 - **Left undone:** Nothing in scope.
 - **Next:** Implement R2.2 — WebGPU YUV420p→RGB WGSL shader.
 - **Blockers:** None.
+
+## [Jules] task-r2-6 — LRU Frame Cache + Backward Scrubbing
+
+**Did:**
+- Implemented `LRUFrameCache` in `src/engine/frameCache.ts` using zero-copy lifetime constraints.
+- Integrated `nativeBridge.demuxVideoFrames` asynchronously with fetch request batching to pull sequential frames off-thread efficiently without memory leaks, handling identical simultaneous queries using a shared promise map.
+- Implemented cache aliasing by resolving audio-driven arbitrary requested times (which do not perfectly align with video PTS) to the exactly matching exact PTS timestamp frame via an aliases map `Map<string, string>`.
+- Resolved cache aliasing to fix precision misses without violating invariant restrictions of exact-match key extraction, guaranteeing cache hits during playback matching arbitrary clock queries.
+- Precomputed fetch start time subtraction offset using explicit integer calculation to provide backward buffering via `backwardBufferSec` to enable cache-warm backward scrubbing.
+- Handled edge cases correctly for overlapping identical operations preventing duplication and properly releasing (`.release()`) identical duplicate memory frames to avert Use-After-Free crashes.
+- Authored test suites simulating exact PTS frame generation and hit-ratio verifications within `src/engine/frameCache.test.ts`.
+
+**Verified:**
+- `npm run lint` → passes cleanly.
+- `npm run build` → builds cleanly.
+- `npm test` → 62 passing tests.
+
+**Left undone:**
+- `LRUFrameCache` provides the foundation, but requires integration within the active timeline playback loop (presumably `ProgramMonitor` or `transportEngine`). It is self-contained currently.
+
+**Next:**
+- Integrate the LRU frame cache directly into the `webgpuRenderer.ts` or playback system for task R2.3 / R3.1.
+
+**Blockers:**
+- None for this stage.
