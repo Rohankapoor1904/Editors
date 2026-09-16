@@ -5,3 +5,6 @@ verification/
 
 # Transient state for the Jules orchestrator workflow
 .orchestrator/
+
+# Rust ignore
+src-tauri/target/
