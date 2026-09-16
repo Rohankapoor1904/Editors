@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
-import { rationalToSeconds, secondsToRational } from '../types/time';
+import { rationalToSeconds, secondsToRational, addRational } from '../types/time';
 import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical } from 'lucide-react';
 
 export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
@@ -62,6 +62,10 @@ export const TimelineTrackEditor: React.FC = () => {
     setPlayheadPosition,
     setZoomLevel,
     selectClip,
+    splitClip,
+    trimClip,
+    slipClip,
+    slideClip
   } = useTimelineStore();
 
   const totalDuration = 60; // 60 seconds view window
@@ -81,6 +85,88 @@ export const TimelineTrackEditor: React.FC = () => {
     const clickX = e.clientX - rect.left;
     const newTime = clickX / zoomLevel;
     setPlayheadPosition(secondsToRational(Math.max(0, newTime)));
+  };
+
+  const handleClipClick = (e: React.MouseEvent<HTMLDivElement>, clipId: string) => {
+    e.stopPropagation();
+    if (activeTool === 'select') {
+      selectClip(clipId);
+    } else if (activeTool === 'blade') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const splitTimeOffset = clickX / zoomLevel;
+
+      const track = tracks.find(t => t.clips.some(c => c.id === clipId));
+      if (!track || track.locked) return;
+      const clip = track.clips.find(c => c.id === clipId);
+      if (!clip) return;
+
+      const splitTime = addRational(clip.startOffset, secondsToRational(splitTimeOffset));
+
+      try {
+        splitClip(clipId, splitTime);
+      } catch (err) {
+        console.error("Failed to split clip", err);
+      }
+    }
+  };
+
+  const [dragState, setDragState] = useState<{
+    clipId: string;
+    type: 'trimIn' | 'trimOut' | 'slip' | 'slide';
+    startX: number;
+  } | null>(null);
+
+  const handlePointerDown = (
+    e: React.PointerEvent<HTMLDivElement>,
+    clipId: string,
+    type: 'trimIn' | 'trimOut' | 'slip' | 'slide'
+  ) => {
+    e.stopPropagation();
+
+    // Only allow operations if track is not locked
+    const track = tracks.find(t => t.clips.some(c => c.id === clipId));
+    if (track?.locked) return;
+
+    setDragState({
+      clipId,
+      type,
+      startX: e.clientX,
+    });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = () => {
+    if (!dragState) return;
+    // Visually update the dragging state here if needed
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState) return;
+    e.stopPropagation();
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
+    const deltaX = e.clientX - dragState.startX;
+    if (Math.abs(deltaX) > 0) {
+      const deltaSeconds = deltaX / zoomLevel;
+      const delta = secondsToRational(deltaSeconds);
+
+      try {
+        if (dragState.type === 'trimIn') {
+          trimClip(dragState.clipId, 'in', delta);
+        } else if (dragState.type === 'trimOut') {
+          trimClip(dragState.clipId, 'out', delta);
+        } else if (dragState.type === 'slip') {
+          slipClip(dragState.clipId, delta);
+        } else if (dragState.type === 'slide') {
+          slideClip(dragState.clipId, delta);
+        }
+      } catch (err) {
+        console.error(`Failed to apply ${dragState.type}`, err);
+      }
+    }
+
+    setDragState(null);
   };
 
   const tools: { id: EditingTool; label: string; icon: React.ReactNode; key: string }[] = [
@@ -222,15 +308,22 @@ export const TimelineTrackEditor: React.FC = () => {
                 return (
                   <div
                     key={clip.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      selectClip(clip.id);
+                    onClick={(e) => handleClipClick(e, clip.id)}
+                    onPointerDown={(e) => {
+                      if (activeTool === 'slip') {
+                        handlePointerDown(e, clip.id, 'slip');
+                      } else if (activeTool === 'slide') {
+                        handlePointerDown(e, clip.id, 'slide');
+                      }
                     }}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
                     style={{
                       left: `${rationalToSeconds(clip.startOffset) * zoomLevel}px`,
                       width: `${rationalToSeconds(clip.duration) * zoomLevel}px`,
+                      cursor: activeTool === 'blade' ? 'crosshair' : activeTool === 'slip' ? 'ew-resize' : activeTool === 'slide' ? 'move' : 'pointer'
                     }}
-                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate cursor-pointer transition-all shadow-md group relative overflow-hidden ${
+                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate transition-all shadow-md group relative overflow-hidden ${
                       track.type === 'video'
                         ? isSelected
                           ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white ring-2 ring-indigo-400 shadow-indigo-500/30'
@@ -248,10 +341,20 @@ export const TimelineTrackEditor: React.FC = () => {
                     )}
 
                     {/* Clip Edge Drag Handles (Hover / Glow Separators) */}
-                    <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-white/10 hover:bg-white/30 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-l">
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-2.5 bg-white/10 hover:bg-white/30 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-l z-20"
+                      onPointerDown={(e) => handlePointerDown(e, clip.id, 'trimIn')}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                    >
                       <GripVertical className="w-2.5 h-2.5 text-white/80" />
                     </div>
-                    <div className="absolute right-0 top-0 bottom-0 w-2.5 bg-white/10 hover:bg-white/30 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-r">
+                    <div
+                      className="absolute right-0 top-0 bottom-0 w-2.5 bg-white/10 hover:bg-white/30 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-r z-20"
+                      onPointerDown={(e) => handlePointerDown(e, clip.id, 'trimOut')}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                    >
                       <GripVertical className="w-2.5 h-2.5 text-white/80" />
                     </div>
 
