@@ -1,18 +1,7 @@
-import React, { useState } from 'react';
-import { Film, Music, FileText, Search, LayoutGrid, List, Plus, Play } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Film, Music, FileText, Search, LayoutGrid, List, Plus, Play, Link2Off } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
-import { useTimelineStore } from '../store/timelineStore';
-import { secondsToRational } from '../types/time';
-
-interface Asset {
-  id: string;
-  name: string;
-  type: 'video' | 'audio' | 'subtitle' | 'ai';
-  duration: string;
-  badge?: string;
-  fps?: string;
-  resolution?: string;
-}
+import { useMediaPoolStore, MediaAsset } from '../store/mediaPool';
 
 export const AssetBin: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -20,40 +9,65 @@ export const AssetBin: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [scrubPosition, setScrubPosition] = useState<{ [assetId: string]: number }>({});
 
-  const [assets, setAssets] = useState<Asset[]>([
-    { id: '1', name: 'Interview_Take1.mp4', type: 'video', duration: '00:02:14', badge: '4K H.264', resolution: '3840x2160', fps: '59.94' },
-    { id: '2', name: 'Product_Broll.mp4', type: 'video', duration: '00:00:45', badge: '1080p', resolution: '1920x1080', fps: '60' },
-    { id: '3', name: 'Upbeat_Lofi_Beat.mp3', type: 'audio', duration: '00:03:12', badge: '48kHz 24-bit' },
-    { id: '4', name: 'Transcript_Subtitles.srt', type: 'subtitle', duration: '00:02:14', badge: 'Whisper AI' },
-    { id: '5', name: 'AI_Generated_Broll.mp4', type: 'ai', duration: '00:00:15', badge: 'AI Generated', resolution: '1080x1920' },
-  ]);
+  const { assets, addAsset, updateAssetStatus, relinkAsset } = useMediaPoolStore();
 
-  const { addClipToTrack, tracks } = useTimelineStore();
+  // Optionally periodic check for offline files.
+  // In a real app we might watch files or check on focus.
+  useEffect(() => {
+    const checkOfflineStatus = async () => {
+      for (const asset of assets) {
+        try {
+          const exists = await nativeBridge.checkFileExists(asset.path);
+          if (asset.isOffline !== !exists) {
+            updateAssetStatus(asset.id, !exists);
+          }
+        } catch (err) {
+          console.warn('Failed to check file existence', err);
+        }
+      }
+    };
+    checkOfflineStatus();
+    const interval = setInterval(checkOfflineStatus, 5000);
+    return () => clearInterval(interval);
+  }, [assets, updateAssetStatus]);
 
   const handleImportMedia = async () => {
+    // A real file picker should allow selecting a file. Since native file dialog might
+    // mock to a specific path right now in `demo` mode, we use a placeholder path to initiate it.
     const meta = await nativeBridge.importMediaFile('/path/to/test.mp4');
     if (meta) {
-      const newAsset: Asset = {
+      const fingerprint = await nativeBridge.getFileFingerprint(meta.path);
+      const isOffline = !(await nativeBridge.checkFileExists(meta.path));
+
+      const newAsset: MediaAsset = {
         id: `asset_${Date.now()}`,
         name: meta.filename,
-        type: 'video',
+        path: meta.path,
+        type: meta.hasAudio && !meta.width ? 'audio' : 'video',
         duration: `00:00:${Math.floor(meta.durationSeconds).toString().padStart(2, '0')}`,
-        badge: 'Imported',
+        badge: meta.codec,
+        fps: meta.fps ? String(meta.fps) : undefined,
+        resolution: meta.width ? `${meta.width}x${meta.height}` : undefined,
+        fingerprint,
+        isOffline,
       };
-      setAssets((prev) => [newAsset, ...prev]);
 
-      const targetTrack = tracks.find((t) => t.id === 'track_v1') || tracks[0];
-      if (targetTrack) {
-        addClipToTrack(targetTrack.id, {
-          id: `clip_${Date.now()}`,
-          assetId: newAsset.id,
-          name: meta.filename,
-          startOffset: secondsToRational(25.0),
-          sourceIn: secondsToRational(0.0),
-          sourceOut: secondsToRational(meta.durationSeconds),
-          duration: secondsToRational(meta.durationSeconds),
-        });
-      }
+      addAsset(newAsset);
+    }
+  };
+
+  const handleRelink = async (e: React.MouseEvent, asset: MediaAsset) => {
+    e.stopPropagation();
+    // Prompt the user for a new file. If in `demo` mode, nativeBridge will mock the UI.
+    const meta = await nativeBridge.importMediaFile(''); // Empty string instructs the backend to open file dialog if possible
+    if (meta) {
+       const newFingerprint = await nativeBridge.getFileFingerprint(meta.path);
+       if (newFingerprint === asset.fingerprint) {
+         relinkAsset(asset.id, meta.path);
+       } else {
+         console.warn('Relink failed: New file fingerprint does not match original asset.');
+         // Optionally you'd show a toast notification here.
+       }
     }
   };
 
@@ -209,7 +223,15 @@ export const AssetBin: React.FC = () => {
                       />
                     )}
 
-                    {asset.badge && (
+                    {asset.isOffline ? (
+                       <button
+                         onClick={(e) => handleRelink(e, asset)}
+                         className="absolute top-1 left-1 bg-red-950/90 text-[9px] font-medium px-1.5 py-0.5 rounded text-red-400 border border-red-900/50 backdrop-blur z-20 flex items-center space-x-1 hover:bg-red-900"
+                       >
+                         <Link2Off className="w-3 h-3" />
+                         <span>Relink</span>
+                       </button>
+                    ) : asset.badge && (
                       <span className="absolute top-1 left-1 bg-dark-950/90 text-[9px] font-mono font-medium px-1.5 py-0.5 rounded text-neutral-300 border border-subtle backdrop-blur z-20">
                         {asset.badge}
                       </span>
@@ -220,15 +242,17 @@ export const AssetBin: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="mt-2">
-                    <div className="font-medium text-neutral-200 text-xs truncate group-hover:text-white">
-                      {asset.name}
-                    </div>
-                    {asset.resolution && (
-                      <div className="text-[10px] text-neutral-500 font-mono tabular-nums">
-                        {asset.resolution} {asset.fps ? `• ${asset.fps}fps` : ''}
+                  <div className="mt-2 flex justify-between items-start">
+                    <div className="overflow-hidden">
+                      <div className={`font-medium text-xs truncate group-hover:text-white ${asset.isOffline ? 'text-neutral-500 line-through' : 'text-neutral-200'}`}>
+                        {asset.name}
                       </div>
-                    )}
+                      {asset.resolution && (
+                        <div className="text-[10px] text-neutral-500 font-mono tabular-nums">
+                          {asset.resolution} {asset.fps ? `• ${asset.fps}fps` : ''}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -239,7 +263,7 @@ export const AssetBin: React.FC = () => {
             {filteredAssets.map((asset) => (
               <div
                 key={asset.id}
-                className="flex items-center justify-between p-2 rounded-panel bg-dark-900 border border-subtle hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all"
+                className={`flex items-center justify-between p-2 rounded-panel bg-dark-900 border hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all ${asset.isOffline ? 'border-red-900/30' : 'border-subtle'}`}
               >
                 <div className="flex items-center space-x-2.5 truncate">
                   {asset.type === 'video' || asset.type === 'ai' ? (
@@ -250,14 +274,25 @@ export const AssetBin: React.FC = () => {
                     <FileText className="w-4 h-4 text-amber-400 shrink-0" />
                   )}
                   <div className="truncate">
-                    <div className="font-medium text-neutral-200 text-xs truncate">{asset.name}</div>
+                    <div className={`font-medium text-xs truncate ${asset.isOffline ? 'text-neutral-500 line-through' : 'text-neutral-200'}`}>{asset.name}</div>
                     <div className="text-[9px] text-neutral-500 font-mono">{asset.badge || asset.type}</div>
                   </div>
                 </div>
 
-                <span className="text-[10px] text-neutral-400 font-mono tabular-nums shrink-0 ml-2">
-                  {asset.duration}
-                </span>
+                <div className="flex items-center space-x-2">
+                  {asset.isOffline && (
+                    <button
+                      onClick={(e) => handleRelink(e, asset)}
+                      className="px-2 py-0.5 bg-red-950/50 hover:bg-red-900 text-red-400 rounded text-[9px] border border-red-900/50 flex items-center space-x-1"
+                    >
+                      <Link2Off className="w-3 h-3" />
+                      <span>Relink</span>
+                    </button>
+                  )}
+                  <span className="text-[10px] text-neutral-400 font-mono tabular-nums shrink-0 ml-2">
+                    {asset.duration}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

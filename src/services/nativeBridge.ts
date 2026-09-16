@@ -101,6 +101,46 @@ export class NativeBridgeService {
     }
     return `${mediaPath}.proxy.mp4`;
   }
+
+  /**
+   * Invokes native command to calculate SHA-256 file fingerprint
+   */
+  async getFileFingerprint(filePath: string): Promise<string> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<string> } }).__TAURI_INTERNALS__.invoke('get_file_fingerprint', { filePath });
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Failed to get file fingerprint:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native File Fingerprint');
+    }
+
+    // Fallback web mock
+    return `mock_sha256_${filePath}`;
+  }
+
+  /**
+   * Checks if file exists on disk
+   */
+  async checkFileExists(filePath: string): Promise<boolean> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<boolean> } }).__TAURI_INTERNALS__.invoke('check_file_exists', { filePath });
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Failed to check file existence:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Check File Exists');
+    }
+
+    // Fallback web mock
+    return true;
+  }
 }
 
 export const nativeBridge = new NativeBridgeService();
