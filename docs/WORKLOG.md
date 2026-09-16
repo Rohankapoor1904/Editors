@@ -16,6 +16,23 @@ Entry format (copy this):
 
 ---
 
+## 2026-09-16 — Antigravity — Jules Orchestrator 24/7 Triggers & Conflict Fixes
+- **Did:** Fixed 24/7 continuous autonomous workflow execution and merge conflict verification:
+  - Enhanced `.github/workflows/jules-orchestrator.yml`: Added event-driven triggers (`push: branches: [main]`, `workflow_run: workflows: ["Verify"], types: [completed]`, `pull_request: types: [closed]`), 15-min fallback schedule, `issues: write` permission, and credential token fallback.
+  - Enhanced `scripts/jules-orchestrator.py`: Added trial merge conflict checking (`git merge --no-commit --no-ff origin/main`) in `verify_pr`, conflict marker detection in `audit_diff`, actionable resolution feedback in `format_feedback`, and conflict failure handling in `advance()`.
+  - Added handling for already-merged PRs so state doesn't freeze and immediately chains to dispatch the next claimable task.
+  - Pushed to `main` and verified live trigger on GitHub Actions: Run 35124026964 triggered on push, detected merged PR #22, and dispatched Task R1.2 to Jules.
+- **Verified:**
+  - `py -m py_compile scripts/jules-orchestrator.py` → clean syntax.
+  - Python unit tests on conflict detection, queue parsing, feedback formatting → all passed.
+  - `npm run lint` → 0 errors.
+  - `npm run build` → clean build.
+  - `npm test` → 72 tests passed.
+  - Live GitHub Actions run 35124026964 executed and dispatched `R1.2` (`state.json` updated with `"task_id": "R1.2"`).
+- **Left undone:** None.
+- **Next:** Jules to implement Task R1.2 (Command + undo/redo stack), open PR, and orchestrator to verify.
+- **Blockers:** None.
+
 ## 2026-09-16 — Jules — R0.4
 - **Did:** Added `cargo check` to CI and fixed Tauri config.
   - Added `.gitignore` to `src-tauri/` to ignore `target/`.
