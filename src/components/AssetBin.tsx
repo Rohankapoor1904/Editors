@@ -31,7 +31,7 @@ export const AssetBin: React.FC = () => {
   const { addClipToTrack, tracks } = useTimelineStore();
 
   const handleImportMedia = async () => {
-    const meta = await nativeBridge.importMediaFile();
+    const meta = await nativeBridge.importMediaFile('/path/to/test.mp4');
     if (meta) {
       const newAsset: Asset = {
         id: `asset_${Date.now()}`,

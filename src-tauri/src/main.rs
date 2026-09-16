@@ -12,8 +12,8 @@ use silero_vad::{SileroVadEngine, SilenceSegmentNative};
 use export_native::{HardwareExportNative, ExportTaskConfig, FFmpegCommandSpec};
 
 #[tauri::command]
-fn open_media_file_dialog() -> Result<MediaProbeInfo, String> {
-    FFmpegDemuxerEngine::probe_file("/user_media/sample_interview_4k.mp4")
+fn open_media_file_dialog(file_path: String) -> Result<MediaProbeInfo, String> {
+    FFmpegDemuxerEngine::probe_file(&file_path)
 }
 
 #[tauri::command]

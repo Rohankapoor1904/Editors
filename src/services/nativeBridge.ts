@@ -25,12 +25,12 @@ export class NativeBridgeService {
   /**
    * Invokes native open file dialog via Tauri 2.0 IPC or fallback web file API
    */
-  async importMediaFile(): Promise<MediaProbeMetadata | null> {
+  async importMediaFile(file_path: string): Promise<MediaProbeMetadata | null> {
     try {
       // Check if running inside Tauri 2.0 desktop shell
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
         // Native Tauri IPC invocation
-        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('open_media_file_dialog');
+        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('open_media_file_dialog', { filePath: file_path });
         return response;
       }
     } catch (err) {

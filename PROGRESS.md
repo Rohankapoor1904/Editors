@@ -54,7 +54,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `done` | `cargo check` runs in CI | `src-tauri/*` | R0.2 |
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `npm run test` -> 36 passed; zero-drift assertion verified | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
 | **R1.2** | Command + undo/redo stack for all mutations | R1 | `done` | `npm run test` -> pass, Cmd+Z handled | `src/core/commands/*`, store | R1.1 |
-| **R1.3** | Real `ffprobe`-backed media probe | R1 | `todo` | — | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
+| **R1.3** | Real `ffprobe`-backed media probe | R1 | `done` | `cargo test` passes, native probe implemented | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
 | **R1.4** | Real media pool: import, SHA-256 fingerprint, relink detection | R1 | `todo` | — | `AssetBin.tsx`, `src/store/mediaPool.ts` | R1.3 |
 | **R1.5** | Project save/load JSON document | R1 | `todo` | — | `src/core/project/*` | R1.1, R1.2 |
 | **R1.6** | Real Split/Trim/Ripple Delete/Move/Overwrite commands | R1 | `todo` | — | `src/core/commands/edits.ts` | R1.2 |
@@ -121,7 +121,7 @@ Derived from `docs/GAP_ANALYSIS.md`. Do not change a row to `real` without an ev
 | Whisper ONNX transcription | `stub` | `whisperTranscriber.ts:49`, `whisper_onnx.rs:26` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | Silero VAD silence detection | `stub` | `sileroVad.ts:46`, `silero_vad.rs:24` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | SAM 2 object tracking | `stub` | `sam2Masking.ts:34,58` — gated safe-by-default, throws `NotImplementedError` in live mode |
-| FFmpeg demux / media probe | `stub` | `ffmpeg_demuxer.rs:44-48` — gated safe-by-default, returns `Err` in live mode |
+| FFmpeg demux / media probe | `partial` | Media probe uses `ffprobe`, extraction still stubbed |
 | Hardware export (NVENC/VideoToolbox) | `stub` | `exportEngine.ts:28-55,79` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | WebGPU YUV→RGB render pipeline | `stub` | `webgpuRenderer.ts:69` — render pass with no shader module |
 | 3-way color wheels / LUT shader | `stub` | no WGSL anywhere in repo |
