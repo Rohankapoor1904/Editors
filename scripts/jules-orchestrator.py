@@ -168,15 +168,16 @@ def load_state():
 
 def save_state(state):
     state["history"] = state.get("history", [])[-40:]
-    if KV_TOKEN and KV_BASE:
-        kv_set(STATE_KEY, state)
-    elif STATE_FILE:
+    if STATE_FILE:
         try:
+            os.makedirs(os.path.dirname(os.path.abspath(STATE_FILE)), exist_ok=True)
             with open(STATE_FILE, "w", encoding="utf-8") as fh:
                 json.dump(state, fh, indent=1)
         except Exception as exc:                              # noqa: BLE001
             log(f"could not write state file {STATE_FILE}: {exc}")
-    else:
+    if KV_TOKEN and KV_BASE:
+        kv_set(STATE_KEY, state)
+    elif not STATE_FILE:
         log("no state store configured; progress will not persist between runs")
 
 
@@ -319,9 +320,12 @@ def open_pr_tasks(gh_token):
         return set()
     found = set()
     for pr in prs:
-        m = re.search(r"Task:\s*(R\d+\.\d+)", pr.get("body") or "")
-        if m:
-            found.add(m.group(1))
+        body = pr.get("body") or ""
+        title = pr.get("title") or ""
+        head = pr.get("head", {}).get("ref") or ""
+        for text in (body, title, head):
+            for m in re.finditer(r"\b(R\d+\.\d+)\b", text, re.I):
+                found.add(m.group(1).upper())
     return found
 
 
@@ -347,9 +351,12 @@ Declared file scope: {scope}
 
 ## Required process
 
-1. Commit a claim first, alone, before any implementation:
+1. Branch cleanly from the latest origin/main to prevent merge conflicts:
+   git fetch origin main
+   git checkout -b task-{task_slug} origin/main
+2. Commit a claim first, alone, before any implementation:
    chore: claim task {task_id}
-2. Implement within the declared scope. If you genuinely must touch files outside it, say
+3. Implement within the declared scope. If you genuinely must touch files outside it, say
    so explicitly in the PR description.
 
 ## Engineering invariants (AGENTS.md section 5 — non-negotiable)
@@ -387,17 +394,19 @@ command cannot run, write "unverified in <env>". Never imply verification that d
 
 REUSE_PREFIX = """This is a NEW task on an existing session, not a continuation of the previous task.
 
-Start clean: create a new branch from the latest origin/main before writing any code. Do not
-build on the previous task's branch. Open a separate pull request for this task, because the
-previous branch is already in review or merged.
+CRITICAL: Start completely clean from latest origin/main to prevent merge conflicts:
+1. `git fetch origin main`
+2. `git checkout -b task-{task_slug} origin/main`
+Do NOT build on the previous task's branch or commit on top of old commits. Open a separate pull request for this task, because the previous branch is already in review or merged.
 
 """
 
 
 def build_prompt(task, reuse):
     head = REUSE_PREFIX if reuse else ""
-    return head + DISPATCH_TEMPLATE.format(
-        task_id=task["id"], task=task["task"],
+    task_slug = re.sub(r"[^a-zA-Z0-9]+", "-", task["id"].lower()).strip("-")
+    return (head + DISPATCH_TEMPLATE).format(
+        task_id=task["id"], task=task["task"], task_slug=task_slug,
         owner=OWNER, repo=REPO, scope=task.get("scope") or "(not declared)")
 
 
@@ -429,14 +438,23 @@ def get_activities(session_id, key):
     return data.get("activities", [])
 
 
-def session_pr(session_id, gh_token):
-    """Find the PR Jules opened for this session, matched on the head branch name."""
-    status, prs = github(f"repos/{OWNER}/{REPO}/pulls?state=all&per_page=50", token=gh_token)
-    if status != 200 or not isinstance(prs, list):
-        return None
-    for pr in prs:
-        if session_id in pr.get("head", {}).get("ref", ""):
-            return pr
+def session_pr(session_id, gh_token, task_id=None):
+    """Find the PR Jules opened for this session. Checks open PRs first, then all PRs."""
+    sid_str = str(session_id) if session_id else ""
+    for state in ("open", "all"):
+        status, prs = github(f"repos/{OWNER}/{REPO}/pulls?state={state}&per_page=50", token=gh_token)
+        if status != 200 or not isinstance(prs, list):
+            continue
+        for pr in prs:
+            head = pr.get("head", {}).get("ref", "")
+            body = pr.get("body") or ""
+            title = pr.get("title") or ""
+            if sid_str and (sid_str in head or sid_str in body):
+                return pr
+            if task_id:
+                tid_lower = task_id.lower()
+                if tid_lower in head.lower() or f"task: {tid_lower}" in body.lower() or tid_lower in title.lower():
+                    return pr
     return None
 
 
@@ -514,6 +532,10 @@ def audit_diff(diff_text):
         if re.search(r"expect\(.*\)\.(toBe|toEqual)\(.*(mock|stub|fallback|demo)", added, re.I):
             findings.append(("TEST ASSERTS STUB", current, added.strip()))
 
+        # Check for unresolved git merge conflict markers
+        if re.match(r"^[<>=]{7}", added.strip()):
+            findings.append(("UNRESOLVED MERGE CONFLICT MARKER", current, added.strip()))
+
         for pat, label in MOCK_PATTERNS:
             if re.search(pat, added):
                 findings.append((f"POSSIBLE MOCK ({label})", current, added.strip()))
@@ -560,19 +582,54 @@ def verify_pr(pr_number, gh_token):
     scratch = tempfile.mkdtemp(prefix="jules-verify-")
     result = {"ok": False, "checks": {}, "audit": [], "files": []}
     try:
+        status, pr = github(f"repos/{OWNER}/{REPO}/pulls/{pr_number}", token=gh_token)
+        if status != 200 or not isinstance(pr, dict):
+            result["checks"]["pr"] = f"fetch failed ({status})"
+            return result
+
+        if pr.get("merged"):
+            result["ok"] = True
+            result["already_merged"] = True
+            result["checks"]["pr_status"] = "already merged into main"
+            return result
+
+        if pr.get("state") == "closed":
+            result["ok"] = False
+            result["closed_unmerged"] = True
+            result["checks"]["pr_status"] = "closed without merge"
+            return result
+
+        if pr.get("mergeable") is False or pr.get("mergeable_state") == "dirty":
+            result["checks"]["merge_conflict"] = "FAILING: GitHub reports PR branch has merge conflicts with base"
+
         rc, out = run(f"git clone --quiet https://x-access-token:{gh_token}@github.com/"
                       f"{OWNER}/{REPO}.git .", scratch, CLONE_TIMEOUT)
         if rc != 0:
             result["checks"]["clone"] = f"failed: {out[-200:]}"
             return result
 
-        status, pr = github(f"repos/{OWNER}/{REPO}/pulls/{pr_number}", token=gh_token)
-        if status != 200 or not isinstance(pr, dict):
-            result["checks"]["pr"] = f"fetch failed ({status})"
-            return result
         branch = pr["head"]["ref"]
         run(f"git fetch --quiet origin {branch}", scratch, 120)
         run("git checkout --quiet FETCH_HEAD", scratch, 120)
+
+        # Configure git identity for trial merge
+        run("git config user.name 'jules-orchestrator'", scratch, 10)
+        run("git config user.email 'jules-orchestrator@users.noreply.github.com'", scratch, 10)
+
+        # Test trial merge with origin/main to verify clean mergeability
+        rc_merge, merge_out = run("git merge --no-commit --no-ff origin/main", scratch, 60)
+        if rc_merge != 0:
+            rc_c, c_out = run("git diff --name-only --diff-filter=U", scratch, 30)
+            conflicts = [f.strip() for f in c_out.strip().splitlines() if f.strip()]
+            c_str = ", ".join(conflicts) if conflicts else "unresolved conflicts"
+            run("git merge --abort", scratch, 30)
+            result["checks"]["merge_conflict"] = f"FAILING: Branch has merge conflicts with origin/main in: {c_str}"
+            result["ok"] = False
+            return result
+        else:
+            run("git merge --abort", scratch, 30)
+            if "merge_conflict" not in result["checks"]:
+                result["checks"]["merge_conflict"] = "Cleanly merges with origin/main"
 
         rc, diff = run("git diff origin/main...HEAD", scratch, 120)
         result["files"] = re.findall(r"^\+\+\+ b/(.+)$", diff, re.M)
@@ -639,11 +696,27 @@ def format_feedback(task_id, result, branch):
         for label, path, code in result["audit"][:12]:
             lines.append(f"- {label} in {path}")
             lines.append(f"    {code[:150]}")
+
+    has_conflict = (any("conflict" in str(v).lower() for v in result["checks"].values())
+                    or any("conflict" in label.lower() for label, _, _ in result["audit"]))
+    if has_conflict:
+        lines += [
+            "",
+            "### [MERGE CONFLICT] Resolution Required:",
+            "Your branch has conflicts with origin/main or contains conflict markers. To resolve:",
+            "1. Fetch the latest origin/main: `git fetch origin main`",
+            "2. Merge origin/main into your branch: `git merge origin/main` (or rebase)",
+            "3. Carefully resolve all conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) in the files",
+            "4. Run `npm run build` and `npm run test` to verify everything compiles and passes",
+            "5. Commit and push the resolved changes to this same branch so the pull request updates.",
+        ]
+
     lines += ["", "Fix these on the SAME branch and push, so the existing PR updates in place.",
               "Do not open a new PR. Re-run npm run build, npm run test, npm run lint and paste",
               "the real output. If any part cannot be done for real, say so in an Honest",
               "Limitations section instead of marking it done."]
     return "\n".join(lines)
+
 
 
 def parse_ts(iso):
@@ -740,20 +813,32 @@ def advance(state, jules_key, gh_token, md):
                                          "ev": "fresh session after repeated failure"})
                 return "COMPLETED"
 
-            send_message(
-                session_id,
-                "Your previous attempt failed with:\n"
-                f"{reason}\n\n"
-                "That looks like an environment or session failure rather than a problem with "
-                "the task itself. Please continue: retry the pending instruction and push to the "
-                "same branch if a PR already exists. If the failure was genuinely caused by the "
-                "task, say so explicitly instead of retrying.",
-                jules_key)
+            if sig == "conflict":
+                msg = (
+                    f"Your previous attempt failed with a git merge conflict:\n"
+                    f"{reason}\n\n"
+                    "Please resolve the conflict against origin/main:\n"
+                    "1. Fetch the latest origin/main: `git fetch origin main`\n"
+                    "2. Rebase or merge: `git merge origin/main`\n"
+                    "3. Resolve all conflict markers cleanly\n"
+                    "4. Run `npm run build` and `npm run test`\n"
+                    "5. Commit and push your updated branch so the pull request updates in place."
+                )
+            else:
+                msg = (
+                    "Your previous attempt failed with:\n"
+                    f"{reason}\n\n"
+                    "That looks like an environment or session failure rather than a problem with "
+                    "the task itself. Please continue: retry the pending instruction and push to the "
+                    "same branch if a PR already exists. If the failure was genuinely caused by the "
+                    "task, say so explicitly instead of retrying."
+                )
+            send_message(session_id, msg, jules_key)
             state["last_error_sig"] = sig
             state["nudges"] = state.get("nudges", 0) + 1
             state["phase"] = "awaiting_session"
-            state["history"].append({"t": int(time.time()), "ev": "revive after failure"})
-            log("told session to continue")
+            state["history"].append({"t": int(time.time()), "ev": f"revive after {sig}"})
+            log(f"told session to continue (sig: {sig})")
             return "COMPLETED"
 
         if jstate in ("IN_PROGRESS", "QUEUED", "PLANNING", "PAUSED"):
@@ -779,7 +864,7 @@ def advance(state, jules_key, gh_token, md):
             return "COMPLETED"
 
         if jstate == "COMPLETED":
-            pr = session_pr(session_id, gh_token)
+            pr = session_pr(session_id, gh_token, state.get("task_id"))
             if not pr:
                 log("session COMPLETED but no PR found yet; re-checking next run")
                 state["last_update"] = None
@@ -787,8 +872,8 @@ def advance(state, jules_key, gh_token, md):
             state.update({"phase": "verifying", "pr": pr["number"],
                           "branch": pr["head"]["ref"]})
             state["history"].append({"t": int(time.time()), "ev": f"PR #{pr['number']} detected"})
-            log(f"PR #{pr['number']} detected")
-            return "COMPLETED"
+            log(f"PR #{pr['number']} detected; advancing immediately to verification")
+            return advance(state, jules_key, gh_token, md)
 
         log(f"unhandled session state {jstate}; waiting")
         return "COMPLETED"
@@ -801,8 +886,29 @@ def advance(state, jules_key, gh_token, md):
                                  "ev": f"verified PR #{pr}: ok={result['ok']}"})
         log(f"verification ok={result['ok']} checks={result['checks']}")
 
+        if result.get("already_merged"):
+            log(f"PR #{pr} is already merged into main; resetting for next task")
+            reset_for_next_task(state)
+            return advance(state, jules_key, gh_token, md)
+
+        if result.get("closed_unmerged"):
+            log(f"PR #{pr} was closed without merge; resetting for next task")
+            reset_for_next_task(state)
+            return advance(state, jules_key, gh_token, md)
+
         if result["ok"]:
             log(f"Task {state['task_id']} verified; PR #{pr} is ready for merge")
+            github(f"repos/{OWNER}/{REPO}/issues/{pr}/comments", "POST", {
+                "body": (f"✅ **Independent Verification Passed for Task {state['task_id']}**\n\n"
+                         f"All mechanical checks and semantic audits passed cleanly:\n"
+                         f"- Mergeability: Cleanly merges with `origin/main` (no merge conflicts)\n"
+                         f"- Build: `npm run build` passed\n"
+                         f"- Tests: `npm run test` passed (all tests and mechanical invariant checks green)\n"
+                         f"- Lint: `npm run lint` passed (0 errors)\n"
+                         f"- Invariant Audit: No stub fallbacks, no float time accumulation, no unresolved conflict markers\n\n"
+                         f"PR #{pr} is verified and ready for merge!\n\n"
+                         f"_This comment was posted by the OpenHands orchestrator on behalf of {OWNER}._")},
+                token=gh_token)
             reset_for_next_task(state)
             return "COMPLETED"
 
@@ -832,6 +938,7 @@ def advance(state, jules_key, gh_token, md):
     log(f"unknown phase {phase}; resetting")
     reset_for_next_task(state)
     return "COMPLETED"
+
 
 
 # ------------------------------------------------------------------------------- main

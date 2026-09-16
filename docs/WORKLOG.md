@@ -15,6 +15,36 @@ Entry format (copy this):
 ```
 
 ---
+## 2026-09-16 — Jules — R1.2
+- **Did:** Added Command pattern + undo/redo stack.
+  - Added `Command` interface to `src/core/commands/index.ts`.
+  - Implemented `AddTrackCommand`, `AddClipCommand`, `RemoveClipCommand`, `RippleDeleteCommand` in `src/core/commands/storeCommands.ts`.
+  - Migrated `timelineStore.ts` mutations to use `executeCommand`.
+  - Wired up `Cmd+Z`/`Cmd+Shift+Z` in `src/App.tsx`.
+  - Added tests in `src/__tests__/commands.test.ts`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> passed 38 tests, including undo/redo stack tests.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None
+- **Next:** R1.3
+
+## 2026-09-16 — Antigravity — Jules Orchestrator 24/7 Triggers & Conflict Fixes
+- **Did:** Fixed 24/7 continuous autonomous workflow execution and merge conflict verification:
+  - Enhanced `.github/workflows/jules-orchestrator.yml`: Added event-driven triggers (`push: branches: [main]`, `workflow_run: workflows: ["Verify"], types: [completed]`, `pull_request: types: [closed]`), 15-min fallback schedule, `issues: write` permission, and credential token fallback.
+  - Enhanced `scripts/jules-orchestrator.py`: Added trial merge conflict checking (`git merge --no-commit --no-ff origin/main`) in `verify_pr`, conflict marker detection in `audit_diff`, actionable resolution feedback in `format_feedback`, and conflict failure handling in `advance()`.
+  - Added handling for already-merged PRs so state doesn't freeze and immediately chains to dispatch the next claimable task.
+  - Pushed to `main` and verified live trigger on GitHub Actions: Run 35124026964 triggered on push, detected merged PR #22, and dispatched Task R1.2 to Jules.
+- **Verified:**
+  - `py -m py_compile scripts/jules-orchestrator.py` → clean syntax.
+  - Python unit tests on conflict detection, queue parsing, feedback formatting → all passed.
+  - `npm run lint` → 0 errors.
+  - `npm run build` → clean build.
+  - `npm test` → 72 tests passed.
+  - Live GitHub Actions run 35124026964 executed and dispatched `R1.2` (`state.json` updated with `"task_id": "R1.2"`).
+- **Left undone:** None.
+- **Next:** Jules to implement Task R1.2 (Command + undo/redo stack), open PR, and orchestrator to verify.
+- **Blockers:** None.
 
 ## 2026-09-16 — Jules — R0.4
 - **Did:** Added `cargo check` to CI and fixed Tauri config.
@@ -46,6 +76,19 @@ Entry format (copy this):
 - **Blockers:** GitHub Actions execution on repository remains subject to account billing status.
 
 ---
+## 2026-09-16 — Jules — R1.2
+- **Did:** Added Command pattern + undo/redo stack.
+  - Added `Command` interface to `src/core/commands/index.ts`.
+  - Implemented `AddTrackCommand`, `AddClipCommand`, `RemoveClipCommand`, `RippleDeleteCommand` in `src/core/commands/storeCommands.ts`.
+  - Migrated `timelineStore.ts` mutations to use `executeCommand`.
+  - Wired up `Cmd+Z`/`Cmd+Shift+Z` in `src/App.tsx`.
+  - Added tests in `src/__tests__/commands.test.ts`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> passed 38 tests, including undo/redo stack tests.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None
+- **Next:** R1.3
 
 ## 2026-09-16 — Antigravity — R0.3 + Keyframing Bezier + Multi-Agent Profiles
 - **Did:**
@@ -65,6 +108,19 @@ Entry format (copy this):
 - **Blockers:** GitHub Actions execution on repository remains subject to account billing status.
 
 ---
+## 2026-09-16 — Jules — R1.2
+- **Did:** Added Command pattern + undo/redo stack.
+  - Added `Command` interface to `src/core/commands/index.ts`.
+  - Implemented `AddTrackCommand`, `AddClipCommand`, `RemoveClipCommand`, `RippleDeleteCommand` in `src/core/commands/storeCommands.ts`.
+  - Migrated `timelineStore.ts` mutations to use `executeCommand`.
+  - Wired up `Cmd+Z`/`Cmd+Shift+Z` in `src/App.tsx`.
+  - Added tests in `src/__tests__/commands.test.ts`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> passed 38 tests, including undo/redo stack tests.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None
+- **Next:** R1.3
 
 ## 2025-09-15 — agent-A (OpenHands) — docs consolidation
 
@@ -110,6 +166,19 @@ hold. If this recurs, check `x-oauth-scopes` and `GET /repos/{owner}/{repo}` `pe
 changing collaborators; the fix is a token with `Contents: Read and write`.
 
 ---
+## 2026-09-16 — Jules — R1.2
+- **Did:** Added Command pattern + undo/redo stack.
+  - Added `Command` interface to `src/core/commands/index.ts`.
+  - Implemented `AddTrackCommand`, `AddClipCommand`, `RemoveClipCommand`, `RippleDeleteCommand` in `src/core/commands/storeCommands.ts`.
+  - Migrated `timelineStore.ts` mutations to use `executeCommand`.
+  - Wired up `Cmd+Z`/`Cmd+Shift+Z` in `src/App.tsx`.
+  - Added tests in `src/__tests__/commands.test.ts`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> passed 38 tests, including undo/redo stack tests.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None
+- **Next:** R1.3
 
 ## 2025-09-15 — agent-A (OpenHands) — R0.1 + R0.2, plus Jules guardrails
 
@@ -176,6 +245,19 @@ now requires an explicit "not verified" section. These are the two levers most l
 repeat: Jules reads `AGENTS.md` automatically, and the template forces the disclosure at merge time.
 
 ---
+## 2026-09-16 — Jules — R1.2
+- **Did:** Added Command pattern + undo/redo stack.
+  - Added `Command` interface to `src/core/commands/index.ts`.
+  - Implemented `AddTrackCommand`, `AddClipCommand`, `RemoveClipCommand`, `RippleDeleteCommand` in `src/core/commands/storeCommands.ts`.
+  - Migrated `timelineStore.ts` mutations to use `executeCommand`.
+  - Wired up `Cmd+Z`/`Cmd+Shift+Z` in `src/App.tsx`.
+  - Added tests in `src/__tests__/commands.test.ts`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> passed 38 tests, including undo/redo stack tests.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None
+- **Next:** R1.3
 
 ## 2025-09-15 — agent-A (OpenHands) — audit of prior implementation round
 
@@ -189,6 +271,19 @@ repeat: Jules reads `AGENTS.md` automatically, and the template forces the discl
 - **Blockers:** None.
 
 ---
+## 2026-09-16 — Jules — R1.2
+- **Did:** Added Command pattern + undo/redo stack.
+  - Added `Command` interface to `src/core/commands/index.ts`.
+  - Implemented `AddTrackCommand`, `AddClipCommand`, `RemoveClipCommand`, `RippleDeleteCommand` in `src/core/commands/storeCommands.ts`.
+  - Migrated `timelineStore.ts` mutations to use `executeCommand`.
+  - Wired up `Cmd+Z`/`Cmd+Shift+Z` in `src/App.tsx`.
+  - Added tests in `src/__tests__/commands.test.ts`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `CI=true npm run test` -> passed 38 tests, including undo/redo stack tests.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None
+- **Next:** R1.3
 
 ## 2025-09-14 — previous agents (historical, reconstructed)
 

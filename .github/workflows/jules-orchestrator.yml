@@ -9,8 +9,19 @@ name: Jules Orchestrator
 # OPENHANDS_API_KEY is injected — so it can never authenticate those calls.
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Run every 15 minutes to poll active Jules sessions and maintain 24/7 momentum
+    - cron: "*/15 * * * *"
   workflow_dispatch:
+  # Trigger immediately when any commit is merged or pushed to main (e.g. after a PR merge)
+  push:
+    branches: [main]
+  # Trigger when a PR is closed (merged or closed without merge)
+  pull_request:
+    types: [closed]
+  # Trigger whenever the Verify CI workflow completes on a PR or push
+  workflow_run:
+    workflows: ["Verify"]
+    types: [completed]
 
 concurrency:
   # The orchestrator keeps its state on the automation-state branch; overlapping runs
@@ -21,6 +32,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   orchestrate:
@@ -47,7 +59,8 @@ jobs:
       - name: Run orchestrator
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          GITHUB_OWNER_TOKEN: ${{ secrets.ORCHESTRATOR_GH_TOKEN }}
+          GITHUB_OWNER_TOKEN: ${{ secrets.ORCHESTRATOR_GH_TOKEN || secrets.GH_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.ORCHESTRATOR_GH_TOKEN || secrets.GH_TOKEN || github.token }}
           ORCHESTRATOR_STATE_FILE: .orchestrator/state.json
         run: python3 scripts/jules-orchestrator.py
 

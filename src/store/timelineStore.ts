@@ -1,8 +1,18 @@
 import { create } from 'zustand';
 import { TimelineState, Track, Clip } from '../types/timeline';
-import { secondsToRational, addRational, subRational, compareRational, RationalTime } from '../types/time';
+import { secondsToRational, compareRational, RationalTime } from '../types/time';
+import { Command } from '../core/commands';
+import { AddTrackCommand, AddClipCommand, RemoveClipCommand, RippleDeleteCommand } from '../core/commands/storeCommands';
+
+interface UndoState {
+  past: Command[];
+  future: Command[];
+}
 
 interface TimelineStoreActions {
+  executeCommand: (command: Command) => void;
+  undo: () => void;
+  redo: () => void;
   setPlayheadPosition: (time: RationalTime) => void;
   setWorkspace: (workspace: TimelineState['activeWorkspace']) => void;
   toggleMagneticSnapping: () => void;
@@ -14,9 +24,11 @@ interface TimelineStoreActions {
   rippleDelete: (startTime: RationalTime, duration: RationalTime) => void;
 }
 
-export type TimelineStore = TimelineState & TimelineStoreActions;
+export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
 
-const initialTimelineState: TimelineState = {
+const initialTimelineState: TimelineState & UndoState = {
+  past: [],
+  future: [],
   version: '1.0.0',
   projectId: 'proj_demo_01',
   metadata: {
@@ -132,8 +144,60 @@ const initialTimelineState: TimelineState = {
   ],
 };
 
-export const useTimelineStore = create<TimelineStore>((set) => ({
+export const useTimelineStore = create<TimelineStore>((set, get) => ({
   ...initialTimelineState,
+
+  executeCommand: (command: Command) => {
+    set((state) => {
+      let past = state.past;
+      if (command.coalesceKey && past.length > 0) {
+        const lastCommand = past[past.length - 1];
+        if (lastCommand.coalesceKey === command.coalesceKey) {
+          // Replace the last command if coalesce keys match
+          past = past.slice(0, past.length - 1);
+        }
+      }
+
+      const newState = command.apply(state);
+      return {
+        ...newState,
+        past: [...past, command],
+        future: [],
+      };
+    });
+  },
+
+  undo: () => {
+    set((state) => {
+      if (state.past.length === 0) return state;
+
+      const newPast = [...state.past];
+      const command = newPast.pop()!;
+      const newState = command.invert(state);
+
+      return {
+        ...newState,
+        past: newPast,
+        future: [command, ...state.future],
+      };
+    });
+  },
+
+  redo: () => {
+    set((state) => {
+      if (state.future.length === 0) return state;
+
+      const newFuture = [...state.future];
+      const command = newFuture.shift()!;
+      const newState = command.apply(state);
+
+      return {
+        ...newState,
+        past: [...state.past, command],
+        future: newFuture,
+      };
+    });
+  },
 
   setPlayheadPosition: (time) =>
     set(() => ({ playheadPosition: compareRational(time, secondsToRational(0)) < 0 ? secondsToRational(0) : time })),
@@ -156,58 +220,20 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
         : [clipId],
     })),
 
-  addTrack: (type, name) =>
-    set((state) => {
-      const newTrack: Track = {
-        id: `track_${type}_${Date.now()}`,
-        type,
-        index: state.tracks.length,
-        name: name || `${type.toUpperCase()} Track ${state.tracks.length + 1}`,
-        muted: false,
-        locked: false,
-        solo: false,
-        height: type === 'video' ? 64 : 56,
-        clips: [],
-      };
-      return { tracks: [...state.tracks, newTrack] };
-    }),
+  addTrack: (type, name) => {
+    const state = get();
+    get().executeCommand(new AddTrackCommand(type, name || `${type.toUpperCase()} Track ${state.tracks.length + 1}`, state.tracks.length));
+  },
 
-  addClipToTrack: (trackId, clip) =>
-    set((state) => ({
-      tracks: state.tracks.map((track) =>
-        track.id === trackId
-          ? { ...track, clips: [...track.clips, clip] }
-          : track
-      ),
-    })),
+  addClipToTrack: (trackId, clip) => {
+    get().executeCommand(new AddClipCommand(trackId, clip));
+  },
 
-  removeClip: (clipId) =>
-    set((state) => ({
-      selectedClipIds: state.selectedClipIds.filter((id) => id !== clipId),
-      tracks: state.tracks.map((track) => ({
-        ...track,
-        clips: track.clips.filter((c) => c.id !== clipId),
-      })),
-    })),
+  removeClip: (clipId) => {
+    get().executeCommand(new RemoveClipCommand(clipId));
+  },
 
-  rippleDelete: (startTime, duration) =>
-    set((state) => ({
-      tracks: state.tracks.map((track) => ({
-        ...track,
-        clips: track.clips
-          .filter(
-            (c) =>
-              !(
-                compareRational(c.startOffset, startTime) >= 0 &&
-                compareRational(addRational(c.startOffset, c.duration), addRational(startTime, duration)) <= 0
-              )
-          )
-          .map((c) => {
-            if (compareRational(c.startOffset, addRational(startTime, duration)) >= 0) {
-              return { ...c, startOffset: subRational(c.startOffset, duration) };
-            }
-            return c;
-          }),
-      })),
-    })),
+  rippleDelete: (startTime, duration) => {
+    get().executeCommand(new RippleDeleteCommand(startTime, duration));
+  },
 }));
