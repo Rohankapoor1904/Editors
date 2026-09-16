@@ -62,6 +62,39 @@ fn get_export_ffmpeg_command(config: ExportTaskConfig) -> Result<FFmpegCommandSp
     Ok(HardwareExportNative::build_ffmpeg_command(&config))
 }
 
+#[tauri::command]
+async fn save_project_file(json_content: String) -> Result<(), String> {
+    if let Some(file_path) = rfd::AsyncFileDialog::new()
+        .set_file_name("project.ccp")
+        .add_filter("CineCraft Project", &["ccp", "json"])
+        .save_file()
+        .await
+    {
+        tokio::fs::write(file_path.path(), json_content)
+            .await
+            .map_err(|e| format!("Failed to save project: {}", e))?;
+        Ok(())
+    } else {
+        Err("Cancelled".into())
+    }
+}
+
+#[tauri::command]
+async fn load_project_file() -> Result<String, String> {
+    if let Some(file_path) = rfd::AsyncFileDialog::new()
+        .add_filter("CineCraft Project", &["ccp", "json"])
+        .pick_file()
+        .await
+    {
+        let content = tokio::fs::read_to_string(file_path.path())
+            .await
+            .map_err(|e| format!("Failed to read project file: {}", e))?;
+        Ok(content)
+    } else {
+        Err("Cancelled".into())
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -71,7 +104,9 @@ fn main() {
             detect_vad_silence,
             get_export_ffmpeg_command,
             get_file_fingerprint,
-            check_file_exists
+            check_file_exists,
+            save_project_file,
+            load_project_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running CineCraft AI Tauri application");

@@ -141,6 +141,49 @@ export class NativeBridgeService {
     // Fallback web mock
     return true;
   }
+
+  /**
+   * Opens save file dialog and writes the project JSON to disk.
+   */
+  async saveProjectFile(jsonContent: string): Promise<void> {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<void> } }).__TAURI_INTERNALS__.invoke('save_project_file', { jsonContent });
+        return;
+      } catch (err) {
+        console.error('[Native Bridge]: Failed to save project file:', err);
+        throw err;
+      }
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Save Project Dialog');
+    }
+
+    // Demo Mode Web fallback
+    console.log('[Native Bridge (Demo)]: Would have saved project:', jsonContent.substring(0, 100) + '...');
+  }
+
+  /**
+   * Opens file dialog and reads project JSON from disk.
+   */
+  async loadProjectFile(): Promise<string> {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<string> } }).__TAURI_INTERNALS__.invoke('load_project_file');
+      } catch (err) {
+        console.error('[Native Bridge]: Failed to load project file:', err);
+        throw err;
+      }
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Load Project Dialog');
+    }
+
+    // Demo Mode Web fallback
+    throw new Error('Load Project not supported in Demo Mode web preview');
+  }
 }
 
 export const nativeBridge = new NativeBridgeService();

@@ -42,8 +42,27 @@ export const TopBar: React.FC = () => {
 
         <div className="h-4 w-[1px] bg-neutral-800" />
 
-        <nav className="hidden xl:flex items-center space-x-2.5 text-neutral-400 text-[11px] font-medium">
-          {['File', 'Edit', 'View', 'Clip', 'Sequence', 'Effects', 'Help'].map((item) => (
+        <nav className="hidden xl:flex items-center space-x-2.5 text-neutral-400 text-[11px] font-medium relative">
+          <div className="relative group">
+            <span className="hover:text-neutral-100 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-dark-800">
+              File
+            </span>
+            <div className="absolute left-0 top-full mt-1 w-40 bg-dark-900 border border-neutral-800 rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <button
+                onClick={() => import('../core/project/io').then(io => io.handleSaveProject())}
+                className="w-full text-left px-4 py-2 hover:bg-dark-800 text-neutral-300 hover:text-white transition-colors"
+              >
+                Save Project
+              </button>
+              <button
+                onClick={() => import('../core/project/io').then(io => io.handleLoadProject())}
+                className="w-full text-left px-4 py-2 hover:bg-dark-800 text-neutral-300 hover:text-white transition-colors"
+              >
+                Load Project
+              </button>
+            </div>
+          </div>
+          {['Edit', 'View', 'Clip', 'Sequence', 'Effects', 'Help'].map((item) => (
             <span
               key={item}
               className="hover:text-neutral-100 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-dark-800"

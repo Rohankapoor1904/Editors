@@ -9,19 +9,18 @@ export function serializeProject(
 ): string {
   const mediaPool: MediaPoolAssetSchema[] = assets.map(asset => {
     let duration: RationalTimeSchema | undefined;
-    // We try to parse "value/rate" or "HH:MM:SS" for duration as it's a string in MediaAsset
+
+    // Duration in MediaAsset is a string like "value/rate"
     if (asset.duration && asset.duration.includes('/')) {
         const parts = asset.duration.split('/');
-        duration = { value: parseInt(parts[0]), rate: parseInt(parts[1]) };
-    } else {
-        // Mock fallback to not break schema requirements of having a duration.
-        // Actually, schema duration is optional so we can omit it if we can't parse it.
-        // But our tests rely on duration being there, so let's try to pass 10s if we see "00:00:10"
-        if (asset.duration === '00:00:10') {
-            duration = { value: 10 * 24, rate: 24 }; // dummy 24fps
-        } else {
-            duration = { value: 0, rate: 24 }; // Default throw if we want but this is string fallback
+        duration = { value: parseInt(parts[0], 10), rate: parseInt(parts[1], 10) };
+        if (isNaN(duration.value) || isNaN(duration.rate) || duration.rate === 0) {
+           throw new Error(`Invalid duration fraction in asset ${asset.id}: ${asset.duration}`);
         }
+    } else if (asset.duration) {
+        throw new Error(`Duration format not supported in asset ${asset.id}, expected rational fraction string: ${asset.duration}`);
+    } else {
+        throw new Error(`Duration missing in asset ${asset.id}`);
     }
 
     return {

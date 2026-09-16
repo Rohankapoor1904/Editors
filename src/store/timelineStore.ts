@@ -22,6 +22,7 @@ interface TimelineStoreActions {
   addClipToTrack: (trackId: string, clip: Clip) => void;
   removeClip: (clipId: string) => void;
   rippleDelete: (startTime: RationalTime, duration: RationalTime) => void;
+  loadProjectState: (newState: Partial<TimelineState>) => void;
 }
 
 export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
@@ -235,5 +236,14 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
 
   rippleDelete: (startTime, duration) => {
     get().executeCommand(new RippleDeleteCommand(startTime, duration));
+  },
+
+  loadProjectState: (newState) => {
+    set((state) => ({
+      ...state,
+      ...newState,
+      past: [],
+      future: []
+    }));
   },
 }));

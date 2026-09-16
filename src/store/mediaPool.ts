@@ -19,6 +19,7 @@ interface MediaPoolState {
   removeAsset: (assetId: string) => void;
   updateAssetStatus: (assetId: string, isOffline: boolean) => void;
   relinkAsset: (assetId: string, newPath: string) => void;
+  loadAssets: (assets: MediaAsset[]) => void;
 }
 
 export const useMediaPoolStore = create<MediaPoolState>((set) => ({
@@ -54,4 +55,6 @@ export const useMediaPoolStore = create<MediaPoolState>((set) => ({
         a.id === assetId ? { ...a, path: newPath, isOffline: false } : a
       ),
     })),
+  loadAssets: (newAssets) =>
+    set({ assets: newAssets }),
 }));
