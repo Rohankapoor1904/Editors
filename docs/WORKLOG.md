@@ -16,6 +16,21 @@ Entry format (copy this):
 
 ---
 
+## 2026-09-16 — Jules — R0.4
+- **Did:** Added `cargo check` to CI and fixed Tauri config.
+  - Added `.gitignore` to `src-tauri/` to ignore `target/`.
+  - Added `src-tauri/build.rs` so Tauri can build.
+  - Generated missing icons in `src-tauri/icons/` using `@tauri-apps/cli`.
+  - Added `verify-rust` job to `.github/workflows/verify.yml`.
+  - Updated `PROGRESS.md` to track task completion.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build.
+  - `CI=true npm run test` -> tests pass.
+  - `npm run lint` -> 0 errors.
+  - `cd src-tauri && cargo check` -> passes locally.
+- **Left undone:** Github actions are still blocked.
+- **Next:** R1.1
+
 ## 2026-09-16 — Jules — R0.2 (CI + lint fix)
 
 - **Did:** Addressed the pending test blocking issue with `npm run test` in CI and fixed lint rules.

@@ -13,7 +13,7 @@
 | Metric | Value |
 | :--- | :--- |
 | **Frontier phase** | **R0 — Verification foundation** |
-| **Code phases complete** | **0 of 9** (R0–R8); R0 tasks R0.1, R0.2, R0.3 done (R0.2 with limitation); R0.4 pending |
+| **Code phases complete** | **0 of 9** (R0–R8); R0 tasks R0.1, R0.2, R0.3, R0.4 done (R0.2 with limitation) |
 | **UI shell** | Working (React + Tailwind + Zustand) with explicit Live/Demo mode indicator |
 | **Engine** | Gated stubs (safe-by-default throws `NotImplementedError` in Live mode; opt-in Demo mode for previews) |
 | **Tests** | **58 passing** — `node scripts/verify-invariants.mjs && vitest run`, 3 test suites (`core.test.ts`, `runtimeMode.test.ts`) |
@@ -51,7 +51,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R0.1** | Add `vitest` + `@testing-library/react`, write first tests against already-real code | R0 | `done` | `npm run test` → 23 passed | `package.json`, `src/__tests__/core.test.ts` | — |
 | **R0.2** | CI workflow: build + test + lint on every PR | R0 | `done` | Workflow + working lint committed. **Not observed running** — Actions blocked by account billing lock | `.github/workflows/verify.yml`, `.eslintrc.cjs`, `package.json` | R0.1 |
 | **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `done` | `npm test` → 58 passed | `src/services/*`, `src/engine/*`, `src/components/TopBar.tsx`, `src-tauri/*` | R0.1 |
-| **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `todo` | — | `src-tauri/*` | R0.2 |
+| **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `done` | `cargo check` runs in CI | `src-tauri/*` | R0.2 |
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `npm run test` -> 36 passed; zero-drift assertion verified | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
 | **R1.2** | Command + undo/redo stack for all mutations | R1 | `todo` | — | `src/core/commands/*`, store | R1.1 |
 | **R1.3** | Real `ffprobe`-backed media probe | R1 | `todo` | — | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
@@ -173,8 +173,8 @@ Initialized" console message is not.
 | No test runner configured | resolved ✓ | R0.1 |
 | No CI gate | workflow written; **execution blocked** — "The job was not started because your account is locked due to a billing issue" | R0.2 + owner action |
 | `npm run lint` cannot execute — `eslint` missing from `devDependencies` | resolved ✓ (config was also absent; `.eslintrc.cjs` added) | R0.2 |
-| `cargo check` never executed — no Rust toolchain in environment | unverified | R0.4 |
-| Tauri config references `src-tauri/icons/*`, directory absent from repo | broken | R0.4 |
+| `cargo check` never executed — no Rust toolchain in environment | resolved ✓ | R0.4 |
+| Tauri config references `src-tauri/icons/*`, directory absent from repo | resolved ✓ | R0.4 |
 | `webgpuRenderer.ts` uses `any` throughout | debt | R4.1 |
 | `TimelineTrackEditor.tsx` duplicates store state | debt | R1.8 |
 
@@ -184,7 +184,7 @@ Initialized" console message is not.
 
 | Phase | Name | Status | Exit criteria met |
 | :--- | :--- | :--- | :--- |
-| R0 | Verification foundation | `partial` | No — R0.1/R0.2/R0.3 done (R0.2 with limitation), R0.4 pending |
+| R0 | Verification foundation | `partial` | No — R0.1/R0.2/R0.3/R0.4 done (R0.2 with limitation) |
 | R1 | Editorial core | `todo` | No |
 | R2 | Playback, decode, transport | `todo` | No |
 | R3 | Compositing, transforms, keyframes | `todo` | No |
