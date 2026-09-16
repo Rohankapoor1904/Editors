@@ -494,3 +494,14 @@ AI, real ASR/export) were implemented. See `docs/GAP_ANALYSIS.md` §2–§3.
   - Updated `useTimelineStore` initial state, action payloads, and `rippleDelete` logic.
   - Resolved downstream compilation type-errors in `TimelineTrackEditor.tsx`, `AssetBin.tsx`, `ProgramMonitor.tsx`, `TranscriptEditor.tsx`, `agentOrchestrator.ts`, `snapping.ts`, and `core.test.ts`.
 - **Verification**: `npm run build`, `npm run test` (36/36 tests passed, including zero-drift), and `npm run lint` passed without regression.
+
+## 2025-10-25 — Jules — task-r2-1
+- **Did:** Replaced synthetic `extract_frames` in `src-tauri/src/ffmpeg_demuxer.rs` with `extract_frames_bytes` which directly calls `ffmpeg` and returns raw stdout bytes. Changed `nativeBridge.ts` to consume this raw buffer via Tauri 2.0 `tauri::ipc::Response` and wrapped it in a `FrameBuffer` class to enforce RAII explicit lifetime (`.release()`). Completely removed the demo web mock in `demuxVideoFrames` to fail loudly when Tauri isn't available. Tests pass cleanly.
+- **Verified:**
+  - `npm run build` → clean compilation.
+  - `cargo check --manifest-path src-tauri/Cargo.toml` → compiled successfully.
+  - `cargo test --manifest-path src-tauri/Cargo.toml` → both tests passed.
+  - `npm run test` → 49 tests passed across 6 files, explicitly confirming that `demuxVideoFrames` throws `NotImplementedError` when Tauri is absent.
+- **Left undone:** Nothing in scope.
+- **Next:** Implement R2.2 — WebGPU YUV420p→RGB WGSL shader.
+- **Blockers:** None.

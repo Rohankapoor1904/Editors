@@ -15,16 +15,6 @@ pub struct MediaProbeInfo {
     pub sample_rate: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DemuxedFrame {
-    pub frame_index: u64,
-    pub timestamp_pts: f64,
-    pub width: u32,
-    pub height: u32,
-    pub format: String, // e.g. "YUV420P" or "RGBA"
-    pub data_buffer_len: usize,
-}
-
 pub struct FFmpegDemuxerEngine;
 
 impl FFmpegDemuxerEngine {
@@ -125,22 +115,38 @@ impl FFmpegDemuxerEngine {
         })
     }
 
-    /// Extract video frame buffers at given timestamp interval using native demuxing
-    pub fn extract_frames(
+    /// Extract raw video frame buffers directly to avoid serialization overhead.
+    /// Returns raw YUV420P concatenated byte array.
+    pub fn extract_frames_bytes(
         file_path: &str,
-        _start_time_sec: f64,
-        _frame_count: u32,
-    ) -> Result<Vec<DemuxedFrame>, String> {
+        start_time_sec: f64,
+        frame_count: u32,
+    ) -> Result<Vec<u8>, String> {
         let path_obj = std::path::Path::new(file_path);
         if !path_obj.exists() {
             return Err(format!("Media file not found on disk: {}", file_path));
         }
 
-        // INVARIANT §5.5: Fail loudly rather than returning silent mock data on main path
-        Err(format!(
-            "Native frame extraction requires FFmpeg decoding pipeline integration (see Roadmap R2.1). File: {}",
-            file_path
-        ))
+        let output = Command::new("ffmpeg")
+            .args(&[
+                "-v", "error",
+                "-ss", &start_time_sec.to_string(),
+                "-i", file_path,
+                "-frames:v", &frame_count.to_string(),
+                "-f", "image2pipe",
+                "-pix_fmt", "yuv420p",
+                "-vcodec", "rawvideo",
+                "-",
+            ])
+            .output()
+            .map_err(|e| format!("Failed to execute ffmpeg for frame extraction: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("ffmpeg extraction error: {}", stderr));
+        }
+
+        Ok(output.stdout)
     }
 }
 
@@ -185,5 +191,39 @@ mod tests {
         // test missing file
         let missing_result = FFmpegDemuxerEngine::probe_file("/non/existent/path.mp4");
         assert!(missing_result.is_err());
+    }
+
+    #[test]
+    fn test_extract_frames() {
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let path = temp_file.path().to_str().unwrap().to_string();
+
+        // Create a 1s 320x240 10fps test file using ffmpeg
+        let output = Command::new("ffmpeg")
+            .args(&[
+                "-y", // overwrite
+                "-f", "lavfi",
+                "-i", "testsrc=size=320x240:rate=10",
+                "-t", "1",
+                "-c:v", "libx264",
+                "-f", "mp4",
+                &path,
+            ])
+            .output()
+            .expect("Failed to generate test video with ffmpeg");
+
+        assert!(output.status.success(), "ffmpeg generation failed: {}", String::from_utf8_lossy(&output.stderr));
+
+        let raw_bytes = FFmpegDemuxerEngine::extract_frames_bytes(&path, 0.0, 5).unwrap();
+        let expected_size = (320 * 240 * 3 / 2) as usize;
+        assert_eq!(raw_bytes.len(), expected_size * 5);
+
+        // checksum a mid-frame (frame index 2)
+        let mid_frame_start = 2 * expected_size;
+        let mid_frame_end = mid_frame_start + expected_size;
+        let mid_frame_bytes = &raw_bytes[mid_frame_start..mid_frame_end];
+
+        let sum: u64 = mid_frame_bytes.iter().map(|&b| b as u64).sum();
+        assert!(sum > 0);
     }
 }

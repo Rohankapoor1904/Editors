@@ -38,7 +38,7 @@ describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
 
     it('nativeBridge throws NotImplementedError on probe, demux, and proxy', async () => {
       await expect(nativeBridge.importMediaFile('/path/to/test.mp4')).rejects.toThrow(NotImplementedError);
-      await expect(nativeBridge.demuxVideoFrames('/path/to/test.mp4', 0, 10)).rejects.toThrow(NotImplementedError);
+      await expect(nativeBridge.demuxVideoFrames('/path/to/test.mp4', { value: 0, rate: 60000 }, 10)).rejects.toThrow(NotImplementedError);
       await expect(nativeBridge.generateProxy('/path/to/test.mp4')).rejects.toThrow(NotImplementedError);
     });
 
