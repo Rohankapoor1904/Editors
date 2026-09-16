@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Film, Music, FileText, Search, LayoutGrid, List, Plus, Play } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
 import { useTimelineStore } from '../store/timelineStore';
+import { secondsToRational } from '../types/time';
 
 interface Asset {
   id: string;
@@ -47,10 +48,10 @@ export const AssetBin: React.FC = () => {
           id: `clip_${Date.now()}`,
           assetId: newAsset.id,
           name: meta.filename,
-          startOffset: 25.0,
-          sourceIn: 0.0,
-          sourceOut: meta.durationSeconds,
-          duration: meta.durationSeconds,
+          startOffset: secondsToRational(25.0),
+          sourceIn: secondsToRational(0.0),
+          sourceOut: secondsToRational(meta.durationSeconds),
+          duration: secondsToRational(meta.durationSeconds),
         });
       }
     }

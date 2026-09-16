@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { whisperService, WordTimestamp } from '../services/whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
+import { rationalToSeconds, secondsToRational } from '../types/time';
 import { FileText, Trash2, Play } from 'lucide-react';
 
 export const TranscriptEditor: React.FC = () => {
@@ -21,7 +22,7 @@ export const TranscriptEditor: React.FC = () => {
       );
     } else {
       setSelectedWordIds([word.id]);
-      setPlayheadPosition(word.startTime);
+      setPlayheadPosition(secondsToRational(word.startTime));
     }
   };
 
@@ -35,7 +36,7 @@ export const TranscriptEditor: React.FC = () => {
     const duration = maxEnd - minStart;
 
     // Execute automated ripple delete on timeline EDL
-    rippleDelete(minStart, duration);
+    rippleDelete(secondsToRational(minStart), secondsToRational(duration));
 
     // Remove deleted words from transcript view
     setWords((prev) => prev.filter((w) => !selectedWordIds.includes(w.id)));
@@ -64,7 +65,7 @@ export const TranscriptEditor: React.FC = () => {
       {/* Word-Level Interactive Transcript */}
       <div className="flex-1 overflow-y-auto font-sans leading-relaxed text-neutral-300 space-x-1">
         {words.map((w) => {
-          const isActive = playheadPosition >= w.startTime && playheadPosition <= w.endTime;
+          const isActive = rationalToSeconds(playheadPosition) >= w.startTime && rationalToSeconds(playheadPosition) <= w.endTime;
           const isSelected = selectedWordIds.includes(w.id);
 
           return (

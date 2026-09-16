@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { TimelineState, Track, Clip } from '../types/timeline';
+import { secondsToRational, addRational, subRational, compareRational, RationalTime } from '../types/time';
 
 interface TimelineStoreActions {
-  setPlayheadPosition: (time: number) => void;
+  setPlayheadPosition: (time: RationalTime) => void;
   setWorkspace: (workspace: TimelineState['activeWorkspace']) => void;
   toggleMagneticSnapping: () => void;
   setZoomLevel: (zoom: number) => void;
@@ -10,7 +11,7 @@ interface TimelineStoreActions {
   addTrack: (type: Track['type'], name?: string) => void;
   addClipToTrack: (trackId: string, clip: Clip) => void;
   removeClip: (clipId: string) => void;
-  rippleDelete: (startTime: number, duration: number) => void;
+  rippleDelete: (startTime: RationalTime, duration: RationalTime) => void;
 }
 
 export type TimelineStore = TimelineState & TimelineStoreActions;
@@ -26,7 +27,7 @@ const initialTimelineState: TimelineState = {
     sampleRate: 48000,
     colorSpace: 'Rec.709',
   },
-  playheadPosition: 0.0,
+  playheadPosition: secondsToRational(0.0),
   inPoint: null,
   outPoint: null,
   activeWorkspace: 'edit',
@@ -59,10 +60,10 @@ const initialTimelineState: TimelineState = {
           "id": "clip_v1_001",
           "assetId": "asset_interview_01",
           "name": "Interview_Take1.mp4",
-          "startOffset": 0.0,
-          "sourceIn": 0.0,
-          "sourceOut": 15.0,
-          "duration": 15.0,
+          "startOffset": secondsToRational(0.0),
+          "sourceIn": secondsToRational(0.0),
+          "sourceOut": secondsToRational(15.0),
+          "duration": secondsToRational(15.0),
           "transform": {
             "position": { "x": 0.0, "y": 0.0 },
             "scale": { "x": 1.0, "y": 1.0 },
@@ -75,10 +76,10 @@ const initialTimelineState: TimelineState = {
           "id": "clip_v1_002",
           "assetId": "asset_broll_02",
           "name": "Product_Broll.mp4",
-          "startOffset": 15.0,
-          "sourceIn": 2.0,
-          "sourceOut": 12.0,
-          "duration": 10.0
+          "startOffset": secondsToRational(15.0),
+          "sourceIn": secondsToRational(2.0),
+          "sourceOut": secondsToRational(12.0),
+          "duration": secondsToRational(10.0)
         }
       ],
     },
@@ -96,10 +97,10 @@ const initialTimelineState: TimelineState = {
           "id": "clip_a1_001",
           "assetId": "asset_interview_01",
           "name": "Interview_Take1.wav",
-          "startOffset": 0.0,
-          "sourceIn": 0.0,
-          "sourceOut": 15.0,
-          "duration": 15.0,
+          "startOffset": secondsToRational(0.0),
+          "sourceIn": secondsToRational(0.0),
+          "sourceOut": secondsToRational(15.0),
+          "duration": secondsToRational(15.0),
           "volume": 0,
           "pan": 0
         }
@@ -119,10 +120,10 @@ const initialTimelineState: TimelineState = {
           "id": "clip_a2_001",
           "assetId": "asset_music_lofi",
           "name": "Upbeat_Lofi_Beat.mp3",
-          "startOffset": 0.0,
-          "sourceIn": 0.0,
-          "sourceOut": 25.0,
-          "duration": 25.0,
+          "startOffset": secondsToRational(0.0),
+          "sourceIn": secondsToRational(0.0),
+          "sourceOut": secondsToRational(25.0),
+          "duration": secondsToRational(25.0),
           "volume": -12,
           "pan": 0
         }
@@ -135,7 +136,7 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
   ...initialTimelineState,
 
   setPlayheadPosition: (time) =>
-    set(() => ({ playheadPosition: Math.max(0, time) })),
+    set(() => ({ playheadPosition: compareRational(time, secondsToRational(0)) < 0 ? secondsToRational(0) : time })),
 
   setWorkspace: (workspace) =>
     set(() => ({ activeWorkspace: workspace })),
@@ -197,13 +198,13 @@ export const useTimelineStore = create<TimelineStore>((set) => ({
           .filter(
             (c) =>
               !(
-                c.startOffset >= startTime &&
-                c.startOffset + c.duration <= startTime + duration
+                compareRational(c.startOffset, startTime) >= 0 &&
+                compareRational(addRational(c.startOffset, c.duration), addRational(startTime, duration)) <= 0
               )
           )
           .map((c) => {
-            if (c.startOffset >= startTime + duration) {
-              return { ...c, startOffset: c.startOffset - duration };
+            if (compareRational(c.startOffset, addRational(startTime, duration)) >= 0) {
+              return { ...c, startOffset: subRational(c.startOffset, duration) };
             }
             return c;
           }),

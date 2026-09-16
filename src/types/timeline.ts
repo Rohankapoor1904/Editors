@@ -24,14 +24,16 @@ export interface Effect {
   params: Record<string, unknown>;
 }
 
+import { RationalTime } from './time';
+
 export interface Clip {
   id: string;
   assetId: string;
   name: string;
-  startOffset: number; // Timeline start time in seconds
-  sourceIn: number;    // Media source start time in seconds
-  sourceOut: number;   // Media source end time in seconds
-  duration: number;    // Clip duration on timeline (seconds)
+  startOffset: RationalTime; // Timeline start time in seconds
+  sourceIn: RationalTime;    // Media source start time in seconds
+  sourceOut: RationalTime;   // Media source end time in seconds
+  duration: RationalTime;    // Clip duration on timeline (seconds)
   transform?: Transform;
   volume?: number;     // In dB
   pan?: number;        // -1.0 to 1.0
@@ -67,7 +69,7 @@ export interface TimelineState {
   version: string;
   projectId: string;
   metadata: TimelineProjectMetadata;
-  playheadPosition: number; // in seconds
+  playheadPosition: RationalTime; // in rational time
   inPoint: number | null;
   outPoint: number | null;
   tracks: Track[];

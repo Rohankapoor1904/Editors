@@ -3,9 +3,10 @@ import { calculateMagneticSnap } from '../utils/snapping';
 import { interpolateKeyframeValue } from '../utils/keyframing';
 import { colorEngine } from '../engine/colorEngine';
 import type { Clip, Keyframe } from '../types/timeline';
+import { secondsToRational } from '../types/time';
 
 const makeClip = (id: string, startOffset: number, duration: number): Clip =>
-  ({ id, assetId: `asset-${id}`, name: id, startOffset, sourceIn: 0, sourceOut: duration, duration });
+  ({ id, assetId: `asset-${id}`, name: id, startOffset: secondsToRational(startOffset), sourceIn: secondsToRational(0), sourceOut: secondsToRational(duration), duration: secondsToRational(duration) });
 
 describe('calculateMagneticSnap', () => {
   it('snaps to the playhead when within threshold', () => {

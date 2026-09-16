@@ -1,6 +1,7 @@
 import { sileroVadService } from './sileroVad';
 import { whisperService } from './whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
+import { secondsToRational } from '../types/time';
 import { isLiveMode, NotImplementedError } from './runtimeConfig';
 
 export interface AgentStepLog {
@@ -33,7 +34,7 @@ export class AgentOrchestratorService {
           type: 'tool',
           message: `detect_silence() -> Found silence window (${silence.startTime}s to ${silence.endTime}s).`,
         });
-        useTimelineStore.getState().rippleDelete(silence.startTime, silence.duration);
+        useTimelineStore.getState().rippleDelete(secondsToRational(silence.startTime), secondsToRational(silence.duration));
       }
 
       onLog({
