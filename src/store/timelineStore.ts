@@ -2,7 +2,16 @@ import { create } from 'zustand';
 import { TimelineState, Track, Clip } from '../types/timeline';
 import { secondsToRational, compareRational, RationalTime } from '../types/time';
 import { Command } from '../core/commands';
-import { AddTrackCommand, AddClipCommand, RemoveClipCommand, RippleDeleteCommand } from '../core/commands/storeCommands';
+import { AddTrackCommand, AddClipCommand, RemoveClipCommand } from '../core/commands/storeCommands';
+import {
+  SplitCommand,
+  TrimCommand,
+  RippleDeleteCommand,
+  MoveCommand,
+  OverwriteCommand,
+  SlipCommand,
+  SlideCommand
+} from '../core/commands/edits';
 
 interface UndoState {
   past: Command[];
@@ -22,6 +31,12 @@ interface TimelineStoreActions {
   addClipToTrack: (trackId: string, clip: Clip) => void;
   removeClip: (clipId: string) => void;
   rippleDelete: (startTime: RationalTime, duration: RationalTime) => void;
+  splitClip: (clipId: string, splitTime: RationalTime) => void;
+  trimClip: (clipId: string, edge: 'in' | 'out', delta: RationalTime) => void;
+  moveClip: (clipId: string, newStartOffset: RationalTime, newTrackId?: string) => void;
+  slipClip: (clipId: string, delta: RationalTime) => void;
+  slideClip: (clipId: string, delta: RationalTime) => void;
+  overwriteClip: (trackId: string, clip: Clip) => void;
 }
 
 export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
@@ -235,5 +250,29 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
 
   rippleDelete: (startTime, duration) => {
     get().executeCommand(new RippleDeleteCommand(startTime, duration));
+  },
+
+  splitClip: (clipId, splitTime) => {
+    get().executeCommand(new SplitCommand(clipId, splitTime));
+  },
+
+  trimClip: (clipId, edge, delta) => {
+    get().executeCommand(new TrimCommand(clipId, edge, delta));
+  },
+
+  moveClip: (clipId, newStartOffset, newTrackId) => {
+    get().executeCommand(new MoveCommand(clipId, newStartOffset, newTrackId));
+  },
+
+  slipClip: (clipId, delta) => {
+    get().executeCommand(new SlipCommand(clipId, delta));
+  },
+
+  slideClip: (clipId, delta) => {
+    get().executeCommand(new SlideCommand(clipId, delta));
+  },
+
+  overwriteClip: (trackId, clip) => {
+    get().executeCommand(new OverwriteCommand(trackId, clip));
   },
 }));

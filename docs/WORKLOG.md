@@ -1,3 +1,10 @@
+## $(date +%Y-%m-%d) — agent-jules — R1.6
+- **Did:** Implemented Split, Trim, Ripple Delete, Move, Overwrite, Slip, and Slide commands in `src/core/commands/edits.ts`. Updated `src/store/timelineStore.ts` to use them. Wired timeline UI interactions in `src/components/TimelineTrackEditor.tsx` to dispatch these commands (also fulfilling R1.7). Replaced float additions with RationalTime math to respect strictly non-destructive and strict rational arithmetic temporal invariants. Caching generated sequence clip IDs within commands on instantiation avoids corruption during Redo operations.
+- **Verified:** `npm run build && npm run test && npm run lint`
+- **Left undone:** None.
+- **Next:** R1.8 (Single source of truth for mute/solo/lock).
+- **Blockers:** None.
+
 ## 2026-09-17 — Antigravity — Mark R1.5 Done & Add Automated PROGRESS.md Sync on PR Merge
 - **Did:**
   - Diagnosed why Task R1.5 was dispatched twice: PR #25 implemented R1.5 cleanly, but omitted updating `PROGRESS.md` from `todo` to `done`. When PR #25 was merged, `main` still showed `R1.5` as `todo`, prompting the orchestrator to re-dispatch R1.5.
