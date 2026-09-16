@@ -6,7 +6,7 @@ pub mod whisper_onnx;
 pub mod silero_vad;
 pub mod export_native;
 
-use ffmpeg_demuxer::{FFmpegDemuxerEngine, MediaProbeInfo, DemuxedFrame};
+use ffmpeg_demuxer::{FFmpegDemuxerEngine, MediaProbeInfo};
 use whisper_onnx::{WhisperOnnxEngine, WhisperTranscriptNative};
 use silero_vad::{SileroVadEngine, SilenceSegmentNative};
 use export_native::{HardwareExportNative, ExportTaskConfig, FFmpegCommandSpec};
@@ -43,8 +43,9 @@ fn open_media_file_dialog(file_path: String) -> Result<MediaProbeInfo, String> {
 }
 
 #[tauri::command]
-fn demux_video_frames(file_path: String, start_time: f64, frame_count: u32) -> Result<Vec<DemuxedFrame>, String> {
-    FFmpegDemuxerEngine::extract_frames(&file_path, start_time, frame_count)
+fn demux_video_frames(file_path: String, start_time: f64, frame_count: u32) -> Result<tauri::ipc::Response, String> {
+    let raw_bytes = FFmpegDemuxerEngine::extract_frames_bytes(&file_path, start_time, frame_count)?;
+    Ok(tauri::ipc::Response::new(raw_bytes))
 }
 
 #[tauri::command]

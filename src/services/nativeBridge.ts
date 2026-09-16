@@ -1,4 +1,5 @@
 import { isLiveMode, NotImplementedError } from './runtimeConfig';
+import { RationalTime, createRational, addRational, rationalToSeconds } from '../types/time';
 
 export interface MediaProbeMetadata {
   path: string;
@@ -14,11 +15,45 @@ export interface MediaProbeMetadata {
 
 export interface DemuxedFrameInfo {
   frame_index: number;
-  timestamp_pts: number;
+  timestamp_pts: number; // Storing as number for now, though it's generated via RationalTime
   width: number;
   height: number;
   format: string;
   data_buffer_len: number;
+}
+
+export class FrameBuffer {
+  public frame_index: number;
+  public timestamp_pts: number;
+  public width: number;
+  public height: number;
+  public format: string;
+  public data_buffer_len: number;
+  private _data: Uint8Array | null;
+
+  constructor(info: DemuxedFrameInfo, data: Uint8Array) {
+    this.frame_index = info.frame_index;
+    this.timestamp_pts = info.timestamp_pts;
+    this.width = info.width;
+    this.height = info.height;
+    this.format = info.format;
+    this.data_buffer_len = info.data_buffer_len;
+    this._data = data;
+  }
+
+  get data(): Uint8Array {
+    if (!this._data) {
+      throw new Error('FrameBuffer already released (RAII violation)');
+    }
+    return this._data;
+  }
+
+  /**
+   * Explicit lifetime release (Invariant §5.6)
+   */
+  release() {
+    this._data = null;
+  }
 }
 
 export class NativeBridgeService {
@@ -60,35 +95,59 @@ export class NativeBridgeService {
   }
 
   /**
-   * Invokes C++/Rust FFmpeg demuxing wrapper to extract video frame buffers
+   * Invokes C++/Rust FFmpeg demuxing wrapper to extract video frame buffers.
+   * Returns RAII-managed FrameBuffers over a zero-copy IPC payload.
    */
-  async demuxVideoFrames(mediaPath: string, startTimeSeconds: number = 0, frameCount: number = 30): Promise<DemuxedFrameInfo[]> {
+  async demuxVideoFrames(mediaPath: string, startTime: RationalTime, frameCount: number = 30): Promise<FrameBuffer[]> {
     try {
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<DemuxedFrameInfo[]> } }).__TAURI_INTERNALS__.invoke('demux_video_frames', {
+        // Probe first to get accurate metadata for buffer unpacking
+        const probe = await this.importMediaFile(mediaPath);
+        if (!probe) throw new Error("Could not probe file for demuxing");
+
+        // Invoke Tauri 2 binary payload return (returns ArrayBuffer/Uint8Array)
+        const rawBytes = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<Uint8Array> } }).__TAURI_INTERNALS__.invoke('demux_video_frames', {
           filePath: mediaPath,
-          startTime: startTimeSeconds,
+          startTime: rationalToSeconds(startTime),
           frameCount,
         });
+
+        const width = probe.width;
+        const height = probe.height;
+        const fps = probe.fps > 0 ? probe.fps : 30.0;
+        const frameSize = Math.floor(width * height * 1.5);
+        const frameDuration = createRational(Math.round(1000000 / fps), 1000000);
+
+        const frames: FrameBuffer[] = [];
+        for (let i = 0; i < frameCount; i++) {
+          const offset = i * frameSize;
+          if (offset + frameSize > rawBytes.byteLength) break;
+
+          const dataSlice = rawBytes.slice(offset, offset + frameSize);
+
+          // Use exact rational time arithmetic (Invariant §5.1)
+          let currentPts = startTime;
+          for(let j=0; j<i; j++) {
+            currentPts = addRational(currentPts, frameDuration);
+          }
+
+          frames.push(new FrameBuffer({
+            frame_index: i,
+            timestamp_pts: rationalToSeconds(currentPts),
+            width,
+            height,
+            format: 'YUV420P',
+            data_buffer_len: frameSize,
+          }, dataSlice));
+        }
+        return frames;
       }
     } catch (err) {
-      console.warn('[Native Bridge]: Falling back to web demuxer mock:', err);
+      console.warn('[Native Bridge]: Frame extraction error:', err);
     }
 
-    if (isLiveMode()) {
-      throw new NotImplementedError('Native FFmpeg Video Frame Demuxer');
-    }
-
-    // Web preview fallback (demo mode only)
-    const frameDuration = 1 / 59.94;
-    return Array.from({ length: frameCount }, (_, i) => ({
-      frame_index: i,
-      timestamp_pts: startTimeSeconds + i * frameDuration,
-      width: 3840,
-      height: 2160,
-      format: 'YUV420P',
-      data_buffer_len: 3840 * 2160 * 1.5,
-    }));
+    // Invariant §5.5: Fail loudly rather than returning silent mock data on main path
+    throw new NotImplementedError('Native FFmpeg Video Frame Demuxer (Desktop host required)');
   }
 
   /**
