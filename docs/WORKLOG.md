@@ -1,3 +1,26 @@
+## [$(date '+%Y-%m-%d')] Task R1.5 — Project save/load JSON document
+
+**Did:**
+- Created Project JSON schema typing matching deep-research specs (`src/core/project/schema.ts`).
+- Created robust serialization logic to map from internal memory state into exact project schema.
+- Created robust deserialization logic that rigorously validates all schema boundaries and throws explicit errors (fails loudly) if critical missing data is found.
+- Wrote unit tests confirming end to end round trip JSON payload mapping with deep equality, verifying NTSC float handling edgecases, parsing a golden fixture.
+
+**Verified:**
+- `npm run test` (added schema roundtrip tests & failure cases)
+- `npm run build`
+- `npm run lint`
+
+**Left undone:**
+- The schema currently parses 'time_base' using an approximation on incoming FPS, but doesn't persist the original fractional format inside zustand `timelineStore.ts` just yet because `metadata.fps` is currently a single `number` field. I handled the translation here but a future iteration might want to store Timebase natively as a `RationalTime`.
+- `deserializeProject` strictly refuses to load missing fields to adhere to the rigid "no mock data" invariant, which could block partially created JSONs in the future if missing `metadata`.
+
+**Next:**
+- Implement editing operations (Split, Trim, Ripple, etc) for R1.6.
+
+**Blockers:**
+- None.
+
 # WORKLOG — Append-only session log
 
 Handoff record between autonomous agents and the human reviewer. **Append new entries at the top.**

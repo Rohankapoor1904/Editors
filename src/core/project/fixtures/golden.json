@@ -1,0 +1,118 @@
+{
+  "$schema": "https://editor.standard/v1/project.schema.json",
+  "project_id": "proj_92c819a0-f38b-498c-8c1b-299f01ab32d1",
+  "schema_version": "1.4.0",
+  "metadata": {
+    "title": "Autonomous Systems Deep Dive",
+    "created_at": "2025-03-01T10:00:00Z",
+    "modified_at": "2025-03-01T14:32:10Z",
+    "color_management": {
+      "framework": "OpenColorIO",
+      "config_path": "ocio://studio_aces_v2.1",
+      "working_space": "ACEScg",
+      "display_device": "sRGB",
+      "display_view": "ACES 1.0 - SDR Video"
+    }
+  },
+  "media_pool": [
+    {
+      "asset_id": "asset_cam_a_001",
+      "name": "Interview_CamA.mov",
+      "file_path": "file:///Volumes/Media/Raw/Interview_CamA.mov",
+      "proxy_path": "file:///Volumes/Media/Proxies/Interview_CamA_proxy.mov",
+      "checksum_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "duration": { "value": 86400, "rate": 24 },
+      "video_streams": [
+        { "stream_index": 0, "codec": "prores_422_hq", "width": 3840, "height": 2160, "pixel_aspect": "1:1", "bit_depth": 10 }
+      ],
+      "audio_streams": [
+        { "stream_index": 1, "codec": "pcm_s24le", "channels": 2, "sample_rate": 48000 }
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "sequence_id": "seq_main_assembly",
+      "name": "Master Edit",
+      "time_base": { "value": 1, "rate": 24 },
+      "start_timecode": { "value": 86400, "rate": 24 },
+      "canvas": { "width": 1920, "height": 1080, "pixel_aspect_ratio": 1.0 },
+      "video_tracks": [
+        {
+          "track_id": "track_v1",
+          "name": "V1 - Primary",
+          "locked": false,
+          "visible": true,
+          "items": [
+            {
+              "type": "Clip",
+              "clip_id": "clip_v1_001",
+              "asset_reference_id": "asset_cam_a_001",
+              "source_range": {
+                "start_time": { "value": 240, "rate": 24 },
+                "duration": { "value": 120, "rate": 24 }
+              },
+              "timeline_range": {
+                "start_time": { "value": 86400, "rate": 24 },
+                "duration": { "value": 120, "rate": 24 }
+              },
+              "transforms": {
+                "position_x": { "static_value": 0.0, "keyframes": [] },
+                "position_y": { "static_value": 0.0, "keyframes": [] },
+                "scale": {
+                  "static_value": null,
+                  "keyframes": [
+                    { "time": { "value": 0, "rate": 24 }, "value": 1.0, "interpolation": "CubicBezier", "tangents": [0.42, 0.0, 0.58, 1.0] },
+                    { "time": { "value": 120, "rate": 24 }, "value": 1.15, "interpolation": "CubicBezier", "tangents": [0.42, 0.0, 0.58, 1.0] }
+                  ]
+                },
+                "rotation": { "static_value": 0.0, "keyframes": [] },
+                "opacity": { "static_value": 1.0, "keyframes": [] },
+                "blend_mode": "Normal"
+              },
+              "effects": [
+                {
+                  "effect_id": "fx_gaussian_blur_01",
+                  "plugin_identifier": "org.standards.ofx.blur.gaussian",
+                  "enabled": true,
+                  "parameters": {
+                    "radius": { "static_value": 4.5, "keyframes": [] }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "audio_tracks": [
+        {
+          "track_id": "track_a1",
+          "name": "A1 - Dialogue",
+          "muted": false,
+          "solo": false,
+          "fader_gain_db": 0.0,
+          "pan": 0.0,
+          "items": [
+            {
+              "type": "Clip",
+              "clip_id": "clip_a1_001",
+              "asset_reference_id": "asset_cam_a_001",
+              "source_range": {
+                "start_time": { "value": 480, "rate": 48000 },
+                "duration": { "value": 240000, "rate": 48000 }
+              },
+              "timeline_range": {
+                "start_time": { "value": 86400, "rate": 24 },
+                "duration": { "value": 120, "rate": 24 }
+              },
+              "volume_envelope": [
+                { "time": { "value": 0, "rate": 48000 }, "gain_db": -60.0 },
+                { "time": { "value": 4800, "rate": 48000 }, "gain_db": 0.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
