@@ -1,3 +1,15 @@
+## 2026-09-17 — Jules — R2.3
+- **Did:** Implemented real playback transport (play/step/loop).
+  - Authored `src/engine/transport.ts` containing the `TransportEngine` which uses absolute `performance.now()` accumulation into `RationalTime` objects for precision without float drift.
+  - Linked the UI monitor controls in `src/components/ProgramMonitor.tsx` to `TransportEngine`, replacing the dummy local logic.
+- **Verified:**
+  - `npm run build` -> clean.
+  - `npm run test` -> 51 passed.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** True audio-master clock (task R2.4 requirement). Currently relies on absolute hardware clock via `performance.now()` for visual synchronisation without precision loss.
+- **Next:** Task R2.4 (Audio master clock).
+- **Blockers:** None.
+
 ## $(date +%Y-%m-%d) — agent-jules — R1.6
 - **Did:** Implemented Split, Trim, Ripple Delete, Move, Overwrite, Slip, and Slide commands in `src/core/commands/edits.ts`. Updated `src/store/timelineStore.ts` to use them. Wired timeline UI interactions in `src/components/TimelineTrackEditor.tsx` to dispatch these commands (also fulfilling R1.7). Replaced float additions with RationalTime math to respect strictly non-destructive and strict rational arithmetic temporal invariants. Caching generated sequence clip IDs within commands on instantiation avoids corruption during Redo operations.
 - **Verified:** `npm run build && npm run test && npm run lint`
