@@ -52,7 +52,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R0.2** | CI workflow: build + test + lint on every PR | R0 | `partial` | Workflow + working lint committed. **Not observed running** — Actions blocked by account billing lock | `.github/workflows/verify.yml`, `.eslintrc.cjs`, `package.json` | R0.1 |
 | **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `done` | `npm test` → 58 passed | `src/services/*`, `src/engine/*`, `src/components/TopBar.tsx`, `src-tauri/*` | R0.1 |
 | **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `todo` | — | `src-tauri/*` | R0.2 |
-| **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
+| **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `npm run test` -> 36 passed; zero-drift assertion verified | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
 | **R1.2** | Command + undo/redo stack for all mutations | R1 | `todo` | — | `src/core/commands/*`, store | R1.1 |
 | **R1.3** | Real `ffprobe`-backed media probe | R1 | `todo` | — | `src-tauri/src/ffmpeg_demuxer.rs`, `nativeBridge.ts` | R0.4 |
 | **R1.4** | Real media pool: import, SHA-256 fingerprint, relink detection | R1 | `todo` | — | `AssetBin.tsx`, `src/store/mediaPool.ts` | R1.3 |
@@ -156,7 +156,7 @@ Each `real` claim gets a line proving it. Format: `<command or test> → <result
 | R0.2 — lint executes | `npm run lint` → `✖ 6 problems (0 errors, 6 warnings)` — exit 0. Before this, ESLint *had no config file at all*, so the script never ran | 2025-09-15 |
 | R0.2 — build still green after adding tooling | `npm run build` → `tsc` clean, `vite build ✓ 1532 modules transformed` | 2025-09-15 |
 | R0.3 — safe-by-default runtime mode & Rust gate verified | `npm run test` → 58 passed across 2 suites (`core.test.ts`, `runtimeMode.test.ts`); live mode throws `NotImplementedError` / `Err`; real cubic Bezier keyframing tested | 2026-09-16 |
-| R1.1 — rational time model | `npm test` → `✓ src/__tests__/rationalTime.test.ts (1 test) 6ms` | 2025-10-24 |
+| R1.1 — rational time model | `npm test` → `Test Files  3 passed (3), Tests  36 passed (36)`; zero-drift assertion verified | 2026-09-16 |
 
 **Notable finding from the render:** the Program Monitor's own status pill reads **`Canvas2D`**, not
 `WebGPU` — the running build did not initialise a WebGPU device, consistent with
