@@ -59,7 +59,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R1.5** | Project save/load JSON document | R1 | `done` | `npm test` passed, schema + serialize implemented | `src/core/project/*` | R1.1, R1.2 |
 | **R1.6** | Real Split/Trim/Ripple Delete/Move/Overwrite commands | R1 | `done` | `npm test` passed with zero-drift rational math. Tests added in `__tests__/core/commands/edits.test.ts`. | `src/core/commands/edits.ts` | R1.2 |
 | **R1.7** | Wire Select/Blade/Slip/Slide tools to real behaviour | R1 | `done` | `npm run test` passed. UI events map strictly to real command dispatches. | `TimelineTrackEditor.tsx` | R1.6 |
-| **R1.8** | Single source of truth for mute/solo/lock | R1 | `todo` | — | `TimelineTrackEditor.tsx`, store | R1.2 |
+| **R1.8** | Single source of truth for mute/solo/lock | R1 | `done` | `npm test` passed, verified in PR #28 | `TimelineTrackEditor.tsx`, store | R1.2 |
 | **R2.1** | Real frame extraction with RAII buffer lifetime | R2 | `todo` | — | `ffmpeg_demuxer.rs`, `nativeBridge.ts` | R1.3 |
 | **R2.2** | Real WGSL YUV420p→RGB shader + pipeline | R2 | `todo` | — | `src/engine/shaders/*.wgsl`, `webgpuRenderer.ts` | R0.1 |
 | **R2.3** | Real playback transport (play/step/loop) | R2 | `todo` | — | `ProgramMonitor.tsx`, `src/engine/transport.ts` | R2.1, R2.2 |
