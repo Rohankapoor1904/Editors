@@ -76,3 +76,6 @@ export interface TimelineState {
   magneticSnapping: boolean;
   zoomLevel: number; // Pixels per second
 }
+
+// deliberate type error for CI gate verification
+export const BROKEN: number = "this is a string";
