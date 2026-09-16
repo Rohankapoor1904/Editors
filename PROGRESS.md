@@ -65,7 +65,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R2.3** | Real playback transport (play/step/loop) | R2 | `done` | `npm test` passed, verified in PR #31 | `ProgramMonitor.tsx`, `src/engine/transport.ts` | R2.1, R2.2 |
 | **R2.4** | Audio-master-clock transport with VFR drift correction | R2 | `done` | `npm test` passed, verified in PR #32 | `audioEngine.ts`, `transport.ts` | R1.3 |
 | **R2.5** | Per-clip gain + crossfades | R2 | `done` | `npm test` passed, verified in PR #33 | `audioEngine.ts` | R2.4 |
-| **R2.6** | LRU frame cache + backward scrubbing | R2 | `todo` | — | `src/engine/frameCache.ts` | R2.1 |
+| **R2.6** | LRU frame cache + backward scrubbing | R2 | `done` | `npm test` &#x2192; passes | `src/engine/frameCache.ts` | R2.1 |
 | **R3.1** | GPU transform engine (position/scale/rotation/opacity) | R3 | `todo` | — | `src/engine/transforms.ts` | R2.2 |
 | **R3.2** | Real cubic Bezier keyframes honouring `easing` | R3 | `todo` | — | `keyframing.ts`, `types/timeline.ts` | R1.1 |
 | **R3.3** | DAG render graph with cache invalidation | R3 | `todo` | — | `src/engine/renderGraph/*` | R3.1 |
