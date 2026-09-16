@@ -306,3 +306,39 @@ In order — see `docs/ROADMAP.md` for full detail and acceptance criteria:
 
 Everything else is sequenced after these. Do not start a later phase before its dependencies are
 `done` in `PROGRESS.md`.
+
+---
+
+## 12. Orchestration loop (Jules dispatch + independent verification)
+
+The OpenHands↔Jules loop runs as the scheduled workflow
+`.github/workflows/jules-orchestrator.yml`, executing `scripts/jules-orchestrator.py`
+every 30 minutes. It dispatches the next claimable task from `PROGRESS.md` to a Jules
+session, waits for the session's PR, verifies that PR independently (fresh clone, `npm ci`,
+build, test, lint, invariant gate, tracker-integrity audit), sends any failure back to the
+same Jules session, and moves on once the task verifies.
+
+**Why GitHub Actions and not an OpenHands automation.** Two platform behaviours were
+confirmed by probe, and they make an automation entrypoint unusable for this loop:
+
+- Stored account secrets do not reach an automation entrypoint. A probe run inside an
+  automation sandbox reported `JULES_API_KEY`, `GITHUB_OWNER_TOKEN` and `GITHUB_TOKEN`
+  all ABSENT, with only `OPENHANDS_API_KEY` and `SESSION_API_KEY` injected. The same
+  secrets were PRESENT in an ordinary interactive conversation. The Cloud API exposes
+  only `/api/v1/secrets/search`, which returns names and descriptions but never values,
+  so the loop can never authenticate to the Jules API or open PRs from there.
+- The automation callback rejects the credential the runtime provides:
+  `AUTOMATION_CALLBACK_API_KEY` is unset, so `Authorization: Bearer ` returns HTTP 401
+  and the service records the run as FAILED. Posting the callback with the in-sandbox
+  `OPENHANDS_API_KEY` authenticates correctly.
+
+**State.** Between runs, state lives on the `automation-state` branch as `state.json`
+(the workflow force-pushes it). `ORCHESTRATOR_STATE_FILE` selects the file-backed store;
+the automation KV is still used when `AUTOMATION_KV_TOKEN` is present.
+
+**Secrets.** `JULES_API_KEY` and `ORCHESTRATOR_GH_TOKEN` are repo Actions secrets. The
+workflow is the only consumer.
+
+**Operating it.** Run `gh workflow run jules-orchestrator.yml`. To force a specific task,
+edit `phase`/`task_id` in `state.json` on the `automation-state` branch, or reset the branch
+to `{"phase":"idle"}` to let it pick the next claimable row.
