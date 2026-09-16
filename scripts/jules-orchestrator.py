@@ -439,22 +439,29 @@ def get_activities(session_id, key):
 
 
 def session_pr(session_id, gh_token, task_id=None):
-    """Find the PR Jules opened for this session. Checks open PRs first, then all PRs."""
+    """Find the currently OPEN PR Jules opened for this specific task and session."""
+    status, prs = github(f"repos/{OWNER}/{REPO}/pulls?state=open&per_page=50", token=gh_token)
+    if status != 200 or not isinstance(prs, list):
+        return None
+
     sid_str = str(session_id) if session_id else ""
-    for state in ("open", "all"):
-        status, prs = github(f"repos/{OWNER}/{REPO}/pulls?state={state}&per_page=50", token=gh_token)
-        if status != 200 or not isinstance(prs, list):
+    for pr in prs:
+        # Strictly require state to be open
+        if pr.get("state") != "open":
             continue
-        for pr in prs:
-            head = pr.get("head", {}).get("ref", "")
-            body = pr.get("body") or ""
-            title = pr.get("title") or ""
-            if sid_str and (sid_str in head or sid_str in body):
-                return pr
-            if task_id:
-                tid_lower = task_id.lower()
-                if tid_lower in head.lower() or f"task: {tid_lower}" in body.lower() or tid_lower in title.lower():
-                    return pr
+        head = pr.get("head", {}).get("ref", "")
+        body = pr.get("body") or ""
+        title = pr.get("title") or ""
+        blob = f"{title} {body} {head}".upper()
+
+        # If a task_id is specified (e.g. R1.3), the PR MUST explicitly reference this task_id
+        if task_id and task_id.upper() not in blob:
+            continue
+
+        # Match either session_id or task_id
+        if (sid_str and (sid_str in head or sid_str in body)) or (task_id and task_id.upper() in blob):
+            return pr
+
     return None
 
 
@@ -897,7 +904,9 @@ def advance(state, jules_key, gh_token, md):
             return advance(state, jules_key, gh_token, md)
 
         if result["ok"]:
-            log(f"Task {state['task_id']} verified; PR #{pr} is ready for merge")
+            log(f"Task {state['task_id']} verified; auto-approving and merging PR #{pr}")
+
+            # 1. Post verification pass comment
             github(f"repos/{OWNER}/{REPO}/issues/{pr}/comments", "POST", {
                 "body": (f"✅ **Independent Verification Passed for Task {state['task_id']}**\n\n"
                          f"All mechanical checks and semantic audits passed cleanly:\n"
@@ -906,9 +915,25 @@ def advance(state, jules_key, gh_token, md):
                          f"- Tests: `npm run test` passed (all tests and mechanical invariant checks green)\n"
                          f"- Lint: `npm run lint` passed (0 errors)\n"
                          f"- Invariant Audit: No stub fallbacks, no float time accumulation, no unresolved conflict markers\n\n"
-                         f"PR #{pr} is verified and ready for merge!\n\n"
+                         f"Auto-approving and merging PR #{pr} automatically.\n\n"
                          f"_This comment was posted by the OpenHands orchestrator on behalf of {OWNER}._")},
                 token=gh_token)
+
+            # 2. Auto-approve the Pull Request
+            st_app, res_app = github(f"repos/{OWNER}/{REPO}/pulls/{pr}/reviews", "POST", {
+                "event": "APPROVE",
+                "body": f"✅ Auto-approved: Task {state['task_id']} passed independent verification."
+            }, token=gh_token)
+            log(f"PR #{pr} review approval -> HTTP {st_app}")
+
+            # 3. Auto-merge the Pull Request
+            st_mrg, res_mrg = github(f"repos/{OWNER}/{REPO}/pulls/{pr}/merge", "PUT", {
+                "commit_title": f"Merge pull request #{pr} for Task {state['task_id']}",
+                "commit_message": f"Task {state['task_id']} verified and auto-merged by Jules Orchestrator.",
+                "merge_method": "squash"
+            }, token=gh_token)
+            log(f"PR #{pr} auto-merge -> HTTP {st_mrg}")
+
             reset_for_next_task(state)
             return "COMPLETED"
 
