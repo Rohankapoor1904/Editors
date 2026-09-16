@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
-import { rationalToSeconds, secondsToRational } from '../types/time';
+import { rationalToSeconds, secondsToRational, createRational, addRational, compareRational } from '../types/time';
 import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
 
@@ -44,9 +44,15 @@ export const ProgramMonitor: React.FC = () => {
   };
 
   const stepFrame = (deltaFrames: number) => {
-    const frameDuration = 1 / metadata.fps;
-    const newPos = Math.max(0, rationalToSeconds(playheadPosition) + deltaFrames * frameDuration);
-    setPlayheadPosition(secondsToRational(newPos));
+    const isDropFrame = !Number.isInteger(metadata.fps);
+    const num = isDropFrame ? 1001 : 1;
+    const den = isDropFrame ? Math.round(metadata.fps * 1001) : Math.round(metadata.fps);
+
+    const delta = createRational(deltaFrames * num, den);
+    const newPos = addRational(playheadPosition, delta);
+    const zero = createRational(0, den);
+
+    setPlayheadPosition(compareRational(newPos, zero) < 0 ? zero : newPos);
   };
 
   return (

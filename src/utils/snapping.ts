@@ -1,5 +1,5 @@
 import { Clip } from '../types/timeline';
-import { rationalToSeconds } from '../types/time';
+import { rationalToSeconds, addRational } from '../types/time';
 
 export interface SnapResult {
   snappedTime: number;
@@ -22,7 +22,7 @@ export function calculateMagneticSnap(
 
   clips.forEach((clip) => {
     snapTargets.push(rationalToSeconds(clip.startOffset));
-    snapTargets.push(rationalToSeconds(clip.startOffset) + rationalToSeconds(clip.duration));
+    snapTargets.push(rationalToSeconds(addRational(clip.startOffset, clip.duration)));
   });
 
   let closestTarget: number | null = null;

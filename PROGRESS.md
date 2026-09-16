@@ -156,7 +156,7 @@ Each `real` claim gets a line proving it. Format: `<command or test> → <result
 | R0.2 — lint executes | `npm run lint` → `✖ 6 problems (0 errors, 6 warnings)` — exit 0. Before this, ESLint *had no config file at all*, so the script never ran | 2025-09-15 |
 | R0.2 — build still green after adding tooling | `npm run build` → `tsc` clean, `vite build ✓ 1532 modules transformed` | 2025-09-15 |
 | R0.3 — safe-by-default runtime mode & Rust gate verified | `npm run test` → 58 passed across 2 suites (`core.test.ts`, `runtimeMode.test.ts`); live mode throws `NotImplementedError` / `Err`; real cubic Bezier keyframing tested | 2026-09-16 |
-| R1.1 — rational time model, zero-drift vs float verified | `npm test` → `src/__tests__/rationalTime.test.ts` passes zero-drift assertion; float accumulation proven to drift | 2025-10-24 |
+| R1.1 — rational time model | `npm test` → `✓ src/__tests__/rationalTime.test.ts (1 test) 6ms` | 2026-09-16 |
 
 **Notable finding from the render:** the Program Monitor's own status pill reads **`Canvas2D`**, not
 `WebGPU` — the running build did not initialise a WebGPU device, consistent with
