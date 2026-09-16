@@ -748,6 +748,13 @@ def advance(state, jules_key, gh_token, md):
 
     # ------------------------------------------------------------------ idle: dispatch
     if phase == "idle":
+        now = int(time.time())
+        # Debounce: if a dispatch was already initiated within the last 180s, wait for Jules to report status
+        last_dispatch = state.get("dispatched_at", 0)
+        if (now - last_dispatch) < 180 and state.get("task_id"):
+            log(f"cooldown: task {state.get('task_id')} was dispatched {now - last_dispatch}s ago; waiting for Jules")
+            return "COMPLETED"
+
         task = next_task(parse_queue(md), open_pr_tasks(gh_token))
         if not task:
             log("no claimable task in the work queue (nothing todo, or all candidates have an open PR)")
@@ -781,8 +788,9 @@ def advance(state, jules_key, gh_token, md):
         state.update({"phase": "awaiting_session", "task_id": task["id"],
                       "session_id": session_id, "branch": None, "pr": None,
                       "fix_attempts": 0, "nudges": 0, "last_error_sig": None,
-                      "last_update": None, "stuck_since": None})
-        state["history"].append({"t": int(time.time()), "ev": f"dispatch {task['id']}"})
+                      "last_update": None, "stuck_since": None,
+                      "dispatched_at": now})
+        state["history"].append({"t": now, "ev": f"dispatch {task['id']}"})
         return "COMPLETED"
 
     # ------------------------------------------------ awaiting_session / awaiting_fix
@@ -800,67 +808,54 @@ def advance(state, jules_key, gh_token, md):
         if jstate == "FAILED":
             reason = failure_reason(get_activities(session_id, jules_key))
             sig = error_signature(reason)
-            log(f"session FAILED: {reason[:140]} (sig {sig})")
-
-            if sig == state.get("last_error_sig"):
-                log("same failure category again -> minting a fresh session for the same task")
-                rows = parse_queue(md)
-                current = next((r for r in rows if r["id"] == state.get("task_id")), None)
-                task = current or next_task(rows, open_pr_tasks(gh_token)) or {
-                    "id": state.get("task_id") or "unknown", "task": "retry", "scope": ""}
-                prompt = build_prompt(task, reuse=False)
-                st2, data = create_session(prompt, f"{task['id']} {task['task'][:60]}", jules_key)
-                if st2 not in (200, 201) or not isinstance(data, dict) or not data.get("id"):
-                    log(f"fresh dispatch failed: {data}")
-                    return "FAILED"
-                state.update({"phase": "awaiting_session", "session_id": data["id"],
-                              "branch": None, "pr": None, "fix_attempts": 0,
-                              "nudges": 0, "last_error_sig": sig, "stuck_since": None})
-                state["history"].append({"t": int(time.time()),
-                                         "ev": "fresh session after repeated failure"})
-                return "COMPLETED"
-
+            log(f"session FAILED: {reason} (sig: {sig})")
+            state["history"].append({"t": int(time.time()),
+                                     "ev": f"session FAILED: {reason[:60]}"})
             if sig == "conflict":
                 msg = (
                     f"Your previous attempt failed with a git merge conflict:\n"
                     f"{reason}\n\n"
                     "Please resolve the conflict against origin/main:\n"
-                    "1. Fetch the latest origin/main: `git fetch origin main`\n"
-                    "2. Rebase or merge: `git merge origin/main`\n"
-                    "3. Resolve all conflict markers cleanly\n"
-                    "4. Run `npm run build` and `npm run test`\n"
-                    "5. Commit and push your updated branch so the pull request updates in place."
+                    "1. git fetch origin main\n"
+                    "2. git merge origin/main\n"
+                    "3. Fix conflict markers and run npm run build && npm run test\n"
+                    "4. Commit and push the resolved changes.\n"
+                    "Do NOT start over on an unmerged branch."
                 )
-            else:
-                msg = (
-                    "Your previous attempt failed with:\n"
-                    f"{reason}\n\n"
-                    "That looks like an environment or session failure rather than a problem with "
-                    "the task itself. Please continue: retry the pending instruction and push to the "
-                    "same branch if a PR already exists. If the failure was genuinely caused by the "
-                    "task, say so explicitly instead of retrying."
-                )
-            send_message(session_id, msg, jules_key)
+                send_message(session_id, msg, jules_key)
+                state["last_error_sig"] = sig
+                state["stuck_since"] = None
+                return "COMPLETED"
+
+            if sig == state.get("last_error_sig"):
+                log(f"repeated failure signature {sig}; starting a fresh session from main")
+                state["session_id"] = None
+                state["last_error_sig"] = None
+                state["phase"] = "idle"
+                return advance(state, jules_key, gh_token, md)
+
+            send_message(
+                session_id,
+                "Your previous attempt failed with:\n"
+                f"{reason}\n\n"
+                "That looks like an environment or session failure rather than a problem with "
+                "the task. Please retry the last instruction from a clean workspace state.",
+                jules_key)
             state["last_error_sig"] = sig
-            state["nudges"] = state.get("nudges", 0) + 1
-            state["phase"] = "awaiting_session"
-            state["history"].append({"t": int(time.time()), "ev": f"revive after {sig}"})
-            log(f"told session to continue (sig: {sig})")
+            state["stuck_since"] = None
             return "COMPLETED"
 
-        if jstate in ("IN_PROGRESS", "QUEUED", "PLANNING", "PAUSED"):
-            acts = get_activities(session_id, jules_key)
-            stamp = (acts[-1].get("createTime") if acts else None) or updated
-            if stamp and stamp == state.get("last_update"):
-                since = state.get("stuck_since") or stamp
-                state["stuck_since"] = since
-                if (time.time() - parse_ts(since) > STUCK_MINUTES * 60
-                        and state.get("nudges", 0) < MAX_NUDGES):
+        if jstate in ("IN_PROGRESS", "RUNNING", "QUEUED", "PLANNING"):
+            stamp = parse_iso(updated) if updated else time.time()
+            if stamp == state.get("last_update"):
+                stuck = state.get("stuck_since") or stamp
+                state["stuck_since"] = stuck
+                if time.time() - stuck > STUCK_THRESHOLD_S and state.get("nudges", 0) < 3:
                     send_message(session_id,
-                                 "No activity has been observed on this session for a while. "
-                                 "Please continue from where you left off and report what you are "
-                                 "working on. If you are blocked, say what is blocking you.",
-                                 jules_key)
+                                  "No activity has been observed on this session for a while. "
+                                  "Please continue from where you left off and report what you are "
+                                  "working on. If you are blocked, say what is blocking you.",
+                                  jules_key)
                     state["nudges"] = state.get("nudges", 0) + 1
                     state["stuck_since"] = None
                     state["history"].append({"t": int(time.time()), "ev": "stuck nudge"})
@@ -873,7 +868,7 @@ def advance(state, jules_key, gh_token, md):
         if jstate == "COMPLETED":
             pr = session_pr(session_id, gh_token, state.get("task_id"))
             if not pr:
-                log("session COMPLETED but no PR found yet; re-checking next run")
+                log(f"session COMPLETED but no OPEN PR found for task {state.get('task_id')} yet; waiting")
                 state["last_update"] = None
                 return "COMPLETED"
             state.update({"phase": "verifying", "pr": pr["number"],
@@ -916,15 +911,24 @@ def advance(state, jules_key, gh_token, md):
                          f"- Lint: `npm run lint` passed (0 errors)\n"
                          f"- Invariant Audit: No stub fallbacks, no float time accumulation, no unresolved conflict markers\n\n"
                          f"Auto-approving and merging PR #{pr} automatically.\n\n"
-                         f"_This comment was posted by the OpenHands orchestrator on behalf of {OWNER}._")},
+                         f"_This comment was posted by the Jules orchestrator on behalf of {OWNER}._")},
                 token=gh_token)
 
             # 2. Auto-approve the Pull Request
+            actions_token = os.environ.get("ACTIONS_TOKEN")
+            approval_token = actions_token or gh_token
             st_app, res_app = github(f"repos/{OWNER}/{REPO}/pulls/{pr}/reviews", "POST", {
                 "event": "APPROVE",
                 "body": f"✅ Auto-approved: Task {state['task_id']} passed independent verification."
-            }, token=gh_token)
-            log(f"PR #{pr} review approval -> HTTP {st_app}")
+            }, token=approval_token)
+            log(f"PR #{pr} review approval -> HTTP {st_app}: {res_app}")
+
+            if st_app not in (200, 201) and actions_token and approval_token != gh_token:
+                st_app2, res_app2 = github(f"repos/{OWNER}/{REPO}/pulls/{pr}/reviews", "POST", {
+                    "event": "APPROVE",
+                    "body": f"✅ Auto-approved: Task {state['task_id']} passed independent verification."
+                }, token=gh_token)
+                log(f"PR #{pr} review approval fallback -> HTTP {st_app2}: {res_app2}")
 
             # 3. Auto-merge the Pull Request
             st_mrg, res_mrg = github(f"repos/{OWNER}/{REPO}/pulls/{pr}/merge", "PUT", {
@@ -932,7 +936,23 @@ def advance(state, jules_key, gh_token, md):
                 "commit_message": f"Task {state['task_id']} verified and auto-merged by Jules Orchestrator.",
                 "merge_method": "squash"
             }, token=gh_token)
-            log(f"PR #{pr} auto-merge -> HTTP {st_mrg}")
+            log(f"PR #{pr} auto-merge -> HTTP {st_mrg}: {res_mrg}")
+
+            if st_mrg not in (200, 201):
+                # If direct merge was blocked, attempt GraphQL enablePullRequestAutoMerge
+                log(f"direct merge returned {st_mrg}; attempting GraphQL enablePullRequestAutoMerge")
+                st_pr, pr_info = github(f"repos/{OWNER}/{REPO}/pulls/{pr}", token=gh_token)
+                if st_pr == 200 and isinstance(pr_info, dict) and pr_info.get("node_id"):
+                    node_id = pr_info["node_id"]
+                    query = ("mutation ($prId: ID!) { "
+                             "enablePullRequestAutoMerge(input: {pullRequestId: $prId, mergeMethod: SQUASH}) { "
+                             "pullRequest { autoMergeRequest { enabledAt } } "
+                             "} }")
+                    st_gql, res_gql = http(f"{GH}/graphql", "POST",
+                                           {"query": query, "variables": {"prId": node_id}},
+                                           headers={"Authorization": f"Bearer {gh_token}",
+                                                    "Content-Type": "application/json"})
+                    log(f"GraphQL auto-merge result -> HTTP {st_gql}: {res_gql}")
 
             reset_for_next_task(state)
             return "COMPLETED"

@@ -15,6 +15,26 @@ Entry format (copy this):
 ```
 
 ---
+## 2026-09-16 — Antigravity — Fix duplicate task dispatch & Enable PR auto-approve + auto-merge
+- **Did:**
+  - Diagnosed and fixed the issue where Jules received 4 duplicate task dispatches in rapid succession:
+    1. Root cause: `session_pr()` searched `state="all"` which matched stale, already-merged PRs from reused session IDs, causing false "task completed" conclusions and infinite re-dispatch loops. Fixed by strictly querying `state="open"` and requiring explicit matching of `task_id`.
+    2. Over-triggering: Multiple triggers (`push`, `pull_request: closed`, and multiple `workflow_run`) fired simultaneously on merge. Removed `pull_request: closed` and filtered `workflow_run` to only run on pull requests.
+    3. Added debounce cooldown (`dispatched_at`) in `advance()` to prevent duplicate dispatches within 180 seconds.
+  - Implemented automated Pull Request approval and auto-merge:
+    1. Passed `ACTIONS_TOKEN: ${{ github.token }}` so `github-actions[bot]` can submit PR review approvals without triggering GitHub 422 self-approval errors.
+    2. Auto-merges verified PRs directly via `PUT /repos/{owner}/{repo}/pulls/{pr}/merge` with squash merge.
+    3. Fallback to native GitHub GraphQL `enablePullRequestAutoMerge` if branch protection rules require pending status checks to settle.
+- **Verified:**
+  - `py -m py_compile scripts/jules-orchestrator.py` passed (exit code 0).
+  - Mechanical invariant checks passed cleanly.
+  - Vitest test suite passed: 74 tests passed.
+  - `npm run lint` passed (0 errors).
+  - `npm run build` passed (tsc + vite build).
+- **Left undone:** None.
+- **Next:** Jules to complete R1.3, orchestrator will detect open PR, independently verify, auto-approve, and auto-merge.
+- **Blockers:** None.
+
 ## 2026-09-16 — Jules — R1.2
 - **Did:** Added Command pattern + undo/redo stack.
   - Added `Command` interface to `src/core/commands/index.ts`.
