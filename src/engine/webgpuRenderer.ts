@@ -1,10 +1,14 @@
 import yuvToRgbWgsl from './shaders/yuv_to_rgb.wgsl?raw';
 
+import { Transform } from '../types/timeline';
+import { computeTransformMatrix } from './transforms';
+
 export interface RenderOptions {
   width: number;
   height: number;
   timecode: number;
   lutIntensity?: number;
+  transform?: Transform;
   yuvData?: {
     y: Uint8Array;
     u: Uint8Array;
@@ -59,8 +63,14 @@ export class WebGPURendererEngine {
           ],
         });
 
+        const uniformBindGroupLayout = this.device.createBindGroupLayout({
+          entries: [
+            { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }
+          ],
+        });
+
         const pipelineLayout = this.device.createPipelineLayout({
-          bindGroupLayouts: [bindGroupLayout],
+          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout],
         });
 
         this.pipeline = this.device.createRenderPipeline({
@@ -119,6 +129,7 @@ renderFrame(_options: RenderOptions) {
     let yTexture: any = null;
     let uTexture: any = null;
     let vTexture: any = null;
+    let uniformBuffer: any = null;
 
     if (_options.yuvData && this.pipeline) {
       // YUV420p dimensions
@@ -157,9 +168,41 @@ renderFrame(_options: RenderOptions) {
         ],
       });
 
+      // Create Uniform Buffer for Transform (mat4x4 = 64 bytes) + opacity (f32 = 4 bytes)
+      // WebGPU requires 16-byte alignment. 64 + 4 = 68, padded to 80 bytes (or 256 for min uniform buffer offset alignment, but we just use one).
+      // mat4x4 takes 16 floats (64 bytes). opacity takes 1 float. We can allocate 20 floats (80 bytes).
+      uniformBuffer = this.device.createBuffer({
+        size: 80,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const transformMatrix = _options.transform
+        ? computeTransformMatrix(_options.transform, _options.width / _options.height)
+        : computeTransformMatrix({
+            position: { x: 0.5, y: 0.5 },
+            scale: { x: 1, y: 1 },
+            rotation: 0,
+            opacity: 1,
+            anchorPoint: { x: 0.5, y: 0.5 }
+          }, _options.width / _options.height);
+
+      const opacity = _options.transform?.opacity ?? 1.0;
+
+      const uniformData = new Float32Array(20);
+      uniformData.set(transformMatrix, 0); // floats 0-15
+      uniformData[16] = opacity;           // float 16
+
+      this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+      const uniformBindGroup = this.device.createBindGroup({
+        layout: this.pipeline.getBindGroupLayout(1),
+        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+      });
+
       passEncoder.setPipeline(this.pipeline);
       passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(3, 1, 0, 0);
+      passEncoder.setBindGroup(1, uniformBindGroup);
+      passEncoder.draw(6, 1, 0, 0);
     }
 
     passEncoder.end();
@@ -169,6 +212,11 @@ renderFrame(_options: RenderOptions) {
     if (yTexture) yTexture.destroy();
     if (uTexture) uTexture.destroy();
     if (vTexture) vTexture.destroy();
+    // In actual WebGPU we can't destroy the buffer immediately if it's in use by the queue,
+    // but the engine uses small buffers that garbage collect, or we should manage them.
+    // However for zero-copy constraint let's just destroy it. Wait, destroying a buffer
+    // right after submission is valid in WebGPU (it gets freed after GPU is done).
+    if (uniformBuffer) uniformBuffer.destroy();
   }
 }
 

@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebGPURendererEngine } from '../engine/webgpuRenderer';
 
 // Mock WebGPU types for tests
-(global as any).GPUShaderStage = {
+(global as any).GPUBufferUsage = { UNIFORM: 64, COPY_DST: 8 };
+  globalThis.GPUShaderStage = {
   VERTEX: 1,
   FRAGMENT: 2,
   COMPUTE: 4,
@@ -44,6 +45,7 @@ describe('WebGPURendererEngine', () => {
       createRenderPipeline: vi.fn().mockReturnValue({
         getBindGroupLayout: vi.fn().mockReturnValue({}),
       }),
+      createBuffer: vi.fn().mockReturnValue({ destroy: vi.fn() }),
       createCommandEncoder: vi.fn().mockReturnValue({
         beginRenderPass: vi.fn().mockReturnValue({
           setPipeline: vi.fn(),
@@ -60,6 +62,7 @@ describe('WebGPURendererEngine', () => {
       createSampler: vi.fn().mockReturnValue({}),
       createBindGroup: vi.fn().mockReturnValue({}),
       queue: {
+        writeBuffer: vi.fn(),
         submit: vi.fn(),
         writeTexture: vi.fn(),
       }
@@ -108,7 +111,7 @@ describe('WebGPURendererEngine', () => {
 
     expect(pass.setPipeline).toHaveBeenCalled();
     expect(pass.setBindGroup).toHaveBeenCalled();
-    expect(pass.draw).toHaveBeenCalledWith(3, 1, 0, 0);
+    expect(pass.draw).toHaveBeenCalledWith(6, 1, 0, 0);
 
     // Zero-copy rule: validate textures are destroyed
     const mockTexture = mockDevice.createTexture.mock.results[0].value;

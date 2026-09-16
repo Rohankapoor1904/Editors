@@ -1,5 +1,12 @@
 // WGSL YUV420p to RGB shader
 
+struct Uniforms {
+    transform: mat4x4<f32>,
+    opacity: f32,
+};
+
+@group(1) @binding(0) var<uniform> uniforms: Uniforms;
+
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -8,11 +15,29 @@ struct VertexOutput {
 @vertex
 fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
-    // Generate full screen quad
-    let x = f32((vertex_index & 1u) << 2u) - 1.0;
-    let y = f32((vertex_index & 2u) << 1u) - 1.0;
-    out.position = vec4<f32>(x, y, 0.0, 1.0);
-    out.uv = vec2<f32>(x * 0.5 + 0.5, 1.0 - (y * 0.5 + 0.5));
+
+    // Instead of a single oversized triangle, we'll draw a standard quad using 6 vertices (2 triangles)
+    // Vertices: (x, y)
+    // 0: (-1, 1), 1: (-1, -1), 2: (1, 1)  -> Triangle 1
+    // 3: (1, 1),  4: (-1, -1), 5: (1, -1) -> Triangle 2
+
+    var pos = vec2<f32>(0.0, 0.0);
+    var uv = vec2<f32>(0.0, 0.0);
+
+    switch (vertex_index) {
+        case 0u: { pos = vec2<f32>(-1.0, 1.0); uv = vec2<f32>(0.0, 0.0); }
+        case 1u: { pos = vec2<f32>(-1.0, -1.0); uv = vec2<f32>(0.0, 1.0); }
+        case 2u: { pos = vec2<f32>(1.0, 1.0); uv = vec2<f32>(1.0, 0.0); }
+        case 3u: { pos = vec2<f32>(1.0, 1.0); uv = vec2<f32>(1.0, 0.0); }
+        case 4u: { pos = vec2<f32>(-1.0, -1.0); uv = vec2<f32>(0.0, 1.0); }
+        case 5u: { pos = vec2<f32>(1.0, -1.0); uv = vec2<f32>(1.0, 1.0); }
+        default: { pos = vec2<f32>(0.0, 0.0); uv = vec2<f32>(0.0, 0.0); }
+    }
+
+    let pos4 = vec4<f32>(pos.x, pos.y, 0.0, 1.0);
+    out.position = uniforms.transform * pos4;
+    out.uv = uv;
+
     return out;
 }
 
@@ -32,5 +57,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let g = y - 0.1873 * u - 0.4681 * v;
     let b = y + 1.8556 * u;
 
-    return vec4<f32>(r, g, b, 1.0);
+    return vec4<f32>(r, g, b, uniforms.opacity);
 }
