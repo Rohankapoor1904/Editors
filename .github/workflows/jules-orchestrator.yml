@@ -1,0 +1,70 @@
+name: Jules Orchestrator
+
+# Runs the OpenHands↔Jules loop on a schedule: dispatch the next claimable task from
+# PROGRESS.md to Jules, wait for its PR, verify the PR independently, send problems back
+# to the same session, and repeat once the task is verified.
+#
+# This runs on GitHub Actions rather than an OpenHands automation because an automation
+# entrypoint cannot read the account's stored secrets (Jules key, GitHub token) — only
+# OPENHANDS_API_KEY is injected — so it can never authenticate those calls.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  # The orchestrator keeps its state on the automation-state branch; overlapping runs
+  # would race on that state.
+  group: jules-orchestrator
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out orchestrator source
+        uses: actions/checkout@v4
+
+      - name: Restore orchestrator state
+        run: |
+          set -eu
+          mkdir -p .orchestrator
+          if git fetch --depth=1 origin automation-state 2>/dev/null; then
+            git show FETCH_HEAD:state.json > .orchestrator/state.json 2>/dev/null || true
+          fi
+          if [ -s .orchestrator/state.json ]; then
+            echo "restored state:"; cat .orchestrator/state.json
+          else
+            rm -f .orchestrator/state.json
+            echo "no prior state; starting from idle"
+          fi
+
+      - name: Run orchestrator
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_OWNER_TOKEN: ${{ secrets.ORCHESTRATOR_GH_TOKEN }}
+          ORCHESTRATOR_STATE_FILE: .orchestrator/state.json
+        run: python3 scripts/jules-orchestrator.py
+
+      - name: Persist orchestrator state
+        if: always()
+        run: |
+          set -eu
+          if [ ! -s .orchestrator/state.json ]; then
+            echo "no state written; nothing to persist"
+            exit 0
+          fi
+          git config user.name "jules-orchestrator"
+          git config user.email "jules-orchestrator@users.noreply.github.com"
+          git checkout --orphan automation-state
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .orchestrator -exec rm -rf {} +
+          cp .orchestrator/state.json state.json
+          git add state.json
+          git commit -m "chore(orchestrator): update state [skip ci]"
+          git push --force origin automation-state
