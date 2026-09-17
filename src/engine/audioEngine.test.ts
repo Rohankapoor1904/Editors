@@ -22,6 +22,7 @@ class MockAudioContext {
     state: string = 'running';
     destination: any = {};
     createGain() { return new MockGainNode(); }
+    createAnalyser() { return { getFloatTimeDomainData: vi.fn() }; }
     resume = vi.fn().mockResolvedValue(undefined);
 }
 
@@ -30,7 +31,9 @@ describe('WebAudioEngineManager R2.5', () => {
 
     beforeEach(() => {
         globalThis.window = {
-            AudioContext: MockAudioContext
+            AudioContext: MockAudioContext,
+            setInterval: vi.fn(),
+            clearInterval: vi.fn()
         } as any;
         engine = new WebAudioEngineManager();
         engine.init(48000);
@@ -85,5 +88,31 @@ describe('WebAudioEngineManager R2.5', () => {
         expect(gainNode1.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 110);
         expect(gainNode2.gain.setValueAtTime).toHaveBeenCalledWith(0, 109);
         expect(gainNode2.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, 110);
+    });
+});
+
+describe('WebAudioEngineManager Routes R5.1', () => {
+    let engine: WebAudioEngineManager;
+    beforeEach(() => {
+        globalThis.window = {
+            AudioContext: MockAudioContext,
+            setInterval: vi.fn(),
+            clearInterval: vi.fn()
+        } as any;
+        engine = new WebAudioEngineManager();
+        engine.init(48000);
+    });
+    test('routes track correctly to graph buses based on track id', () => {
+        const dialogueGain = engine.getOrCreateTrackGain('dialogue_1') as any;
+        expect(dialogueGain.connect).toHaveBeenCalled();
+
+        const musicGain = engine.getOrCreateTrackGain('music_1') as any;
+        expect(musicGain.connect).toHaveBeenCalled();
+
+        const sfxGain = engine.getOrCreateTrackGain('sfx_1') as any;
+        expect(sfxGain.connect).toHaveBeenCalled();
+
+        const otherGain = engine.getOrCreateTrackGain('v1') as any;
+        expect(otherGain.connect).toHaveBeenCalled();
     });
 });

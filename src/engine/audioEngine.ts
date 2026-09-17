@@ -1,11 +1,13 @@
 import { Clip } from '../types/timeline';
 import { useTimelineStore } from '../store/timelineStore';
+import { AudioGraph } from './audioGraph';
 
 export class WebAudioEngineManager {
   private ctx: AudioContext | null = null;
   private trackGainNodes: Map<string, GainNode> = new Map();
   private clipGainNodes: Map<string, GainNode> = new Map();
   public isInitialized = false;
+  public graph: AudioGraph | null = null;
 
   init(sampleRate = 48000) {
     if (typeof window === 'undefined') return;
@@ -13,6 +15,22 @@ export class WebAudioEngineManager {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (AudioCtx) {
       this.ctx = new AudioCtx({ sampleRate });
+      this.graph = new AudioGraph(this.ctx);
+      // Ensure default buses exist
+      this.graph.createBus('dialogue');
+      this.graph.createBus('music');
+      this.graph.createBus('sfx');
+
+      this.graph.addDucking({
+        sourceBus: 'dialogue',
+        targetBus: 'music',
+        threshold: 0.05,
+        duckingGain: 0.25,
+        attack: 0.05,
+        release: 0.5
+      });
+      this.graph.startDuckingProcessor();
+
       this.isInitialized = true;
       console.log(`[Audio Engine]: WebAudio Sub-frame Graph Initialized at ${sampleRate} Hz`);
     }
@@ -37,7 +55,19 @@ export class WebAudioEngineManager {
 
     if (!this.trackGainNodes.has(trackId)) {
       const gainNode = this.ctx.createGain();
-      gainNode.connect(this.ctx.destination);
+
+      let busName = 'master';
+      if (trackId.toLowerCase().includes('dialogue') || trackId.toLowerCase().includes('v')) busName = 'dialogue';
+      else if (trackId.toLowerCase().includes('music') || trackId.toLowerCase().includes('a')) busName = 'music';
+      else if (trackId.toLowerCase().includes('sfx')) busName = 'sfx';
+
+      const targetBus = this.graph?.getBus(busName) || this.graph?.getBus('master');
+
+      if (targetBus) {
+         gainNode.connect(targetBus.input);
+      } else {
+         gainNode.connect(this.ctx.destination);
+      }
       this.trackGainNodes.set(trackId, gainNode);
     }
     return this.trackGainNodes.get(trackId) || null;
@@ -79,15 +109,7 @@ export class WebAudioEngineManager {
     return this.clipGainNodes.get(clipId) || null;
   }
 
-  applyAudioDucking(musicTrackId: string, dialogueActive: boolean) {
-    const gainNode = this.getOrCreateTrackGain(musicTrackId);
-    if (!gainNode || !this.ctx) return;
 
-    const targetGain = dialogueActive ? 0.25 : 1.0;
-    const now = this.ctx.currentTime;
-    gainNode.gain.cancelScheduledValues(now);
-    gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
-  }
 
   setTrackVolume(trackId: string, volumeDb: number) {
     const gainNode = this.getOrCreateTrackGain(trackId);
