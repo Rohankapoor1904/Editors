@@ -785,8 +785,10 @@ def extract_plan_text(activities):
                 if isinstance(step, dict):
                     texts.append(step.get("title", ""))
                     texts.append(step.get("description", ""))
-        if "agentMessage" in a and isinstance(a["agentMessage"], dict):
-            texts.append(a["agentMessage"].get("text", ""))
+        if "agentMessaged" in a and isinstance(a["agentMessaged"], dict):
+            texts.append(a["agentMessaged"].get("agentMessage", ""))
+        if "agentMessage" in a:
+            texts.append(str(a["agentMessage"]))
         if "description" in a:
             texts.append(str(a["description"]))
     return " ".join(texts)
@@ -812,10 +814,14 @@ def evaluate_plan(activities, task):
 def get_last_agent_question(activities):
     for a in reversed(activities):
         if isinstance(a, dict):
-            if "agentMessage" in a and isinstance(a["agentMessage"], dict):
-                txt = a["agentMessage"].get("text", "")
-                if txt and "?" in txt:
-                    return txt
+            if "agentMessaged" in a and isinstance(a["agentMessaged"], dict):
+                msg = a["agentMessaged"].get("agentMessage", "")
+                if msg:
+                    return msg
+            if "agentMessage" in a:
+                msg = str(a["agentMessage"])
+                if msg:
+                    return msg
             if "userQuestion" in a and isinstance(a["userQuestion"], dict):
                 txt = a["userQuestion"].get("text", "")
                 if txt:
@@ -981,7 +987,7 @@ def advance(state, jules_key, gh_token, md):
             state["history"].append({"t": int(time.time()), "ev": "plan evaluated clean & auto-approved"})
             return "COMPLETED"
 
-        if jstate in ("AWAITING_USER_INPUT", "WAITING_FOR_USER_INPUT", "PAUSED"):
+        if jstate in ("AWAITING_USER_INPUT", "WAITING_FOR_USER_INPUT", "AWAITING_USER_FEEDBACK", "PAUSED"):
             attempts = state.get("user_input_attempts", 0) + 1
             state["user_input_attempts"] = attempts
             activities = get_activities(session_id, jules_key)
