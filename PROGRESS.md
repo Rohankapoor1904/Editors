@@ -77,7 +77,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R4.2** | Scopes: parade, vectorscope, histogram | R4 | `done` | Jules | `src/engine/scopes.ts` | R2.2 |
 | **R4.3** | Color management (OCIO-subset, labelled `partial`) | R4 | `done` | `npm test` passed, verified in PR #43 | `src/engine/colorManagement.ts` | R4.1 |
 | **R5.1** | Bus routing + sidechain ducking on a real bus graph | R5 | `done` | `npm test` passed, verified in PR #44 | `src/engine/audioGraph.ts` | R2.4 |
-| **R5.2** | Parameterised EQ + limiter + PDC | R5 | `todo` | — | `parametricEq.ts`, `src/engine/limiter.ts` | R5.1 |
+| **R5.2** | Parameterised EQ + limiter + PDC | R5 | `done` | `npm test` passed, verified in PR #45 | `parametricEq.ts`, `src/engine/limiter.ts` | R5.1 |
 | **R5.3** | LUFS loudness normalization + metering | R5 | `todo` | — | `src/engine/loudness.ts` | R5.1 |
 | **R6.1** | Real Whisper ASR (replaces hardcoded transcript) | R6 | `todo` | — | `whisper_onnx.rs`, `whisperTranscriber.ts` | R2.4 |
 | **R6.2** | Real forced alignment + text-to-timeline binding | R6 | `todo` | — | `src/services/alignment.ts`, `TranscriptEditor.tsx` | R6.1 |
