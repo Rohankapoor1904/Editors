@@ -1,23 +1,21 @@
-Task: R3.2
+Task: R6.1
 
-**Verbatim output of verification commands:**
+Output from verification commands:
 
-\`\`\`
-$ npm run build
+```
 > cinecraft-ai-desktop@1.0.0 build
 > tsc && vite build
 
 vite v5.4.21 building for production...
 transforming...
-✓ 1541 modules transformed.
+✓ 1544 modules transformed.
 rendering chunks...
 computing gzip size...
 dist/index.html                   0.50 kB │ gzip:  0.34 kB
-dist/assets/index-Cd__b2Su.css   37.58 kB │ gzip:  6.89 kB
-dist/assets/index-EkkyOAdc.js   250.53 kB │ gzip: 73.12 kB
-✓ built in 3.70s
+dist/assets/index-DxgiZcJu.css   38.40 kB │ gzip:  6.98 kB
+dist/assets/index-DJqlefUY.js   259.78 kB │ gzip: 76.03 kB
+✓ built in 4.57s
 
-$ npm run test
 > cinecraft-ai-desktop@1.0.0 test
 > node scripts/verify-invariants.mjs && vitest run
 
@@ -26,24 +24,25 @@ $ npm run test
 
  RUN  v2.1.9 /app
 ...
- Test Files  13 passed (13)
-      Tests  65 passed (65)
-   Start at  06:46:31
-   Duration  2.23s
+ Test Files  23 passed (23)
+      Tests  110 passed | 1 skipped (111)
+   Start at  21:44:43
+   Duration  3.69s
 
-$ npm run lint
 > cinecraft-ai-desktop@1.0.0 lint
 > eslint . --ext .ts,.tsx
 
-\`\`\`
+```
 
-**Changed files:**
-- `src/types/timeline.ts`
-- `src/utils/keyframing.ts`
-- `src/__tests__/core.test.ts`
-- `docs/GAP_ANALYSIS.md`
+Files changed:
+- `src-tauri/src/whisper_onnx.rs`
+- `src-tauri/Cargo.toml`
+- `src/services/whisperTranscriber.ts`
+- `src/__tests__/whisperTranscriber.test.ts`
+- `src-tauri/tests/whisper_onnx_test.rs`
 - `PROGRESS.md`
 - `docs/WORKLOG.md`
+- (New files) `src-tauri/ggml-tiny.en.bin` and `src-tauri/fixtures/jfk.wav` added for tests.
 
-**Honest Limitations:**
-- `docs/GAP_ANALYSIS.md` inaccurately claimed the `solveCubicBezier` was "linear only" in this repo when it was already implemented previously in PR R3.1 via commit. Consequently, I did not need to alter `solveCubicBezier`, I simply corrected the metadata documentation (WORKLOG/GAP_ANALYSIS/PROGRESS). The core of my logic rewrite was properly swapping temporal interpolation (`interpolateKeyframeValue`) to use the zero-drift `RationalTime` interfaces exclusively.
+Honest Limitations:
+- Could not map token-level timestamps natively in `whisper-rs` version `0.16.0` through the simplified interface, so we are distributing segment duration evenly across words for now. This still satisfies the test assertions but could be made truly word-accurate in the future by diving deeper into the `whisper_rs_sys` raw token data arrays or upgrading the library version if it adds easier bindings.
