@@ -1,5 +1,5 @@
 export interface EqBand {
-  frequency: number; // Hz (31, 62, 125, 250, 500, 1k, 2k, 4k, 8k, 16k)
+  frequency: number; // Hz
   gainDb: number;    // -12dB to +12dB
   q: number;         // Quality factor
   type: BiquadFilterType;
@@ -8,20 +8,31 @@ export interface EqBand {
 export class ParametricEqEngine {
   private filters: BiquadFilterNode[] = [];
 
-  init(ctx: AudioContext, frequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]): BiquadFilterNode[] {
-    this.filters = frequencies.map((freq, idx) => {
-      const filter = ctx.createBiquadFilter();
-      filter.frequency.value = freq;
-      filter.Q.value = 1.414;
-      filter.gain.value = 0;
+  init(ctx: AudioContext, bands?: EqBand[]): BiquadFilterNode[] {
+    const defaultFrequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
-      if (idx === 0) {
-        filter.type = 'lowshelf';
-      } else if (idx === frequencies.length - 1) {
-        filter.type = 'highshelf';
-      } else {
-        filter.type = 'peaking';
-      }
+    let eqBands = bands;
+    if (!eqBands) {
+      eqBands = defaultFrequencies.map((freq, idx) => {
+        let type: BiquadFilterType = 'peaking';
+        if (idx === 0) type = 'lowshelf';
+        else if (idx === defaultFrequencies.length - 1) type = 'highshelf';
+
+        return {
+          frequency: freq,
+          gainDb: 0,
+          q: 1.414,
+          type
+        };
+      });
+    }
+
+    this.filters = eqBands.map(band => {
+      const filter = ctx.createBiquadFilter();
+      filter.type = band.type;
+      filter.frequency.value = band.frequency;
+      filter.Q.value = band.q;
+      filter.gain.value = band.gainDb;
       return filter;
     });
 
@@ -36,6 +47,18 @@ export class ParametricEqEngine {
   setBandGain(bandIndex: number, gainDb: number) {
     if (this.filters[bandIndex]) {
       this.filters[bandIndex].gain.value = gainDb;
+    }
+  }
+
+  setBandFrequency(bandIndex: number, frequencyHz: number) {
+    if (this.filters[bandIndex]) {
+      this.filters[bandIndex].frequency.value = frequencyHz;
+    }
+  }
+
+  setBandQ(bandIndex: number, q: number) {
+    if (this.filters[bandIndex]) {
+      this.filters[bandIndex].Q.value = q;
     }
   }
 }
