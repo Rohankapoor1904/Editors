@@ -33,7 +33,7 @@ describe('ParametricEqEngine', () => {
                  const A = Math.pow(10, dBgain / 40);
                  const w0 = 2 * Math.PI * f / 48000; // Assuming 48kHz sample rate for math
                  const w0_center = 2 * Math.PI * f0 / 48000;
-                 const alpha = Math.sin(w0_center) / (2 * Q);
+                 const alpha = Math.sqrt(1 - Math.pow(Math.cos(w0_center), 2)) / (2 * Q);
 
                  const b0 = 1 + alpha * A;
                  const b1 = -2 * Math.cos(w0_center);
