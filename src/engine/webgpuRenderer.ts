@@ -3,11 +3,13 @@ import yuvToRgbWgsl from './shaders/yuv_to_rgb.wgsl?raw';
 import { Transform } from '../types/timeline';
 import { computeTransformMatrix } from './transforms';
 
+import { ColorGradeSettings, colorEngine } from './colorEngine';
+
 export interface RenderOptions {
   width: number;
   height: number;
   timecode: number;
-  lutIntensity?: number;
+  colorSettings?: ColorGradeSettings;
   transform?: Transform;
   yuvData?: {
     y: Uint8Array;
@@ -17,18 +19,18 @@ export interface RenderOptions {
 }
 
 export class WebGPURendererEngine {
-  private adapter: any = null;
-  private device: any = null;
-  private context: any = null;
+  private adapter: GPUAdapter | null = null;
+  private device: GPUDevice | null = null;
+  private context: GPUCanvasContext | null = null;
   private isInitialized = false;
-  private pipeline: any = null;
-  private sampler: any = null;
+  private pipeline: GPURenderPipeline | null = null;
+  private sampler: GPUSampler | null = null;
 
   /**
    * Initializes WebGPU Device and Canvas Context
    */
   async init(canvas: HTMLCanvasElement): Promise<boolean> {
-    const nav = navigator as any;
+    const nav = navigator as unknown as { gpu?: GPU };
     if (!nav.gpu) {
       console.warn('WebGPU not supported on this device/browser. Falling back to 2D Canvas context.');
       return false;
@@ -49,12 +51,19 @@ export class WebGPURendererEngine {
           alphaMode: 'premultiplied',
         });
 
+
+        const colorWgslSource = colorEngine.getWGSLShaderCode({} as any);
+        const combinedShaderCode = yuvToRgbWgsl.replace(
+          'return vec4<f32>(r, g, b, uniforms.opacity);',
+          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b));\n    return vec4<f32>(graded, uniforms.opacity);'
+        ) + '\n' + colorWgslSource;
+
         const shaderModule = this.device.createShaderModule({
-          label: 'YUV to RGB Shader',
-          code: yuvToRgbWgsl,
+          label: 'YUV to RGB Shader with Color Grading',
+          code: combinedShaderCode,
         });
 
-        const bindGroupLayout = this.device.createBindGroupLayout({
+                const bindGroupLayout = this.device.createBindGroupLayout({
           entries: [
             { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d', multisampled: false } },
             { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d', multisampled: false } },
@@ -69,8 +78,16 @@ export class WebGPURendererEngine {
           ],
         });
 
+        const colorBindGroupLayout = this.device.createBindGroupLayout({
+          entries: [
+            { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+            { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '3d', multisampled: false } },
+            { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } }
+          ],
+        });
+
         const pipelineLayout = this.device.createPipelineLayout({
-          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout],
+          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout, colorBindGroupLayout],
         });
 
         this.pipeline = this.device.createRenderPipeline({
@@ -113,7 +130,7 @@ renderFrame(_options: RenderOptions) {
     const commandEncoder = this.device.createCommandEncoder();
     const textureView = this.context.getCurrentTexture().createView();
 
-    const renderPassDescriptor: any = {
+    const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
         {
           view: textureView,
@@ -126,10 +143,12 @@ renderFrame(_options: RenderOptions) {
 
     const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 
-    let yTexture: any = null;
-    let uTexture: any = null;
-    let vTexture: any = null;
-    let uniformBuffer: any = null;
+    let yTexture: GPUTexture | null = null;
+    let lutTexture: GPUTexture | null = null;
+    let colorUniformBuffer: GPUBuffer | null = null;
+    let uTexture: GPUTexture | null = null;
+    let vTexture: GPUTexture | null = null;
+    let uniformBuffer: GPUBuffer | null = null;
 
     if (_options.yuvData && this.pipeline) {
       // YUV420p dimensions
@@ -139,15 +158,15 @@ renderFrame(_options: RenderOptions) {
       const uvHeight = Math.ceil(yHeight / 2);
 
       const createTexture = (data: Uint8Array, w: number, h: number) => {
-        const texture = this.device.createTexture({
+        const texture = this.device!.createTexture({
           size: [w, h, 1],
           format: 'r8unorm',
           usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
         });
 
-        this.device.queue.writeTexture(
+        this.device!.queue.writeTexture(
           { texture },
-          data,
+          data as any,
           { bytesPerRow: w, rowsPerImage: h },
           [w, h, 1]
         );
@@ -164,7 +183,7 @@ renderFrame(_options: RenderOptions) {
           { binding: 0, resource: yTexture.createView() },
           { binding: 1, resource: uTexture.createView() },
           { binding: 2, resource: vTexture.createView() },
-          { binding: 3, resource: this.sampler },
+          { binding: 3, resource: this.sampler! },
         ],
       });
 
@@ -192,26 +211,105 @@ renderFrame(_options: RenderOptions) {
       uniformData.set(transformMatrix, 0); // floats 0-15
       uniformData[16] = opacity;           // float 16
 
-      this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+      this.device!.queue.writeBuffer(uniformBuffer, 0, uniformData as any);
 
       const uniformBindGroup = this.device.createBindGroup({
         layout: this.pipeline.getBindGroupLayout(1),
         entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
       });
 
+
+      // ---- Color Grading Uniform & LUT ----
+      const settings = _options.colorSettings;
+      const hasLut = settings?.lutData && settings.lutIntensity && settings.lutIntensity > 0;
+
+      const lutSize = settings?.lutData?.size || 33;
+
+      if (hasLut && settings.lutData) {
+        lutTexture = this.device!.createTexture({
+          size: [lutSize, lutSize, lutSize],
+          format: 'rgba32float',
+          dimension: '3d',
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+
+        this.device!.queue.writeTexture(
+          { texture: lutTexture },
+          settings.lutData.data as any,
+          { bytesPerRow: lutSize * 16, rowsPerImage: lutSize }, // 16 bytes per rgba32float pixel
+          [lutSize, lutSize, lutSize]
+        );
+      } else {
+        // Create a dummy 1x1x1 texture to satisfy the binding
+        lutTexture = this.device!.createTexture({
+          size: [1, 1, 1],
+          format: 'rgba32float',
+          dimension: '3d',
+          usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+      }
+
+      // std140 layout for ColorGradeUniforms (128 bytes total):
+      // vec3 lift (12 bytes) + pad (4 bytes) -> floats 0-3
+      // vec3 gamma (12 bytes) + pad (4 bytes) -> floats 4-7
+      // vec3 gain (12 bytes) + pad (4 bytes) -> floats 8-11
+      // vec3 offset (12 bytes) + pad (4 bytes) -> floats 12-15
+      // vec4 params (16 bytes) -> floats 16-19
+      // vec2 lutParams (8 bytes) + pad (8 bytes) -> floats 20-23
+
+      colorUniformBuffer = this.device.createBuffer({
+        size: 256, // Must be multiple of 256 or simply pad to enough capacity. Actually size 96 or 128 is fine, but padding to 256 satisfies minUniformBufferOffsetAlignment if used with offsets, we just use 0. WebGPU standard uniform buffers size can be anything > needed, min 16 byte aligned.
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const colorData = new Float32Array(24);
+
+      // Defaults
+      const lift = settings?.lift || {r:0, g:0, b:0};
+      const gamma = settings?.gamma || {r:1, g:1, b:1};
+      const gain = settings?.gain || {r:1, g:1, b:1};
+      const offset = settings?.offset || {r:0, g:0, b:0};
+
+      colorData[0] = lift.r; colorData[1] = lift.g; colorData[2] = lift.b;
+      colorData[4] = gamma.r; colorData[5] = gamma.g; colorData[6] = gamma.b;
+      colorData[8] = gain.r; colorData[9] = gain.g; colorData[10] = gain.b;
+      colorData[12] = offset.r; colorData[13] = offset.g; colorData[14] = offset.b;
+
+      colorData[16] = settings?.saturation ?? 1.0;
+      colorData[17] = settings?.contrast ?? 1.0;
+      colorData[18] = settings?.temperature ?? 0.0;
+      colorData[19] = settings?.tint ?? 0.0;
+
+      colorData[20] = lutSize;
+      colorData[21] = hasLut ? (settings.lutIntensity ?? 1.0) : 0.0;
+
+      this.device!.queue.writeBuffer(colorUniformBuffer, 0, colorData as any);
+
+      const colorBindGroup = this.device.createBindGroup({
+        layout: this.pipeline.getBindGroupLayout(2),
+        entries: [
+          { binding: 0, resource: { buffer: colorUniformBuffer } },
+          { binding: 1, resource: lutTexture.createView() },
+          { binding: 2, resource: this.sampler! },
+        ],
+      });
+
       passEncoder.setPipeline(this.pipeline);
       passEncoder.setBindGroup(0, bindGroup);
       passEncoder.setBindGroup(1, uniformBindGroup);
+      passEncoder.setBindGroup(2, colorBindGroup);
       passEncoder.draw(6, 1, 0, 0);
     }
 
     passEncoder.end();
-    this.device.queue.submit([commandEncoder.finish()]);
+    this.device!.queue.submit([commandEncoder.finish()]);
 
     // Zero-copy / lifetime: release textures immediately after submission
     if (yTexture) yTexture.destroy();
     if (uTexture) uTexture.destroy();
     if (vTexture) vTexture.destroy();
+    if (lutTexture) lutTexture.destroy();
+    if (colorUniformBuffer) colorUniformBuffer.destroy();
     // In actual WebGPU we can't destroy the buffer immediately if it's in use by the queue,
     // but the engine uses small buffers that garbage collect, or we should manage them.
     // However for zero-copy constraint let's just destroy it. Wait, destroying a buffer
