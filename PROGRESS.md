@@ -75,7 +75,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R3.5** | VRAM texture pool with aliasing | R3 | `done` | `npm test` passed, verified in PR #40 | `src/engine/vramPool.ts` | R3.3 |
 | **R4.1** | Color wheels + `.cube` LUT evaluated in WGSL | R4 | `done` | `npm test` passed, verified in PR #41 | `src/engine/shaders/color.wgsl`, `colorEngine.ts` | R2.2 |
 | **R4.2** | Scopes: parade, vectorscope, histogram | R4 | `done` | Jules | `src/engine/scopes.ts` | R2.2 |
-| **R4.3** | Color management (OCIO-subset, labelled `partial`) | R4 | `todo` | — | `src/engine/colorManagement.ts` | R4.1 |
+| **R4.3** | Color management (OCIO-subset, labelled `partial`) | R4 | `done` | `npm test` passed, verified in PR #43 | `src/engine/colorManagement.ts` | R4.1 |
 | **R5.1** | Bus routing + sidechain ducking on a real bus graph | R5 | `todo` | — | `src/engine/audioGraph.ts` | R2.4 |
 | **R5.2** | Parameterised EQ + limiter + PDC | R5 | `todo` | — | `parametricEq.ts`, `src/engine/limiter.ts` | R5.1 |
 | **R5.3** | LUFS loudness normalization + metering | R5 | `todo` | — | `src/engine/loudness.ts` | R5.1 |
