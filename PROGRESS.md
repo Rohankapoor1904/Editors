@@ -12,17 +12,19 @@
 
 | Metric | Value |
 | :--- | :--- |
-| **Frontier phase** | **R0 — Verification foundation** |
-| **Code phases complete** | **0 of 9** (R0–R8); R0 tasks R0.1, R0.2, R0.3, R0.4 done (R0.2 with limitation) |
+| **Frontier phase** | **R3 — Compositing, transforms, keyframes** (R3.3 in flight) |
+| **Code phases complete** | **R0, R1, R2 complete**; R3 partially (R3.1, R3.2 done; R3.3 in flight; R3.4–R3.5 pending). R4–R8 not started |
 | **UI shell** | Working (React + Tailwind + Zustand) with explicit Live/Demo mode indicator |
-| **Engine** | Gated stubs (safe-by-default throws `NotImplementedError` in Live mode; opt-in Demo mode for previews) |
-| **Tests** | **58 passing** — `node scripts/verify-invariants.mjs && vitest run`, 3 test suites (`core.test.ts`, `runtimeMode.test.ts`) |
+| **Engine** | Mixed: R2 playback/decode/transport and R3.1–R3.2 are real; AI/export surfaces remain gated stubs that throw `NotImplementedError` in Live mode |
+| **Tests** | **79 passing** — `node scripts/verify-invariants.mjs && vitest run`, 14 test files |
 | **CI / Invariant Gate** | Mechanical invariant gate (`scripts/verify-invariants.mjs`) + `.github/workflows/verify.yml` |
 | **Build verified** | **Yes** — `npm run build` (tsc + vite) passes; `npm run lint` passes (0 errors) |
 
-**Honest summary.** The repository has established an authentic verification and safety baseline. Stubs are no longer silently faking results on main execution paths: in default `live` mode, they fail loudly via `NotImplementedError` (frontend) and `Err` (Rust). Cubic Bezier easing (Row 10) is fully implemented with a Newton-Raphson root solver.
+**Honest summary.** R0–R2 are real and verified: rational-time model, command/undo stack, ffprobe probe, media pool, project save/load, real edit commands, real WGSL YUV420p→RGB pipeline, real playback transport with an audio master clock, LRU frame cache, and the GPU transform engine. AI surfaces (Whisper, Silero VAD, SAM 2) and the export path are still gated stubs that fail loudly rather than fabricating results. Cubic Bezier easing is real and now pinned by a behavioural test.
 
-**Verification note.** `npm run build`, `npm run lint`, and `npm test` (58 tests + invariant gate) were executed and pass cleanly. `cargo check` remains unverified in this local environment due to absent Rust toolchain.
+**Verification note.** `npm run build`, `npm run lint`, and `npm test` (79 tests + invariant gate) were executed and pass cleanly on `main` at `51d0eee`. `cargo check` was not re-run in this environment; R0.4 wired it into CI.
+
+**Documentation-drift note (2026-09-17).** `docs/GAP_ANALYSIS.md` and this file had drifted from the code: the executive summary below the work queue still read "R0 / 0 of 9 / 58 tests / 3 suites" while the queue itself listed R0–R3 tasks as `done`. Two feature rows also contradicted the code. Corrected here. The drift went undetected because the invariant gate's Bezier check matched an *identifier* rather than behaviour — a stub body satisfied it. That check now requires a behavioural suite. See `docs/WORKLOG.md`.
 
 ---
 
@@ -50,7 +52,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **R0.1** | Add `vitest` + `@testing-library/react`, write first tests against already-real code | R0 | `done` | `npm run test` → 23 passed | `package.json`, `src/__tests__/core.test.ts` | — |
 | **R0.2** | CI workflow: build + test + lint on every PR | R0 | `done` | Workflow + working lint committed. **Not observed running** — Actions blocked by account billing lock | `.github/workflows/verify.yml`, `.eslintrc.cjs`, `package.json` | R0.1 |
-| **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `done` | `npm test` → 58 passed | `src/services/*`, `src/engine/*`, `src/components/TopBar.tsx`, `src-tauri/*` | R0.1 |
+| **R0.3** | Explicit `demo`/`live` runtime mode; remove silent mock fallbacks | R0 | `done` | `npm test` → 12 tests in `runtimeMode.test.ts`, all passing | `src/services/*`, `src/engine/*`, `src/components/TopBar.tsx`, `src-tauri/*` | R0.1 |
 | **R0.4** | `cargo check` in CI; fix Tauri config (`icons/` absent, `2.0.0-rc` pin) | R0 | `done` | `cargo check` runs in CI | `src-tauri/*` | R0.2 |
 | **R1.1** | Rational time model (`RationalTime`), migrate clip/playhead timing | R1 | `done` | `npm run test` -> 36 passed; zero-drift assertion verified | `src/types/time.ts`, `src/types/timeline.ts`, store | R0.1 |
 | **R1.2** | Command + undo/redo stack for all mutations | R1 | `done` | `npm run test` -> pass, Cmd+Z handled | `src/core/commands/*`, store | R1.1 |
@@ -123,16 +125,16 @@ Derived from `docs/GAP_ANALYSIS.md`. Do not change a row to `real` without an ev
 | SAM 2 object tracking | `stub` | `sam2Masking.ts:34,58` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | FFmpeg demux / media probe | `partial` | Media probe uses `ffprobe`, extraction still stubbed |
 | Hardware export (NVENC/VideoToolbox) | `stub` | `exportEngine.ts:28-55,79` — gated safe-by-default, throws `NotImplementedError` in live mode |
-| WebGPU YUV→RGB render pipeline | `stub` | `webgpuRenderer.ts:69` — render pass with no shader module |
-| 3-way color wheels / LUT shader | `stub` | no WGSL anywhere in repo |
+| WebGPU YUV→RGB render pipeline | `real` | `src/engine/shaders/yuv_to_rgb.wgsl` (`@vertex`/`@fragment`) — real `createShaderModule` + `createRenderPipeline` in `webgpuRenderer.ts:52-90`; 2 tests in `src/__tests__/webgpuRenderer.test.ts` |
+| 3-way color wheels / LUT shader | `partial` | `colorEngine.getWGSLShaderCode()` emits a real 3-way grade, but the shader is **orphaned**: zero call sites, no `color.wgsl`, and `getWGSLShaderCode` is never compiled into a pipeline. Not yet `real`. |
 | ReAct agent tool loop | `stub` | `agentOrchestrator.ts:22,38` — gated safe-by-default, throws `NotImplementedError` in live mode |
 | Text-to-timeline editing | `partial` | binding real, fed by fabricated timestamps |
 | Proxy generation | `stub` | `nativeBridge.ts:83-86` — gated safe-by-default, throws `NotImplementedError` in live mode |
-| Timeline tools (Blade/Slip/Slide) | `stub` | `TimelineTrackEditor.tsx:103` — `activeTool` only styles a button |
-| Playback transport | `stub` | `ProgramMonitor.tsx` — play toggles an icon |
+| Timeline tools (Blade/Slip/Slide) | `real` | `TimelineTrackEditor.tsx` — `EditingTool` dispatches to real `SplitCommand`/`SlipCommand`/`SlideCommand` in `src/core/commands/edits.ts` |
+| Playback transport | `real` | `src/engine/transport.ts` — `requestAnimationFrame` loop with rational-time playhead; verified in PR #31 |
 | Undo/redo | `real` | history in `TimelineState`, handled by `Command` objects |
-| Project save/load | `missing` | no serializer |
-| DAG render graph | `missing` | flat `Effect[]` only |
+| Project save/load | `real` | `src/core/project/schema.ts` + `serialize.ts`, tests in `src/core/project/schema.test.ts`; verified in PR #25 |
+| DAG render graph | `missing` | flat `Effect[]` only; `src/engine/renderGraph/` does not exist yet (R3.3) |
 | OpenColorIO / ACES color management | `missing` | `colorSpace` is a display string |
 | **VLM / multimodal AI (CLIP/SigLIP/ViT/cross-modal fusion)** | **`missing`** | zero code matches for `vlm\|clip\|siglip\|vit\|ocr` |
 | Semantic media search | `missing` | — |
@@ -184,10 +186,10 @@ Initialized" console message is not.
 
 | Phase | Name | Status | Exit criteria met |
 | :--- | :--- | :--- | :--- |
-| R0 | Verification foundation | `partial` | No — R0.1/R0.2/R0.3/R0.4 done (R0.2 with limitation) |
-| R1 | Editorial core | `todo` | No |
-| R2 | Playback, decode, transport | `todo` | No |
-| R3 | Compositing, transforms, keyframes | `todo` | No |
+| R0 | Verification foundation | `done` | Yes — R0.1/R0.2/R0.3/R0.4 done (R0.2 with Actions billing limitation) |
+| R1 | Editorial core | `done` | Yes — R1.1–R1.8 done; zero-drift rational assertions pass |
+| R2 | Playback, decode, transport | `done` | Yes — R2.1–R2.6 done |
+| R3 | Compositing, transforms, keyframes | `partial` | No — R3.1, R3.2 done; R3.3 in flight; R3.4/R3.5 pending |
 | R4 | Color pipeline | `todo` | No |
 | R5 | Audio finishing | `todo` | No |
 | R6 | AI intelligence layer | `todo` | No |

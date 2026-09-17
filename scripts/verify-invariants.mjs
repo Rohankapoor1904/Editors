@@ -39,11 +39,25 @@ if (sam2Content && sam2Content.includes('Math.sin(i * 0.1)')) {
 }
 
 // 3. Row 10: Real Cubic Bezier Solver in Keyframing
+//
+// The previous check asserted only that the *identifiers* `solveCubicBezier` and
+// `evaluateEasing` appear in the file. A body of `return x;` satisfies that while computing
+// no curve at all, so the gate could not distinguish a real solver from a linear stub.
+// It is verified here by requiring the behavioural suite to exist; the suite itself pins
+// exact CSS-Bezier output values, so substituting a stub makes `npm test` fail.
 const keyframingContent = checkFileExists('src/utils/keyframing.ts');
 if (keyframingContent) {
-  if (!keyframingContent.includes('solveCubicBezier') || !keyframingContent.includes('evaluateEasing')) {
-    errors.push("Row 10 Violation: keyframing.ts must implement and export real cubic Bezier easing functions.");
+  if (!keyframingContent.includes('export function solveCubicBezier') ||
+      !keyframingContent.includes('export function evaluateEasing')) {
+    errors.push("Row 10 Violation: keyframing.ts must export solveCubicBezier and evaluateEasing.");
   }
+}
+const keyframingBehaviourTest = 'src/__tests__/keyframing.behavior.test.ts';
+if (!checkFileExists(keyframingBehaviourTest)) {
+  errors.push(
+    `Row 10 Violation: ${keyframingBehaviourTest} is missing. Presence of the function names is not ` +
+    "evidence the Bezier math is real — a behavioural test asserting exact curve output is required."
+  );
 }
 
 // 4. Invariant §5.5: Rust Native Handlers must fail loudly in live mode
