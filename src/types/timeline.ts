@@ -1,3 +1,5 @@
+import { RationalTime } from './time';
+
 export interface Point {
   x: number;
   y: number;
@@ -12,7 +14,7 @@ export interface Transform {
 }
 
 export interface Keyframe {
-  time: number; // in seconds
+  time: RationalTime;
   value: number;
   easing?: string;
 }
@@ -23,8 +25,6 @@ export interface Effect {
   enabled: boolean;
   params: Record<string, unknown>;
 }
-
-import { RationalTime } from './time';
 
 export interface Clip {
   id: string;

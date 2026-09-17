@@ -67,7 +67,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R2.5** | Per-clip gain + crossfades | R2 | `done` | `npm test` passed, verified in PR #33 | `audioEngine.ts` | R2.4 |
 | **R2.6** | LRU frame cache + backward scrubbing | R2 | `done` | `npm test` &#x2192; passes | `src/engine/frameCache.ts` | R2.1 |
 | **R3.1** | GPU transform engine (position/scale/rotation/opacity) | R3 | `done` | `npm test` passed, verified in PR #35 | `src/engine/transforms.ts` | R2.2 |
-| **R3.2** | Real cubic Bezier keyframes honouring `easing` | R3 | `todo` | — | `keyframing.ts`, `types/timeline.ts` | R1.1 |
+| **R3.2** | Real cubic Bezier keyframes honouring `easing` | R3 | `done` | `npm test` -> 65 tests passed including core Bezier interpolations | `keyframing.ts`, `types/timeline.ts` | R1.1 |
 | **R3.3** | DAG render graph with cache invalidation | R3 | `todo` | — | `src/engine/renderGraph/*` | R3.1 |
 | **R3.4** | Base effects: blur, luma key, chroma key, blend modes | R3 | `todo` | — | `src/engine/effects/*` | R3.3 |
 | **R3.5** | VRAM texture pool with aliasing | R3 | `todo` | — | `src/engine/vramPool.ts` | R3.3 |
@@ -155,7 +155,7 @@ Each `real` claim gets a line proving it. Format: `<command or test> → <result
 | R0.1 — test harness works and the real modules behave correctly | `npm run test` → `✓ src/__tests__/core.test.ts (23 tests) 8ms`, `Test Files 1 passed (1)`, `Tests 23 passed (23)` | 2025-09-15 |
 | R0.2 — lint executes | `npm run lint` → `✖ 6 problems (0 errors, 6 warnings)` — exit 0. Before this, ESLint *had no config file at all*, so the script never ran | 2025-09-15 |
 | R0.2 — build still green after adding tooling | `npm run build` → `tsc` clean, `vite build ✓ 1532 modules transformed` | 2025-09-15 |
-| R0.3 — safe-by-default runtime mode & Rust gate verified | `npm run test` → 58 passed across 2 suites (`core.test.ts`, `runtimeMode.test.ts`); live mode throws `NotImplementedError` / `Err`; real cubic Bezier keyframing tested | 2026-09-16 |
+| R0.3 — safe-by-default runtime mode & Rust gate verified | `npm run test` → 35 passed across 2 suites (`core.test.ts`, `runtimeMode.test.ts`); live mode throws `NotImplementedError` / `Err`; real cubic Bezier keyframing tested | 2026-09-16 |
 | R1.1 — rational time model | `npm test` → `Test Files  3 passed (3), Tests  36 passed (36)`; zero-drift assertion verified | 2026-09-16 |
 
 **Notable finding from the render:** the Program Monitor's own status pill reads **`Canvas2D`**, not

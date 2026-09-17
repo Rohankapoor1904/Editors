@@ -49,63 +49,63 @@ describe('calculateMagneticSnap', () => {
 
 describe('interpolateKeyframeValue', () => {
   const keys: Keyframe[] = [
-    { time: 0, value: 0 },
-    { time: 10, value: 100 },
+    { time: secondsToRational(0), value: 0 },
+    { time: secondsToRational(10), value: 100 },
   ];
 
   it('returns 0 for an empty set', () => {
-    expect(interpolateKeyframeValue([], 5)).toBe(0);
+    expect(interpolateKeyframeValue([], secondsToRational(5))).toBe(0);
   });
 
   it('holds the first value before the first keyframe', () => {
-    expect(interpolateKeyframeValue(keys, -5)).toBe(0);
+    expect(interpolateKeyframeValue(keys, secondsToRational(-5))).toBe(0);
   });
 
   it('holds the last value after the last keyframe', () => {
-    expect(interpolateKeyframeValue(keys, 50)).toBe(100);
+    expect(interpolateKeyframeValue(keys, secondsToRational(50))).toBe(100);
   });
 
   it('interpolates linearly at the midpoint', () => {
-    expect(interpolateKeyframeValue(keys, 5)).toBe(50);
+    expect(interpolateKeyframeValue(keys, secondsToRational(5))).toBe(50);
   });
 
   it('selects the correct segment across three keyframes', () => {
     const three: Keyframe[] = [
-      { time: 0, value: 0 },
-      { time: 10, value: 100 },
-      { time: 20, value: 0 },
+      { time: secondsToRational(0), value: 0 },
+      { time: secondsToRational(10), value: 100 },
+      { time: secondsToRational(20), value: 0 },
     ];
-    expect(interpolateKeyframeValue(three, 15)).toBe(50);
-    expect(interpolateKeyframeValue(three, 10)).toBe(100);
+    expect(interpolateKeyframeValue(three, secondsToRational(15))).toBe(50);
+    expect(interpolateKeyframeValue(three, secondsToRational(10))).toBe(100);
   });
 
   it('applies real cubic Bezier curves when easing is specified', () => {
     const easeInKeys: Keyframe[] = [
-      { time: 0, value: 0, easing: 'ease-in' },
-      { time: 10, value: 100, easing: 'ease-in' },
+      { time: secondsToRational(0), value: 0, easing: 'ease-in' },
+      { time: secondsToRational(10), value: 100, easing: 'ease-in' },
     ];
     const easeOutKeys: Keyframe[] = [
-      { time: 0, value: 0, easing: 'ease-out' },
-      { time: 10, value: 100, easing: 'ease-out' },
+      { time: secondsToRational(0), value: 0, easing: 'ease-out' },
+      { time: secondsToRational(10), value: 100, easing: 'ease-out' },
     ];
     const easeInOutKeys: Keyframe[] = [
-      { time: 0, value: 0, easing: 'ease-in-out' },
-      { time: 10, value: 100, easing: 'ease-in-out' },
+      { time: secondsToRational(0), value: 0, easing: 'ease-in-out' },
+      { time: secondsToRational(10), value: 100, easing: 'ease-in-out' },
     ];
 
     // At progress 0.5:
     // ease-in is accelerating, so value must be strictly below linear (50)
-    const valEaseIn = interpolateKeyframeValue(easeInKeys, 5);
+    const valEaseIn = interpolateKeyframeValue(easeInKeys, secondsToRational(5));
     expect(valEaseIn).toBeLessThan(40);
     expect(valEaseIn).toBeGreaterThan(25);
 
     // ease-out started fast, so value must be strictly above linear (50)
-    const valEaseOut = interpolateKeyframeValue(easeOutKeys, 5);
+    const valEaseOut = interpolateKeyframeValue(easeOutKeys, secondsToRational(5));
     expect(valEaseOut).toBeGreaterThan(60);
     expect(valEaseOut).toBeLessThan(75);
 
     // ease-in-out has S-curve: at progress 0.25 (time 2.5), it is slower than linear
-    const valEaseInOutEarly = interpolateKeyframeValue(easeInOutKeys, 2.5);
+    const valEaseInOutEarly = interpolateKeyframeValue(easeInOutKeys, secondsToRational(2.5));
     expect(valEaseInOutEarly).toBeLessThan(20);
   });
 });

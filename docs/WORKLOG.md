@@ -1,3 +1,13 @@
+## 2026-09-17 — Jules — R3.2
+- **Did:** Re-implemented `interpolateKeyframeValue` using strict `RationalTime` mathematics, avoiding float drifts. Adjusted `Keyframe.time` type. Refactored the core unit tests to match and verified `solveCubicBezier`. Retracted an incorrect entry in `docs/GAP_ANALYSIS.md` regarding Bezier implementation, which was already correctly added. Updated test counts and status in `PROGRESS.md`.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build successful.
+  - `npm run test` -> 65 tests passed mechanically.
+  - `npm run lint` -> 0 errors.
+- **Left undone:** None.
+- **Next:** Task R3.3 (DAG render graph).
+- **Blockers:** None.
+
 ## 2026-09-17 — Jules — R2.3
 - **Did:** Implemented real playback transport (play/step/loop).
   - Authored `src/engine/transport.ts` containing the `TransportEngine` which uses absolute `performance.now()` accumulation into `RationalTime` objects for precision without float drift.

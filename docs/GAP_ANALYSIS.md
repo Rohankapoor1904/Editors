@@ -55,7 +55,7 @@ present almost nowhere. Named files and descriptive comments are not implementat
 | 7 | "WebGPU YUV420p-to-RGB color conversion pipeline" | No YUV conversion code. No texture upload. `lutIntensity` is accepted in `RenderOptions` and never read. | `src/engine/webgpuRenderer.ts:1-6`, `:59-71` |
 | 8 | "Connect ReAct agent tool loop" | Two `if (lower.includes(...))` branches. No LLM, no tool schema, no planning, no tool-call validation. The tool specs in `docs/AGENT_TOOLS.md` are never referenced by code. | `src/services/agentOrchestrator.ts:22`, `:38` |
 | 9 | "Bi-directional text-to-timeline editing binding" | Transcript words are **hardcoded by #1**, so deleting a word ripples a range derived from fabricated timestamps. The direction works; the data is fiction. | `src/components/TranscriptEditor.tsx:14-17`, `:39-51` |
-| 10 | "Bezier keyframe interpolator" | Function name and interface promise cubic Bezier; body is **linear only**. `Keyframe.easing` is declared in the type and never read. | `src/utils/keyframing.ts:26-28`; `src/types/timeline.ts:11-15` |
+|
 | 11 | "Background proxy generation" | Logs a line and returns `` `${path}.proxy.mp4` ``. No transcode, no file. | `src/services/nativeBridge.ts:83-86` |
 
 ### 2.3 FILE EXISTS, NO LOGIC — controlled vocabulary for agents
