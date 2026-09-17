@@ -72,7 +72,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R3.2** | Real cubic Bezier keyframes honouring `easing` | R3 | `done` | `npm test` -> 65 tests passed including core Bezier interpolations | `keyframing.ts`, `types/timeline.ts` | R1.1 |
 | **R3.3** | DAG render graph with cache invalidation | R3 | `done` | `npm run test` | `src/engine/renderGraph/*` | R3.1 |
 | **R3.4** | Base effects: blur, luma key, chroma key, blend modes | R3 | `done` | `npm test` passed, verified in PR #39 | `src/engine/effects/*` | R3.3 |
-| **R3.5** | VRAM texture pool with aliasing | R3 | `todo` | — | `src/engine/vramPool.ts` | R3.3 |
+| **R3.5** | VRAM texture pool with aliasing | R3 | `done` | `npm test` passed, verified in PR #40 | `src/engine/vramPool.ts` | R3.3 |
 | **R4.1** | Color wheels + `.cube` LUT evaluated in WGSL | R4 | `todo` | — | `src/engine/shaders/color.wgsl`, `colorEngine.ts` | R2.2 |
 | **R4.2** | Scopes: parade, vectorscope, histogram | R4 | `todo` | — | `src/engine/scopes.ts` | R2.2 |
 | **R4.3** | Color management (OCIO-subset, labelled `partial`) | R4 | `todo` | — | `src/engine/colorManagement.ts` | R4.1 |
