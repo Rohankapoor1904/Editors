@@ -1,3 +1,4 @@
+import colorWgsl from './shaders/color.wgsl?raw';
 export interface RGBColor {
   r: number;
   g: number;
@@ -65,9 +66,12 @@ export class ColorGradingEngine {
     }
 
     const expectedEntries = size * size * size * 3;
-    const floatArray = new Float32Array(expectedEntries);
-    for (let i = 0; i < Math.min(values.length, expectedEntries); i++) {
-      floatArray[i] = values[i];
+    const floatArray = new Float32Array(size * size * size * 4);
+    for (let i = 0, j = 0; i < Math.min(values.length, expectedEntries); i += 3, j += 4) {
+      floatArray[j] = values[i];
+      floatArray[j+1] = values[i+1];
+      floatArray[j+2] = values[i+2];
+      floatArray[j+3] = 1.0;
     }
 
     return {
@@ -80,59 +84,8 @@ export class ColorGradingEngine {
   /**
    * Generates WebGPU WGSL fragment shader code for 32-bit Float 3-Way Color Wheels & 3D LUT Evaluation
    */
-  getWGSLShaderCode(settings: ColorGradeSettings): string {
-    const hasLut = (settings.lutIntensity ?? 0) > 0;
-
-    return /* wgsl */ `
-      struct ColorGradeUniforms {
-        lift: vec3<f32>,
-        gamma: vec3<f32>,
-        gain: vec3<f32>,
-        offset: vec3<f32>,
-        params: vec4<f32>, // x: saturation, y: contrast, z: temperature, w: tint
-        lutParams: vec2<f32>, // x: lutSize, y: lutIntensity
-      };
-
-      @group(0) @binding(0) var u_color: ColorGradeUniforms;
-      ${hasLut ? `@group(0) @binding(1) var u_lutTexture: texture_3d<f32>;
-      @group(0) @binding(2) var u_lutSampler: sampler;` : ''}
-
-      fn apply3WayColorGrade(inColor: vec3<f32>) -> vec3<f32> {
-        // 1. Temperature & Tint Adjustment
-        var col = inColor + vec3<f32>(u_color.params.z * 0.1, 0.0, -u_color.params.z * 0.1);
-        col += vec3<f32>(u_color.params.w * 0.05, -u_color.params.w * 0.1, u_color.params.w * 0.05);
-
-        // 2. Lift (Shadows adjustment)
-        col = max(vec3<f32>(0.0), col + u_color.lift);
-
-        // 3. Gamma (Midtones power curve)
-        let safeGamma = max(vec3<f32>(0.01), u_color.gamma);
-        col = pow(col, 1.0 / safeGamma);
-
-        // 4. Gain & Offset (Highlights multiplier & global offset)
-        col = col * u_color.gain + u_color.offset;
-
-        // 5. Contrast Adjustment
-        let contrast = u_color.params.y;
-        col = (col - vec3<f32>(0.5)) * contrast + vec3<f32>(0.5);
-
-        // 6. Saturation Adjustment
-        let luma = dot(col, vec3<f32>(0.2126, 0.7152, 0.0722));
-        let sat = u_color.params.x;
-        col = mix(vec3<f32>(luma), col, sat);
-
-        // 7. 3D LUT Trilinear Evaluation
-        ${hasLut ? `
-        if (u_color.lutParams.y > 0.0) {
-          let lutCoord = clamp(col, vec3<f32>(0.0), vec3<f32>(1.0));
-          let lutColor = textureSampleLevel(u_lutTexture, u_lutSampler, lutCoord, 0.0).rgb;
-          col = mix(col, lutColor, u_color.lutParams.y);
-        }
-        ` : ''}
-
-        return clamp(col, vec3<f32>(0.0), vec3<f32>(1.0));
-      }
-    `;
+  getWGSLShaderCode(_settings?: ColorGradeSettings): string {
+    return colorWgsl;
   }
 
   /**

@@ -103,7 +103,7 @@ describe('WebGPURendererEngine', () => {
     engine.renderFrame({ width: 2, height: 2, timecode: 0, yuvData });
 
     // Validate texture creation
-    expect(mockDevice.createTexture).toHaveBeenCalledTimes(3);
+    expect(mockDevice.createTexture).toHaveBeenCalledTimes(4);
 
     // Validate bind group and pipeline execution
     const encoder = mockDevice.createCommandEncoder.mock.results[0].value;
