@@ -1,3 +1,10 @@
+## 2026-09-17 — Jules — R5.1
+- **Did:** Implemented real `AudioGraph` class for WebAudio bus routing (dialogue, music, sfx). Removed old `applyAudioDucking` gain-stub and replaced it with a real sidechain processor utilizing `AnalyserNode` RMS polling and native `setTargetAtTime` curves. Integrated graph into `WebAudioEngineManager`. Modified `src/engine/audioEngine.ts`, `src/engine/audioEngine.test.ts`, and added `src/engine/audioGraph.ts` and `src/engine/audioGraph.test.ts`.
+- **Verified:** `npm run build` passed. `npm run test` (103 passed tests) passed. `npm run lint` passed cleanly.
+- **Left undone:** None for this specific step. The polling via `setInterval` runs on the UI thread, but it's acceptable for the current architecture without `AudioWorklet`.
+- **Next:** R5.2 — 10-band EQ + brickwall limiter + PDC.
+- **Blockers:** None.
+
 ## 2026-09-17 — Jules — task-r4-2
 - **Did:**
   - Implemented `src/engine/scopes.ts` to compute data for Histogram, RGB Parade, and Vectorscope from raw pixel data (`ImageData`).
