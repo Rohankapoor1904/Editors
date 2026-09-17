@@ -49,7 +49,10 @@ GH = "https://api.github.com"
 
 MAX_FIX_ATTEMPTS = 3
 STUCK_MINUTES = 25
+STUCK_THRESHOLD_S = STUCK_MINUTES * 60
 MAX_NUDGES = 2
+MAX_PLAN_REJECTIONS = 2
+MAX_USER_INPUT_ATTEMPTS = 2
 CLONE_TIMEOUT = 240
 INSTALL_TIMEOUT = 420
 CMD_TIMEOUT = 300
@@ -74,6 +77,8 @@ DEFAULT_STATE = {
     "pr": None,
     "fix_attempts": 0,
     "nudges": 0,
+    "plan_rejections": 0,
+    "user_input_attempts": 0,
     "last_error_sig": None,
     "last_update": None,
     "stuck_since": None,
@@ -406,6 +411,13 @@ command cannot run, write "unverified in <env>". Never imply verification that d
 - Do not add mock data to a main execution path.
 - Do not write a test that asserts stub, linear-fallback, or hardcoded behaviour as correct.
 - A passing test on a stub is debt, not a victory.
+
+## Autonomous CI/CD Execution (Zero Human-in-the-Loop)
+
+- You are operating inside a 100% autonomous background CI/CD loop. No human user is present to answer questions or approve plans.
+- NEVER pause or transition to waiting for user input, clarification, or confirmation.
+- If faced with design decisions, ambiguities, or implementation options, refer to AGENTS.md and docs/ROADMAP.md, pick the standard production implementation, and proceed autonomously.
+- Do not stop after planning. Immediately proceed to file modifications, run verification commands (`npm run build`, `npm run test`, `npm run lint`), and open the Pull Request.
 
 ## PR body must include
 
@@ -750,6 +762,70 @@ def format_feedback(task_id, result, branch):
 
 
 
+
+# ---------------------------------------------------------------- plan evaluation
+
+PROHIBITED_PLAN_PATTERNS = [
+    (r"\b(mock|dummy|fake|stub)\b", "plan proposes mock/stub implementation"),
+    (r"\b(placeholder|hardcoded)\b", "plan proposes placeholder/hardcoded return"),
+    (r"math\.sin", "plan references synthetic trajectory Math.sin"),
+    (r"currentruntimemode\s*=\s*['\"]demo['\"]", "plan defaults runtime to demo mode"),
+    (r"float\s+seconds", "plan uses float seconds instead of RationalTime"),
+]
+
+
+def extract_plan_text(activities):
+    texts = []
+    for a in activities:
+        if not isinstance(a, dict):
+            continue
+        plan = a.get("plan")
+        if isinstance(plan, dict):
+            for step in plan.get("steps", []):
+                if isinstance(step, dict):
+                    texts.append(step.get("title", ""))
+                    texts.append(step.get("description", ""))
+        if "agentMessage" in a and isinstance(a["agentMessage"], dict):
+            texts.append(a["agentMessage"].get("text", ""))
+        if "description" in a:
+            texts.append(str(a["description"]))
+    return " ".join(texts)
+
+
+def evaluate_plan(activities, task):
+    """Inspect Jules's plan against AGENTS.md invariants before approving.
+
+    Never blindly approve plans that propose stubs, mocks, or out-of-scope edits.
+    """
+    plan_text = extract_plan_text(activities).lower()
+    if not plan_text.strip():
+        # No explicit plan text in activities; default safe to approve if no red flags
+        return True, ""
+
+    for pat, label in PROHIBITED_PLAN_PATTERNS:
+        if re.search(pat, plan_text):
+            return False, f"AGENTS.md Invariant §5 violation: {label}"
+
+    return True, ""
+
+
+def get_last_agent_question(activities):
+    for a in reversed(activities):
+        if isinstance(a, dict):
+            if "agentMessage" in a and isinstance(a["agentMessage"], dict):
+                txt = a["agentMessage"].get("text", "")
+                if txt and "?" in txt:
+                    return txt
+            if "userQuestion" in a and isinstance(a["userQuestion"], dict):
+                txt = a["userQuestion"].get("text", "")
+                if txt:
+                    return txt
+            desc = a.get("description", "")
+            if "?" in desc:
+                return desc
+    return ""
+
+
 def parse_ts(iso):
     try:
         base = re.sub(r"\.\d+", "", iso.replace("Z", ""))
@@ -761,8 +837,8 @@ def parse_ts(iso):
 def reset_for_next_task(state):
     """Clear per-task fields and session_id so every new task starts in a fresh Jules session."""
     state.update({"phase": "idle", "task_id": None, "session_id": None, "branch": None, "pr": None,
-                  "fix_attempts": 0, "nudges": 0, "last_error_sig": None,
-                  "last_update": None, "stuck_since": None})
+                  "fix_attempts": 0, "nudges": 0, "plan_rejections": 0, "user_input_attempts": 0,
+                  "last_error_sig": None, "last_update": None, "stuck_since": None})
 
 
 # ----------------------------------------------------------------------- state machine
@@ -865,12 +941,83 @@ def advance(state, jules_key, gh_token, md):
             state["stuck_since"] = None
             return "COMPLETED"
 
+        if jstate in ("AWAITING_PLAN_APPROVAL", "PLAN_READY", "AWAITING_APPROVAL"):
+            activities = get_activities(session_id, jules_key)
+            task_obj = next((r for r in parse_queue(md) if r["id"] == state.get("task_id")), None) or {
+                "id": state.get("task_id"), "task": "", "scope": ""
+            }
+            is_valid, violation = evaluate_plan(activities, task_obj)
+
+            if not is_valid:
+                rejections = state.get("plan_rejections", 0) + 1
+                state["plan_rejections"] = rejections
+                log(f"plan rejected for task {state.get('task_id')} (attempt {rejections}): {violation}")
+                state["history"].append({"t": int(time.time()),
+                                         "ev": f"plan rejected: {violation[:50]}"})
+                if rejections > MAX_PLAN_REJECTIONS:
+                    log(f"max plan rejections exceeded for {state.get('task_id')}; escalating")
+                    send_message(
+                        session_id,
+                        f"Repeated plan violations for Task {state.get('task_id')}. "
+                        "Do NOT use mocks or stubs. Please stop and wait for human review.",
+                        jules_key
+                    )
+                    return "COMPLETED"
+
+                send_message(
+                    session_id,
+                    f"Your proposed plan was REJECTED because it violates project invariants:\n"
+                    f"- {violation}\n\n"
+                    "Per AGENTS.md Invariant §5, all implementations must be real, non-mock code. "
+                    "Please revise your plan to implement real behavior without stubs or shortcuts, "
+                    f"strictly within declared scope: {task_obj.get('scope', 'declared files')}.",
+                    jules_key
+                )
+                return "COMPLETED"
+
+            # Plan is clean -> safe auto-approve
+            log(f"plan for task {state.get('task_id')} evaluated clean; auto-approving")
+            jules(f"sessions/{session_id}:approvePlan", "POST", {}, key=jules_key)
+            state["history"].append({"t": int(time.time()), "ev": "plan evaluated clean & auto-approved"})
+            return "COMPLETED"
+
+        if jstate in ("AWAITING_USER_INPUT", "WAITING_FOR_USER_INPUT", "PAUSED"):
+            attempts = state.get("user_input_attempts", 0) + 1
+            state["user_input_attempts"] = attempts
+            activities = get_activities(session_id, jules_key)
+            question = get_last_agent_question(activities)
+            task_id = state.get("task_id")
+            log(f"session {session_id} is awaiting user input (attempt {attempts}). Question: {question[:80]}")
+
+            if attempts > MAX_USER_INPUT_ATTEMPTS:
+                log(f"max user input attempts reached for {task_id}; escalating to human")
+                state["history"].append({"t": int(time.time()), "ev": "max user input attempts reached"})
+                send_message(
+                    session_id,
+                    f"Automated orchestrator reached input limit for Task {task_id}. "
+                    "Please proceed with the standard engineering choice or report blocked status.",
+                    jules_key
+                )
+                return "COMPLETED"
+
+            steering_prompt = (
+                f"Automated orchestrator response for Task {task_id}:\n\n"
+                "1. Zero Human-in-the-Loop: You are running in a fully automated CI loop. No human is present to answer questions.\n"
+                "2. Autonomous Decisions: Do NOT pause for confirmation or user input. Choose the standard, robust implementation adhering to docs/ROADMAP.md and AGENTS.md.\n"
+                "3. Strict Invariants: Never add fallback mock arrays or stubs on main execution paths. Keep rational time.\n"
+                "4. Proceed Immediately: Execute code edits, run `npm run build`, `npm run test`, and `npm run lint`, and open the Pull Request."
+            )
+            send_message(session_id, steering_prompt, jules_key)
+            state["history"].append({"t": int(time.time()), "ev": f"auto-steered user input (attempt {attempts})"})
+            state["last_update"] = None
+            return "COMPLETED"
+
         if jstate in ("IN_PROGRESS", "RUNNING", "QUEUED", "PLANNING"):
-            stamp = parse_iso(updated) if updated else time.time()
+            stamp = parse_ts(updated) if updated else time.time()
             if stamp == state.get("last_update"):
                 stuck = state.get("stuck_since") or stamp
                 state["stuck_since"] = stuck
-                if time.time() - stuck > STUCK_THRESHOLD_S and state.get("nudges", 0) < 3:
+                if time.time() - stuck > STUCK_THRESHOLD_S and state.get("nudges", 0) < MAX_NUDGES:
                     send_message(session_id,
                                   "No activity has been observed on this session for a while. "
                                   "Please continue from where you left off and report what you are "
