@@ -1,3 +1,16 @@
+## 2026-09-17 — Jules — task-r4-2
+- **Did:**
+  - Implemented `src/engine/scopes.ts` to compute data for Histogram, RGB Parade, and Vectorscope from raw pixel data (`ImageData`).
+  - Implemented `src/engine/scopes.test.ts` to verify color distributions match expected logic using synthetic SMPTE bars test patterns.
+  - Implemented `src/components/Scopes.tsx` to render the histogram, RGB parade, and vectorscope visualizations using HTML5 canvas.
+- **Verified:**
+  - `npm run build` -> tsc clean, vite build ✓.
+  - `npm test` -> 97 passed (including 3 new tests for scopes).
+  - `npm run lint` -> 0 errors.
+- **Left undone:** Scopes component exists and works but is not yet injected into the active UI layout (waiting on subsequent UI integration task).
+- **Next:** R4.3
+- **Blockers:** None.
+
 - **Did:** Implemented DAG render graph with cache invalidation (Task R3.3) under `src/engine/renderGraph`.
 - **Verified:** Ran `npm run build`, `npm run test`, and `npm run lint` and all passed.
 - **Left undone:** Real WGSL/WebGPU compilation for these nodes is not yet done; they currently throw `NotImplementedError` in `live` mode.
@@ -557,6 +570,7 @@ AI, real ASR/export) were implemented. See `docs/GAP_ANALYSIS.md` §2–§3.
 
 **Blockers:**
 - None for this stage.
+
 
 
 ## 2026-09-17 — OpenHands — docs: reconcile status drift + strengthen Row 10 invariant
