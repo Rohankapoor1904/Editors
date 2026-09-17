@@ -1,3 +1,8 @@
+- **Did:** Implemented DAG render graph with cache invalidation (Task R3.3) under `src/engine/renderGraph`.
+- **Verified:** Ran `npm run build`, `npm run test`, and `npm run lint` and all passed.
+- **Left undone:** Real WGSL/WebGPU compilation for these nodes is not yet done; they currently throw `NotImplementedError` in `live` mode.
+- **Next:** Real shader nodes and WebGPU bindings integration.
+- **Blockers:** None.
 ## 2026-09-17 — Jules — R3.2
 - **Did:** Re-implemented `interpolateKeyframeValue` using strict `RationalTime` mathematics, avoiding float drifts. Adjusted `Keyframe.time` type. Refactored the core unit tests to match and verified `solveCubicBezier`. Retracted an incorrect entry in `docs/GAP_ANALYSIS.md` regarding Bezier implementation, which was already correctly added. Updated test counts and status in `PROGRESS.md`.
 - **Verified:**

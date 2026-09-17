@@ -70,7 +70,7 @@ Claim a task by setting `Owner` + `Status: in_progress` and committing that chan
 | **R2.6** | LRU frame cache + backward scrubbing | R2 | `done` | `npm test` &#x2192; passes | `src/engine/frameCache.ts` | R2.1 |
 | **R3.1** | GPU transform engine (position/scale/rotation/opacity) | R3 | `done` | `npm test` passed, verified in PR #35 | `src/engine/transforms.ts` | R2.2 |
 | **R3.2** | Real cubic Bezier keyframes honouring `easing` | R3 | `done` | `npm test` -> 65 tests passed including core Bezier interpolations | `keyframing.ts`, `types/timeline.ts` | R1.1 |
-| **R3.3** | DAG render graph with cache invalidation | R3 | `todo` | — | `src/engine/renderGraph/*` | R3.1 |
+| **R3.3** | DAG render graph with cache invalidation | R3 | `done` | `npm run test` | `src/engine/renderGraph/*` | R3.1 |
 | **R3.4** | Base effects: blur, luma key, chroma key, blend modes | R3 | `todo` | — | `src/engine/effects/*` | R3.3 |
 | **R3.5** | VRAM texture pool with aliasing | R3 | `todo` | — | `src/engine/vramPool.ts` | R3.3 |
 | **R4.1** | Color wheels + `.cube` LUT evaluated in WGSL | R4 | `todo` | — | `src/engine/shaders/color.wgsl`, `colorEngine.ts` | R2.2 |
