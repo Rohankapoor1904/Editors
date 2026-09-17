@@ -552,3 +552,38 @@ AI, real ASR/export) were implemented. See `docs/GAP_ANALYSIS.md` §2–§3.
 
 **Blockers:**
 - None for this stage.
+
+
+## 2026-09-17 — OpenHands — docs: reconcile status drift + strengthen Row 10 invariant
+
+- **Did:** Reconciled documentation against the code on `main` (docs only — no engine source changed).
+  - `PROGRESS.md`: executive summary had drifted to "R0 / 0 of 9 / 58 tests / 3 suites" while the work
+    queue below it listed R0–R3 tasks as `done`. Updated to the verified state (R0–R2 complete, R3
+    partial, R3.3 in flight). Phase log R0/R1/R2 → `done`, R3 → `partial`.
+  - `PROGRESS.md` feature table: four rows contradicted the code. Corrected — WebGPU YUV→RGB
+    `stub` → `real` (real `@vertex`/`@fragment` WGSL + `createShaderModule`); playback transport `stub`
+    → `real`; timeline tools `stub` → `real` (commands exist and are dispatched); project save/load
+    `missing` → `real`. 3-way color shader left `partial`, not `real`: the WGSL body exists but is
+    still orphaned (zero call sites, no `color.wgsl`).
+  - `docs/GAP_ANALYSIS.md`: Row 10 had been deleted by PR #36, leaving a malformed empty table row and a
+    9→11 numbering jump. Restored as a **retraction in place** (matching the Row 6 precedent) and
+    removed the empty row.
+  - `scripts/verify-invariants.mjs`: the Row 10 check asserted only that the identifiers
+    `solveCubicBezier` / `evaluateEasing` appear in the file. Proved this was insufficient: replacing the
+    solver body with `return x;` still passed the gate ("All mechanical invariants passed cleanly") while
+    failing 10 of 14 behavioural tests. Check now also requires
+    `src/__tests__/keyframing.behavior.test.ts`.
+  - Added `src/__tests__/keyframing.behavior.test.ts` (14 tests) pinning exact CSS-Bezier outputs
+    (ease-in @0.5 = 0.315357, ease-out @0.5 = 0.684643), monotonicity, domain clamping, CSS-string
+    parsing, and that `easing` actually changes interpolated output.
+- **Verified:**
+  - `node scripts/verify-invariants.mjs` → passes.
+  - `npm test` → 14 test files, 79 tests passed (65 pre-existing + 14 new).
+  - `npm run build` → tsc clean, vite build successful.
+  - `npm run lint` → 0 errors.
+  - Stub-substitution control: with the real solver replaced by `return x;`, the old gate passed and the
+    new suite failed 10/14 — confirming the added test has real detection power.
+- **Left undone:** `cargo check` not re-run here (R0.4 wires it into CI). The `partial` color-shader row
+  still needs a call site before it can be promoted to `real` (R4.1).
+- **Next:** R3.3 (DAG render graph) is already dispatched to Jules; unblocked.
+- **Blockers:** None.
