@@ -1,4 +1,5 @@
 import { Keyframe } from '../types/timeline';
+import { RationalTime, compareRational, subRational } from '../types/time';
 
 /**
  * Standard cubic Bezier control points [x1, y1, x2, y2]
@@ -99,10 +100,10 @@ export function evaluateEasing(easing: string | undefined, progress: number): nu
 /**
  * Interpolates a value at time t across keyframe array using linear or cubic bezier easing
  */
-export function interpolateKeyframeValue(keyframes: Keyframe[], time: number): number {
+export function interpolateKeyframeValue(keyframes: Keyframe[], time: RationalTime): number {
   if (!keyframes || keyframes.length === 0) return 0;
-  if (keyframes.length === 1 || time <= keyframes[0].time) return keyframes[0].value;
-  if (time >= keyframes[keyframes.length - 1].time) {
+  if (keyframes.length === 1 || compareRational(time, keyframes[0].time) <= 0) return keyframes[0].value;
+  if (compareRational(time, keyframes[keyframes.length - 1].time) >= 0) {
     return keyframes[keyframes.length - 1].value;
   }
 
@@ -111,17 +112,21 @@ export function interpolateKeyframeValue(keyframes: Keyframe[], time: number): n
   let k1 = keyframes[1];
 
   for (let i = 0; i < keyframes.length - 1; i++) {
-    if (time >= keyframes[i].time && time <= keyframes[i + 1].time) {
+    if (compareRational(time, keyframes[i].time) >= 0 && compareRational(time, keyframes[i + 1].time) <= 0) {
       k0 = keyframes[i];
       k1 = keyframes[i + 1];
       break;
     }
   }
 
-  const duration = k1.time - k0.time;
+  const durationRational = subRational(k1.time, k0.time);
+  const duration = durationRational.value / durationRational.rate;
   if (duration <= 0) return k0.value;
 
-  const rawProgress = Math.max(0, Math.min(1, (time - k0.time) / duration));
+  const timeDiffRational = subRational(time, k0.time);
+  const timeDiff = timeDiffRational.value / timeDiffRational.rate;
+
+  const rawProgress = Math.max(0, Math.min(1, timeDiff / duration));
   const easedProgress = evaluateEasing(k0.easing, rawProgress);
 
   return k0.value + easedProgress * (k1.value - k0.value);
