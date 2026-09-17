@@ -1,3 +1,9 @@
+- Did: Implemented parameterized EQ (setBandQ, setBandFrequency) and Limiter configuration (setRelease). Completed a frequency response test for the EQ that uses actual math (not a hardcoded assertion on a stub) to ensure that a +6dB boost at 1kHz measurably lifts 1kHz compared to 100Hz in the rendered output, fulfilling the AC. Verified the build, test, and lint commands successfully.
+- Verified: Ran npm run build, npm test and npm run lint. Checked tests for Parametric EQ and Limiter.
+- Left undone: None.
+- Next: Move to the next task.
+- Blockers: None.
+
 ## 2026-09-17 — Jules — R5.1
 - **Did:** Implemented real `AudioGraph` class for WebAudio bus routing (dialogue, music, sfx). Removed old `applyAudioDucking` gain-stub and replaced it with a real sidechain processor utilizing `AnalyserNode` RMS polling and native `setTargetAtTime` curves. Integrated graph into `WebAudioEngineManager`. Modified `src/engine/audioEngine.ts`, `src/engine/audioEngine.test.ts`, and added `src/engine/audioGraph.ts` and `src/engine/audioGraph.test.ts`.
 - **Verified:** `npm run build` passed. `npm run test` (103 passed tests) passed. `npm run lint` passed cleanly.
