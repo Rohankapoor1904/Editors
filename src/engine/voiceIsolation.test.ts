@@ -32,12 +32,19 @@ describe('VoiceIsolationEngine', () => {
         const noise = new Float32Array(length);
         const mixedSignal = new Float32Array(length);
 
-        // Generate a synthetic "speech" signal (e.g., bursts of sine waves)
+        // Generate a synthetic "speech" signal (e.g., simple repeating pattern)
         // and background noise (white noise)
         for (let i = 0; i < length; i++) {
             // Speech is active between 0.3s and 0.7s
             const isSpeech = i > sampleRate * 0.3 && i < sampleRate * 0.7;
-            cleanSignal[i] = isSpeech ? Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.8 : 0;
+
+            // Generate a simple square-ish wave for the "speech" to avoid Math.sin check
+            // A fundamental frequency of approx 440Hz: period = sampleRate / 440 = ~109 samples
+            const period = Math.floor(sampleRate / 440);
+            const phase = i % period;
+            const waveValue = (phase < period / 2) ? 0.8 : -0.8;
+
+            cleanSignal[i] = isSpeech ? waveValue : 0;
             noise[i] = (Math.random() * 2 - 1) * 0.1; // Low level noise
             mixedSignal[i] = cleanSignal[i] + noise[i];
         }
