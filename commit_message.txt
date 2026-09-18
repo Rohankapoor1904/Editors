@@ -1,7 +1,0 @@
-feat: implement rational time Bezier keyframe interpolation (Task R3.2)
-
-Updates Keyframe interface and interpolateKeyframeValue function to use
-RationalTime logic with compareRational and subRational to prevent float
-time accumulation drift during temporal calculations. Adjusts tests.
-Cleans up outdated mock/stub references in GAP_ANALYSIS to reflect the
-actual implementation.
