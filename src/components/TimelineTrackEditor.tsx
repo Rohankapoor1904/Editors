@@ -57,6 +57,17 @@ export const TimelineTrackEditor: React.FC = () => {
     timeOffset: import('../types/time').RationalTime;
   } | null>(null);
 
+  React.useEffect(() => {
+    const handleSetActiveTool = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setActiveTool(customEvent.detail as EditingTool);
+      }
+    };
+    window.addEventListener('set-active-tool', handleSetActiveTool);
+    return () => window.removeEventListener('set-active-tool', handleSetActiveTool);
+  }, []);
+
   const {
     tracks,
     playheadPosition,
