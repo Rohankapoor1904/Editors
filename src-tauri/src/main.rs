@@ -63,6 +63,11 @@ fn get_export_ffmpeg_command(config: ExportTaskConfig) -> Result<FFmpegCommandSp
     Ok(HardwareExportNative::build_ffmpeg_command(&config))
 }
 
+#[tauri::command]
+fn get_available_encoders() -> Result<Vec<String>, String> {
+    Ok(HardwareExportNative::get_available_encoders())
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -71,6 +76,7 @@ fn main() {
             run_whisper_stt,
             detect_vad_silence,
             get_export_ffmpeg_command,
+            get_available_encoders,
             get_file_fingerprint,
             check_file_exists
         ])

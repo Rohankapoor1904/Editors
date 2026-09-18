@@ -4,7 +4,7 @@ export interface ExportConfig {
   height: number;
   fps: number;
   bitrateMbps: number;
-  encoder: 'NVENC (NVIDIA)' | 'VideoToolbox (Apple)' | 'QuickSync (Intel)' | 'Software x264';
+  encoder: 'NVENC (NVIDIA)' | 'VideoToolbox (Apple)' | 'QuickSync (Intel)' | 'Software x264' | string;
   outputPath: string;
 }
 
