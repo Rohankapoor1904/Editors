@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { exportEngine, ExportConfig } from '../engine/exportEngine';
-import { Share2, Cpu, CheckCircle, Loader2 } from 'lucide-react';
+import { ExportConfig } from '../engine/exportEngine';
+import { Share2, Cpu } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
+import { useExportQueueStore } from '../engine/exportQueue';
+import { ExportQueue } from './ExportQueue';
 
 export const ExportModal: React.FC = () => {
   const [preset, setPreset] = useState<ExportConfig['presetName']>('TikTok / Reels (1080x1920)');
-  const [isExporting, setIsExporting] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
   const [availableEncoders, setAvailableEncoders] = useState<string[]>(['Software x264']);
   const [selectedEncoder, setSelectedEncoder] = useState<ExportConfig['encoder']>('Software x264');
+  const addJob = useExportQueueStore((state) => state.addJob);
 
   useEffect(() => {
     const fetchEncoders = async () => {
@@ -36,28 +36,18 @@ export const ExportModal: React.FC = () => {
     { name: 'Master Audio AAC', w: 0, h: 0, fps: 0, bitrate: 320 },
   ];
 
-  const handleStartExport = async () => {
-    setIsExporting(true);
-    setProgress(0);
-    setIsComplete(false);
-
+  const handleStartExport = () => {
     const selectedPreset = presets.find((p) => p.name === preset) || presets[0];
 
-    await exportEngine.renderSequence(
-      {
-        presetName: selectedPreset.name,
-        width: selectedPreset.w,
-        height: selectedPreset.h,
-        fps: selectedPreset.fps,
-        bitrateMbps: selectedPreset.bitrate,
-        encoder: selectedEncoder,
-        outputPath: `/exports/${selectedPreset.name.replace(/\s+/g, '_')}.mp4`,
-      },
-      (p) => setProgress(p)
-    );
-
-    setIsExporting(false);
-    setIsComplete(true);
+    addJob({
+      presetName: selectedPreset.name,
+      width: selectedPreset.w,
+      height: selectedPreset.h,
+      fps: selectedPreset.fps,
+      bitrateMbps: selectedPreset.bitrate,
+      encoder: selectedEncoder,
+      outputPath: `/exports/${selectedPreset.name.replace(/\s+/g, '_')}.mp4`,
+    });
   };
 
   return (
@@ -117,41 +107,17 @@ export const ExportModal: React.FC = () => {
         </div>
       </div>
 
-      {/* Render Progress Bar */}
-      {isExporting && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-[11px] font-mono">
-            <span className="flex items-center text-indigo-400">
-              <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Rendering Timeline...
-            </span>
-            <span>{progress}%</span>
-          </div>
-          <div className="w-full bg-neutral-950 h-2 rounded-full overflow-hidden border border-neutral-800">
-            <div
-              style={{ width: `${progress}%` }}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-200"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Completion Banner */}
-      {isComplete && (
-        <div className="bg-emerald-950/80 border border-emerald-700 text-emerald-200 p-2.5 rounded flex items-center space-x-2 font-medium">
-          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>Render complete! Export saved to /exports folder.</span>
-        </div>
-      )}
-
       {/* Export Action Button */}
       <button
-        disabled={isExporting}
         onClick={handleStartExport}
-        className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold rounded shadow transition-all flex items-center justify-center space-x-2"
+        className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded shadow transition-all flex items-center justify-center space-x-2"
       >
         <Share2 className="w-4 h-4" />
-        <span>{isExporting ? 'Exporting...' : 'Render & Export Video'}</span>
+        <span>Add to Render Queue</span>
       </button>
+
+      {/* Render Queue */}
+      <ExportQueue />
     </div>
   );
 };
