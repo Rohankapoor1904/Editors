@@ -1,6 +1,5 @@
 import { useTimelineStore } from '../store/timelineStore';
 import { isLiveMode, NotImplementedError } from './runtimeConfig';
-import { CompoundCommand } from '../core/commands/transaction';
 import { Command } from '../core/commands';
 import { globalToolRegistry } from './tools/registry';
 import { TimelineState } from '../types/timeline';
@@ -27,7 +26,7 @@ export class AgentOrchestratorService {
     prompt: string,
     onLog: (log: AgentStepLog) => void,
     planner?: AgentPlanner
-  ): Promise<void> {
+  ): Promise<Command[]> {
     onLog({ type: 'user', message: prompt });
 
     if (isLiveMode()) {
@@ -44,7 +43,7 @@ export class AgentOrchestratorService {
         type: 'response',
         message: `Processed agent action: ${prompt}`,
       });
-      return;
+      return [];
     }
 
     const executedCommands: Command[] = [];
@@ -78,15 +77,12 @@ export class AgentOrchestratorService {
       }
     }
 
-    if (executedCommands.length > 0) {
-      const compoundCmd = new CompoundCommand(executedCommands);
-      useTimelineStore.getState().executeCommand(compoundCmd);
-    }
-
     onLog({
       type: 'response',
       message: `Successfully executed agent plan with ${plan.length} steps.`,
     });
+
+    return executedCommands;
   }
 }
 

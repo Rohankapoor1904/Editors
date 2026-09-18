@@ -87,15 +87,24 @@ describe('AgentOrchestratorService R7.3', () => {
     const logs: any[] = [];
 
     // Test success case
-    await agentOrchestrator.processPrompt('remove silence', (log) => logs.push(log), mockPlanner);
+    const commands = await agentOrchestrator.processPrompt('remove silence', (log) => logs.push(log), mockPlanner);
 
     expect(executeSpy).toHaveBeenCalledWith('timeline_remove_silence', { threshold_seconds: 0.5 });
+
+    // In R9.7, the orchestrator returns commands instead of applying them automatically
+    expect(commands.length).toBe(1);
+
+    // We can simulate applying them manually if we want to test state.past
+    if (commands.length > 0) {
+       const { CompoundCommand } = await import('../core/commands/transaction');
+       useTimelineStore.getState().executeCommand(new CompoundCommand(commands));
+    }
 
     const state = useTimelineStore.getState();
     // One compound command should be in the history
     expect(state.past.length).toBe(1);
 
-    // Test failure case (rolls back automatically because error is thrown and compound command is never applied)
+    // Test failure case (rolls back automatically because error is thrown and compound command is never returned)
     executeSpy.mockClear();
     logs.length = 0;
 
