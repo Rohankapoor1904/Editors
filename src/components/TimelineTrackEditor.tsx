@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
+import { useMediaPoolStore } from '../store/mediaPool';
+import { Clip } from '../types/timeline';
 import { rationalToSeconds, secondsToRational, addRational } from '../types/time';
 import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical } from 'lucide-react';
 
@@ -282,10 +284,49 @@ export const TimelineTrackEditor: React.FC = () => {
 
           {/* Tracks Clips Grid */}
           {tracks.map((track) => (
+
             <div
               key={track.id}
               style={{ height: `${track.height}px` }}
               className="relative w-full border-b border-neutral-900/60"
+              onDragOver={(e) => {
+                e.preventDefault(); // Allow dropping
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const assetId = e.dataTransfer.getData("text/plain");
+                if (!assetId) return;
+
+                const { assets } = useMediaPoolStore.getState();
+                const asset = assets.find(a => a.id === assetId);
+                if (!asset) return;
+
+                // Only allow dropping on matching track type
+                if (asset.type !== track.type) return;
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clientX = e.clientX ?? 0;
+                const rectLeft = rect.left ?? 0;
+                const dropX = clientX - rectLeft;
+                const dropTimeSeconds = Math.max(0, dropX / zoomLevel);
+
+                const durationParts = asset.duration.split(':').map(Number);
+                const durationSeconds = (durationParts[0] || 0) * 3600 + (durationParts[1] || 0) * 60 + (durationParts[2] || 0);
+                const clipDuration = secondsToRational(durationSeconds > 0 ? durationSeconds : 5);
+
+                const newClip: Clip = {
+                  id: `clip_${Date.now()}`,
+                  assetId: asset.id,
+                  name: asset.name,
+                  startOffset: secondsToRational(dropTimeSeconds),
+                  sourceIn: secondsToRational(0),
+                  sourceOut: clipDuration,
+                  duration: clipDuration,
+                };
+
+                // Using the store's action
+                useTimelineStore.getState().addClipToTrack(track.id, newClip);
+              }}
             >
               {track.clips.map((clip) => {
                 const isSelected = selectedClipIds.includes(clip.id);

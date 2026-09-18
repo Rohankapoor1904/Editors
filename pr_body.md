@@ -1,25 +1,35 @@
-Task: R6.6
+Task: R9.2
 
-### Verification Command Outputs
+Verified build, test, and lint commands cleanly.
 
-**Build Output (`npm run build`)**:
+### Files changed:
+- src/components/AssetBin.tsx
+- src/components/TimelineTrackEditor.tsx
+- src/components/__tests__/AssetBin.test.tsx
+- src/components/__tests__/TimelineTrackEditor.test.tsx
+
+### Honest Limitations:
+- The drag and drop native file API was partially simulated using a hidden file input (for clicking import natively) and web object URLs for the media preview and dimensions parsing. In a full Tauri environment, it should use Rust backend to decode accurate frames for scrubbing. It correctly simulates duration detection using an in-memory Audio/Video element.
+
+### Output:
 ```
+BUILD:
+
 > cinecraft-ai-desktop@1.0.0 build
 > tsc && vite build
 
 vite v5.4.21 building for production...
 transforming...
-✓ 1545 modules transformed.
+✓ 1553 modules transformed.
 rendering chunks...
 computing gzip size...
 dist/index.html                   0.50 kB │ gzip:  0.34 kB
-dist/assets/index-gKBQ2b_i.css   38.63 kB │ gzip:  7.00 kB
-dist/assets/index-YqJPjRtC.js   261.27 kB │ gzip: 76.47 kB
-✓ built in 3.80s
-```
+dist/assets/index-8zzvL1Nr.css   39.32 kB │ gzip:  7.18 kB
+dist/assets/index-BxAyYUi-.js   278.27 kB │ gzip: 81.78 kB
+✓ built in 3.88s
 
-**Test Output (`npm run test`)**:
-```
+TEST:
+
 > cinecraft-ai-desktop@1.0.0 test
 > node scripts/verify-invariants.mjs && vitest run
 
@@ -28,49 +38,14 @@ dist/assets/index-YqJPjRtC.js   261.27 kB │ gzip: 76.47 kB
 
  RUN  v2.1.9 /app
 
- ✓ src/engine/audioEngine.test.ts (4 tests) 26ms
- ✓ __tests__/core/commands/edits.test.ts (8 tests) 17ms
- ✓ src/__tests__/core.test.ts (23 tests | 1 skipped) 13ms
- ✓ src/__tests__/vramPool.test.ts (7 tests) 12ms
- ✓ src/core/project/schema.test.ts (3 tests) 8ms
- ✓ src/engine/effects/baseEffects.test.ts (6 tests) 17ms
- ✓ src/__tests__/keyframing.behavior.test.ts (14 tests) 12ms
- ✓ src/__tests__/alignment.test.ts (4 tests) 9ms
- ✓ src/__tests__/runtimeMode.test.ts (12 tests) 15ms
- ✓ src/engine/frameCache.test.ts (4 tests) 7ms
- ✓ src/__tests__/audioMasterClock.test.ts (1 test) 107ms
- ✓ src/engine/parametricEq.test.ts (3 tests) 9ms
- ✓ src/__tests__/RenderGraph.test.ts (2 tests) 5ms
- ✓ src/__tests__/webgpuRenderer.test.ts (2 tests) 11ms
- ✓ src/__tests__/commands.test.ts (2 tests) 7ms
- ✓ src/engine/audioGraph.test.ts (2 tests) 10ms
- ✓ src/engine/scopes.test.ts (3 tests) 10ms
- ✓ src/__tests__/autoReframe.test.ts (2 tests) 26ms
- ✓ src/__tests__/transforms.test.ts (3 tests) 11ms
- ✓ src/core/commands/audio.test.ts (2 tests) 6ms
- ✓ src/engine/colorManagement.test.ts (4 tests) 7ms
- ✓ src/__tests__/rationalTime.test.ts (1 test) 6ms
- ✓ src/engine/limiter.test.ts (2 tests) 8ms
- ✓ src/engine/loudness.test.ts (2 tests) 42ms
- ✓ src/utils/audio.test.ts (2 tests) 3ms
+ Test Files  36 passed (36)
+      Tests  148 passed | 1 skipped (149)
+   Start at  14:36:21
+   Duration  20.05s (transform 1.41s, setup 4.87s, collect 2.72s, tests 1.96s, environment 37.12s, prepare 3.19s)
 
- Test Files  25 passed (25)
-      Tests  117 passed | 1 skipped (118)
-   Start at  03:37:14
-   Duration  3.37s (transform 833ms, setup 0ms, collect 1.49s, tests 403ms, environment 6ms, prepare 2.04s)
-```
 
-**Lint Output (`npm run lint`)**:
-```
+LINT:
+
 > cinecraft-ai-desktop@1.0.0 lint
 > eslint . --ext .ts,.tsx
-
 ```
-
-### Changed Files
-- `src/engine/autoReframe.ts`
-- `src/__tests__/autoReframe.test.ts`
-
-### Honest Limitations
-- The 1D Kalman filter only tracks subject X position. If vertical tracking/panning becomes a requirement in the future, it will need to be extended to a 2D filter (X, Y).
-- The prediction model uses simple velocity and assumes constant fps. If the actual tracking output drops frames sporadically, timestamps dt might fluctuate, but the current `dt` clamping ensures robustness.

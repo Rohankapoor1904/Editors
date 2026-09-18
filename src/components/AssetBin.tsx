@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Film, Music, FileText, Search, LayoutGrid, List, Plus, Play, Link2Off } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
 import { useMediaPoolStore, MediaAsset } from '../store/mediaPool';
+import { useTimelineStore } from '../store/timelineStore';
+import { secondsToRational } from '../types/time';
+import { Clip } from '../types/timeline';
 
 export const AssetBin: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -31,30 +34,122 @@ export const AssetBin: React.FC = () => {
     return () => clearInterval(interval);
   }, [assets, updateAssetStatus]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { addClipToTrack, tracks } = useTimelineStore();
+
   const handleImportMedia = async () => {
-    // A real file picker should allow selecting a file. Since native file dialog might
-    // mock to a specific path right now in `demo` mode, we use a placeholder path to initiate it.
-    const meta = await nativeBridge.importMediaFile('/path/to/test.mp4');
-    if (meta) {
-      const fingerprint = await nativeBridge.getFileFingerprint(meta.path);
-      const isOffline = !(await nativeBridge.checkFileExists(meta.path));
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      const meta = await nativeBridge.importMediaFile('');
+      if (meta) {
+        const fingerprint = await nativeBridge.getFileFingerprint(meta.path);
+        const isOffline = !(await nativeBridge.checkFileExists(meta.path));
+
+        const newAsset: MediaAsset = {
+          id: `asset_${Date.now()}`,
+          name: meta.filename,
+          path: meta.path,
+          type: meta.hasAudio && !meta.width ? 'audio' : 'video',
+          duration: `00:00:${Math.floor(meta.durationSeconds).toString().padStart(2, '0')}`,
+          badge: meta.codec,
+          fps: meta.fps ? String(meta.fps) : undefined,
+          resolution: meta.width ? `${meta.width}x${meta.height}` : undefined,
+          fingerprint,
+          isOffline,
+        };
+
+        addAsset(newAsset);
+      }
+    } else {
+      // Web fallback
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const isAudio = file.type.startsWith('audio/');
+      const objectUrl = URL.createObjectURL(file);
+
+      // Extract duration and dimensions
+      const mediaElement = isAudio ? new Audio(objectUrl) : document.createElement('video');
+      mediaElement.src = objectUrl;
+
+      await new Promise((resolve) => {
+        mediaElement.addEventListener('loadedmetadata', resolve, { once: true });
+        mediaElement.addEventListener('error', resolve, { once: true }); // Fallback if it fails to load
+      });
+
+      const durationSeconds = mediaElement.duration || 0;
+      let width, height;
+      if (!isAudio) {
+        width = (mediaElement as HTMLVideoElement).videoWidth;
+        height = (mediaElement as HTMLVideoElement).videoHeight;
+      }
 
       const newAsset: MediaAsset = {
-        id: `asset_${Date.now()}`,
-        name: meta.filename,
-        path: meta.path,
-        type: meta.hasAudio && !meta.width ? 'audio' : 'video',
-        duration: `00:00:${Math.floor(meta.durationSeconds).toString().padStart(2, '0')}`,
-        badge: meta.codec,
-        fps: meta.fps ? String(meta.fps) : undefined,
-        resolution: meta.width ? `${meta.width}x${meta.height}` : undefined,
-        fingerprint,
-        isOffline,
+        id: `asset_${Date.now()}_${i}`,
+        name: file.name,
+        path: objectUrl,
+        type: isAudio ? 'audio' : 'video',
+        duration: `00:00:${Math.floor(durationSeconds).toString().padStart(2, '0')}`,
+        badge: 'web',
+        fps: undefined,
+        resolution: width ? `${width}x${height}` : undefined,
+        fingerprint: `${file.name}-${file.size}-${file.lastModified}`,
+        isOffline: false,
       };
 
       addAsset(newAsset);
     }
+
+    // Clear input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
+
+  const handleAddToTimeline = (e: React.MouseEvent, asset: MediaAsset) => {
+    e.stopPropagation();
+
+    // Find a suitable track
+    const targetTrack = tracks.find(t => t.type === asset.type);
+    if (!targetTrack) {
+      console.warn('No suitable track found for asset type', asset.type);
+      return;
+    }
+
+    // Parse duration string back to seconds (basic implementation for the format 00:00:SS)
+    const durationParts = asset.duration.split(':').map(Number);
+    const durationSeconds = (durationParts[0] || 0) * 3600 + (durationParts[1] || 0) * 60 + (durationParts[2] || 0);
+
+    const clipDuration = secondsToRational(durationSeconds > 0 ? durationSeconds : 5); // Default to 5s if unknown
+
+    const newClip: Clip = {
+      id: `clip_${Date.now()}`,
+      assetId: asset.id,
+      name: asset.name,
+      startOffset: secondsToRational(0), // Would normally be at playhead, but timeline track editor expects something
+      sourceIn: secondsToRational(0),
+      sourceOut: clipDuration,
+      duration: clipDuration,
+    };
+
+    // Put it at playhead position, or max end of track
+    let maxEnd = 0;
+    for (const clip of targetTrack.clips) {
+       const endSec = clip.startOffset.value / clip.startOffset.rate + clip.duration.value / clip.duration.rate;
+       if (endSec > maxEnd) maxEnd = endSec;
+    }
+
+    newClip.startOffset = secondsToRational(maxEnd);
+
+    addClipToTrack(targetTrack.id, newClip);
+  };
+
 
   const handleRelink = async (e: React.MouseEvent, asset: MediaAsset) => {
     e.stopPropagation();
@@ -94,6 +189,18 @@ export const AssetBin: React.FC = () => {
 
   return (
     <div className="w-80 bg-dark-900 border-r border-subtle flex flex-col h-full select-none text-xs">
+
+      {/* Hidden file input for web fallback */}
+      <input
+        type="file"
+        data-testid="hidden-file-input"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        multiple
+        accept="video/*,audio/*"
+      />
+
       {/* Top Header */}
       <div className="flex items-center justify-between border-b border-subtle px-3 py-2.5 bg-dark-950/60">
         <div className="flex items-center space-x-2">
@@ -176,6 +283,8 @@ export const AssetBin: React.FC = () => {
               return (
                 <div
                   key={asset.id}
+                  draggable={true}
+                  onDragStart={(e) => { e.dataTransfer.setData("text/plain", asset.id); }}
                   onMouseMove={(e) => handleMouseMove(e, asset.id)}
                   onMouseLeave={() => handleMouseLeave(asset.id)}
                   className="group relative bg-dark-900 border border-subtle hover:border-indigo-accent/80 rounded-panel p-2 transition-all duration-150 cursor-pointer shadow hover:shadow-indigo-500/10 flex flex-col justify-between"
@@ -237,6 +346,13 @@ export const AssetBin: React.FC = () => {
                       </span>
                     )}
 
+
+                    <button
+                      onClick={(e) => handleAddToTimeline(e, asset)}
+                      className="absolute bottom-1 left-1 bg-dark-950/90 hover:bg-indigo-900 text-[9px] font-medium px-1.5 py-0.5 rounded text-indigo-300 border border-indigo-900/50 backdrop-blur z-20 flex items-center space-x-1 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
                     <span className="absolute bottom-1 right-1 bg-dark-950/90 text-[9px] font-mono px-1 py-0.5 rounded text-neutral-400 border border-subtle z-20">
                       {asset.duration}
                     </span>
@@ -263,6 +379,8 @@ export const AssetBin: React.FC = () => {
             {filteredAssets.map((asset) => (
               <div
                 key={asset.id}
+                draggable={true}
+                onDragStart={(e) => { e.dataTransfer.setData("text/plain", asset.id); }}
                 className={`flex items-center justify-between p-2 rounded-panel bg-dark-900 border hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all ${asset.isOffline ? 'border-red-900/30' : 'border-subtle'}`}
               >
                 <div className="flex items-center space-x-2.5 truncate">
@@ -289,6 +407,13 @@ export const AssetBin: React.FC = () => {
                       <span>Relink</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={(e) => handleAddToTimeline(e, asset)}
+                    className="px-2 py-0.5 bg-dark-800 hover:bg-indigo-900 text-indigo-300 rounded text-[9px] border border-subtle hover:border-indigo-500/50 flex items-center space-x-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
                   <span className="text-[10px] text-neutral-400 font-mono tabular-nums shrink-0 ml-2">
                     {asset.duration}
                   </span>
