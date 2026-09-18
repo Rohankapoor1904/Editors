@@ -29,11 +29,11 @@ describe('AgentOrchestratorService R7.2', () => {
   it('an agent run issuing multiple tool calls is reverted by exactly one undo', async () => {
     // Mock silero to return 5 silence windows
     vi.spyOn(sileroVadService, 'detectSilence').mockResolvedValue([
-      { startTime: 1.0, endTime: 2.0, duration: 1.0 },
-      { startTime: 3.0, endTime: 4.0, duration: 1.0 },
-      { startTime: 5.0, endTime: 6.0, duration: 1.0 },
-      { startTime: 7.0, endTime: 8.0, duration: 1.0 },
-      { startTime: 9.0, endTime: 10.0, duration: 1.0 },
+      { startTime: 1, endTime: 2, duration: 1 },
+      { startTime: 3, endTime: 4, duration: 1 },
+      { startTime: 5, endTime: 6, duration: 1 },
+      { startTime: 7, endTime: 8, duration: 1 },
+      { startTime: 9, endTime: 10, duration: 1 },
     ]);
 
     const logs: any[] = [];
