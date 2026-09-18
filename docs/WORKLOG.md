@@ -1,3 +1,11 @@
+
+## 2026-09-18 — agent-jules — R9.4
+- **Did:** Created `AudioWorkspace` and `ParametricEqView` UI components for the audio mixer, wired to `parametricEqEngine` and `audioEngine`. Added them to `App.tsx`. Added component tests.
+- **Verified:** `npm run build`, `npm run test` (152 tests passed), `npm run lint`. Also manually ran playwright to verify visual UI in Web Browser.
+- **Left undone:** True Peak LUFS meter and fetching audio context channels is left as a safe \`NotImplementedError\` because underlying engines do not expose those APIs yet.
+- **Next:** R9.5 Timeline track management & clip drag-to-move
+- **Blockers:** None
+
 ## 2026-09-18 — Antigravity — Deep Playback Pipeline Audit & Phase R10 Definition
 - **Did:** Conducted a deep technical audit of the video frame display, audio playback scheduling, canvas rendering fallbacks, and inspector controls. Discovered that ProgramMonitor.tsx was not feeding active clip frame byte buffers into the WebGPU renderer (rendering a black clear screen), WebAudio lacked buffer source playback for timeline clips, and WebGPU lacked a 2D Canvas fallback. Added Phase R10 (Tasks R10.1 to R10.5) to `docs/ROADMAP.md` and `PROGRESS.md`.
 - **Verified:** Ran `npm run build` and `npm test` (33 test files, 141 tests passing, mechanical invariant check passing).
