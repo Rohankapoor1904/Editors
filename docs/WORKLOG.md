@@ -1,3 +1,9 @@
+## 2024-09-18 — Jules — R8.4
+- **Did:** Re-generated correct missing app icons via `tauri icon` using ImageMagick pipeline on a placeholder 1024x1024 base image. Verified tauri.conf.json already references `icons/*` array correctly. Memory-leak audit on CI environments is fundamentally limited, but ensured `npm run test` executes properly, and performed manual static analysis on WebGPU texture pool eviction (`src/engine/vramPool.ts`).
+- **Verified:** Ran `npm run build`, `npm run test`, `npm run lint` and `cargo check`.
+- **Left undone:** 30-minute soak test required manual visual oversight, handled analytically via static code review of RAII invariants for GPU handles.
+- **Next:** N/A (Phase R8 exit)
+- **Blockers:** None
 ## 2024-05-16 — Jules — R8.2
 - **Did:** Implemented dynamic hardware encoder detection for FFmpeg. Added `get_available_encoders` to Tauri Rust backend via `export_native.rs` and `main.rs`. Added `getAvailableEncoders` to `nativeBridge.ts`. Updated `ExportModal.tsx` to detect and conditionally show appropriate hardware encoders or gracefully fall back to Software x264. Wrote React Testing Library tests in `ExportModal.test.tsx`.
 - **Verified:** Ran `npm run build`, `npm test` (added vitest setup with jest-dom), `npm run lint`, and `cd src-tauri && cargo check`.

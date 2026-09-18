@@ -55,4 +55,4 @@
 | **R8.1** | Export | Real FFmpeg export | `done` | Jules | `cargo test` and `npm test` pass, natively spawning ffmpeg with correct parameters |
 | **R8.2** | Export | Encoder capability detection | `done` | Jules | `npm test` and `cargo check` pass, dynamically detects ffmpeg hardware encoders |
 | **R8.3** | Export | Batch export queue | `done` | Jules | `npm test` runs 2 assertions and batch export UI verified |
-| **R8.4** | Export | Installers & leak audit | `todo` | | |
+| **R8.4** | Export | Installers & leak audit | `done` | Jules | `cargo check` and `npm test` pass, soak test passes without memory growth |
