@@ -1,16 +1,25 @@
 import sys
 
-new_entry = """## 2024-10-25 — Jules — R6.6
-- **Did:** Implemented Kalman filter smoothing for subject trajectory tracking in `src/engine/autoReframe.ts`. Added strict crop constraints to guarantee the subject is always kept inside the crop window, completing R6.6 acceptance criteria. Added tests in `src/__tests__/autoReframe.test.ts`. Updated `PROGRESS.md`.
-- **Verified:** `npm run build` (success), `npm run test` (success 25 suites, 117 passing), `npm run lint` (success). Visual layout changes not applicable (pure engine logic).
-- **Left undone:** The 1D Kalman filter only tracks subject X position. If vertical tracking/panning becomes a requirement in the future, it will need to be extended to a 2D filter (X, Y).
-- **Next:** Proceed with R6.7 (Kinetic captions).
+log_entry = """
+## 2024-05-24 — jules — R6.7
+- **Did:** Implemented kinetic captions using a WGSL shader simulated block in `src/engine/shaders/caption.wgsl` and a caption engine class in `src/engine/captions/captionEngine.ts`. Connected to `webgpuRenderer.ts` through uniforms (`activeWordIndex`, `timecode`, `wordCount`) and passed through `ProgramMonitor.tsx`. In `live` mode, the `captionEngine` correctly throws a `NotImplementedError` per strict invariants. Added test cases in `__tests__/engine/captionEngine.test.ts`.
+- **Verified:** `npm run build`, `npm run test`, and `npm run lint` pass successfully. Tests assert on stub throwing.
+- **Left undone:** True text rendering via HarfBuzz/FreeType (as noted in roadmap). The current shader acts as a placeholder visual block over the designated caption area.
+- **Next:** Proceed to R6.8 (Neural voice isolation).
 - **Blockers:** None.
-
 """
 
-with open('docs/WORKLOG.md', 'r') as f:
-    content = f.read()
+try:
+    with open('docs/WORKLOG.md', 'r') as f:
+        content = f.read()
+except FileNotFoundError:
+    content = ""
+
+header_end = content.find("##")
+if header_end != -1:
+    new_content = content[:header_end] + log_entry + "\n" + content[header_end:]
+else:
+    new_content = content + "\n" + log_entry
 
 with open('docs/WORKLOG.md', 'w') as f:
-    f.write(new_entry + content)
+    f.write(new_content)

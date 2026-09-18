@@ -3,13 +3,17 @@ import yuvToRgbWgsl from './shaders/yuv_to_rgb.wgsl?raw';
 import { Transform } from '../types/timeline';
 import { computeTransformMatrix } from './transforms';
 
+import { captionEngine } from './captions/captionEngine';
 import { ColorGradeSettings, colorEngine } from './colorEngine';
+
+import { CaptionTrackData } from "./captions/captionEngine";
 
 export interface RenderOptions {
   width: number;
   height: number;
   timecode: number;
   colorSettings?: ColorGradeSettings;
+  captionData?: CaptionTrackData;
   transform?: Transform;
   yuvData?: {
     y: Uint8Array;
@@ -53,10 +57,11 @@ export class WebGPURendererEngine {
 
 
         const colorWgslSource = colorEngine.getWGSLShaderCode({} as any);
+        const captionWgslSource = captionEngine.getWGSLShaderCode();
         const combinedShaderCode = yuvToRgbWgsl.replace(
           'return vec4<f32>(r, g, b, uniforms.opacity);',
-          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b));\n    return vec4<f32>(graded, uniforms.opacity);'
-        ) + '\n' + colorWgslSource;
+          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b));\n    let captioned = applyCaptionHighlight(graded, in.uv);\n    return vec4<f32>(captioned, uniforms.opacity);'
+        ) + '\n' + colorWgslSource + '\n' + captionWgslSource;
 
         const shaderModule = this.device.createShaderModule({
           label: 'YUV to RGB Shader with Color Grading',
@@ -86,8 +91,14 @@ export class WebGPURendererEngine {
           ],
         });
 
+        const captionBindGroupLayout = this.device.createBindGroupLayout({
+          entries: [
+            { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } }
+          ],
+        });
+
         const pipelineLayout = this.device.createPipelineLayout({
-          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout, colorBindGroupLayout],
+          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout, colorBindGroupLayout, captionBindGroupLayout],
         });
 
         this.pipeline = this.device.createRenderPipeline({
@@ -149,6 +160,7 @@ renderFrame(_options: RenderOptions) {
     let uTexture: GPUTexture | null = null;
     let vTexture: GPUTexture | null = null;
     let uniformBuffer: GPUBuffer | null = null;
+    let captionUniformBuffer: GPUBuffer | null = null;
 
     if (_options.yuvData && this.pipeline) {
       // YUV420p dimensions
@@ -294,10 +306,35 @@ renderFrame(_options: RenderOptions) {
         ],
       });
 
+      captionUniformBuffer = this.device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const captionDataArray = new Float32Array(3);
+      if (_options.captionData) {
+        const activeIdx = captionEngine.getActiveWordIndex(_options.captionData.words, _options.timecode);
+        captionDataArray[0] = activeIdx;
+        captionDataArray[1] = _options.timecode;
+        captionDataArray[2] = _options.captionData.words.length;
+      } else {
+        captionDataArray[0] = -1.0;
+        captionDataArray[1] = 0.0;
+        captionDataArray[2] = 0.0;
+      }
+
+      this.device!.queue.writeBuffer(captionUniformBuffer, 0, captionDataArray as any);
+
+      const captionBindGroup = this.device.createBindGroup({
+        layout: this.pipeline.getBindGroupLayout(3),
+        entries: [{ binding: 0, resource: { buffer: captionUniformBuffer } }],
+      });
+
       passEncoder.setPipeline(this.pipeline);
       passEncoder.setBindGroup(0, bindGroup);
       passEncoder.setBindGroup(1, uniformBindGroup);
       passEncoder.setBindGroup(2, colorBindGroup);
+      passEncoder.setBindGroup(3, captionBindGroup);
       passEncoder.draw(6, 1, 0, 0);
     }
 
@@ -310,6 +347,7 @@ renderFrame(_options: RenderOptions) {
     if (vTexture) vTexture.destroy();
     if (lutTexture) lutTexture.destroy();
     if (colorUniformBuffer) colorUniformBuffer.destroy();
+    if (captionUniformBuffer) captionUniformBuffer.destroy();
     // In actual WebGPU we can't destroy the buffer immediately if it's in use by the queue,
     // but the engine uses small buffers that garbage collect, or we should manage them.
     // However for zero-copy constraint let's just destroy it. Wait, destroying a buffer

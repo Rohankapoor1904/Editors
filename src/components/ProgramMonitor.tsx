@@ -3,6 +3,7 @@ import { useTimelineStore } from '../store/timelineStore';
 import { rationalToSeconds, secondsToRational } from '../types/time';
 import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
+import { WordTimestamp } from '../services/whisperTranscriber';
 import { transportEngine } from '../engine/transport';
 
 export const ProgramMonitor: React.FC = () => {
@@ -13,6 +14,7 @@ export const ProgramMonitor: React.FC = () => {
   const [previewQuality, setPreviewQuality] = useState<'Full' | '1/2' | '1/4'>('Full');
   const [isLooping, setIsLooping] = useState(transportEngine.isLooping);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [transcriptWords] = useState<WordTimestamp[]>([]);
 
   useEffect(() => {
     const unsubscribe = transportEngine.subscribe((playing) => {
@@ -29,12 +31,17 @@ export const ProgramMonitor: React.FC = () => {
     }
   }, []);
 
+
+
   useEffect(() => {
     if (isWebGPUActive && canvasRef.current) {
       webgpuEngine.renderFrame({
         width: metadata.width,
         height: metadata.height,
         timecode: rationalToSeconds(playheadPosition),
+        captionData: {
+          words: transcriptWords
+        },
       });
     }
   }, [playheadPosition, isWebGPUActive, metadata]);

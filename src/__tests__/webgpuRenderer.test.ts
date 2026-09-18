@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebGPURendererEngine } from '../engine/webgpuRenderer';
+import { setRuntimeMode } from '../services/runtimeConfig';
 
 // Mock WebGPU types for tests
 (global as any).GPUBufferUsage = { UNIFORM: 64, COPY_DST: 8 };
@@ -25,6 +26,7 @@ describe('WebGPURendererEngine', () => {
   let mockAdapter: any;
 
   beforeEach(() => {
+    setRuntimeMode('demo');
     engine = new WebGPURendererEngine();
 
     mockContext = {
