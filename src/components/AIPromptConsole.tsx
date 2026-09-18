@@ -75,15 +75,20 @@ export const AIPromptConsole: React.FC = () => {
     setIsProcessing(true);
     setActiveStep(0);
 
-    // Simulate Stepper Progress (reduced for testing)
-    setTimeout(() => setActiveStep(1), 100);
-    setTimeout(() => setActiveStep(2), 200);
-    setTimeout(() => setActiveStep(3), 300);
-
     try {
-      const commands = await agentOrchestrator.processPrompt(cmdToRun, () => {});
+      const commands = await agentOrchestrator.processPrompt(cmdToRun, (log) => {
+        // Advance stepper based on log messages if possible
+        if (log.type === 'thought') {
+          setActiveStep(1); // Analyzing / Planning
+        } else if (log.type === 'tool') {
+          setActiveStep(2); // Slicing / Action
+        } else if (log.type === 'response') {
+          setActiveStep(3); // Arranging / Completed
+        }
+      });
 
       setIsProcessing(false);
+      setActiveStep(3);
       const { CompoundCommand } = await import('../core/commands/transaction');
 
       const newDiff: ActionDiff = {
