@@ -34,15 +34,14 @@ describe('AssetBin', () => {
     global.Audio = class {
       duration = 10;
       constructor() {
-        setTimeout(() => {
+        Promise.resolve().then(() => {
           // @ts-expect-error test mock
           this.onloadmetadata?.();
-          // We need a proper event target mock or just bypass the load entirely
-        }, 0);
+        });
       }
       addEventListener(type: string, cb: any) {
         if (type === 'loadedmetadata' || type === 'error') {
-          setTimeout(cb, 10);
+          Promise.resolve().then(cb);
         }
       }
     } as any;
