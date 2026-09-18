@@ -5,6 +5,7 @@ import {
   RefreshCw, Volume2, Sun, Layers
 } from 'lucide-react';
 import { agentOrchestrator } from '../services/agentOrchestrator';
+import { Command } from '../core/commands';
 
 export interface ActionDiff {
   id: string;
@@ -14,6 +15,7 @@ export interface ActionDiff {
   changeType: 'removed' | 'added' | 'modified';
   timestamp: string;
   status: 'pending' | 'accepted' | 'rejected';
+  command?: Command;
 }
 
 export const AIPromptConsole: React.FC = () => {
@@ -31,35 +33,7 @@ export const AIPromptConsole: React.FC = () => {
   });
 
   // Action Diff Cards State
-  const [actionDiffs, setActionDiffs] = useState<ActionDiff[]>([
-    {
-      id: 'diff-1',
-      type: 'cut',
-      title: 'Trimmed Dead Air Silence',
-      description: 'Removed 3.4s silent gap at 00:04.20 - 00:07.60',
-      changeType: 'removed',
-      timestamp: '-3.4s',
-      status: 'pending',
-    },
-    {
-      id: 'diff-2',
-      type: 'subtitle',
-      title: 'Generated Dynamic Captions',
-      description: 'Aligned 24 subtitle words on V2 text track',
-      changeType: 'added',
-      timestamp: '+24 Words',
-      status: 'pending',
-    },
-    {
-      id: 'diff-3',
-      type: 'denoise',
-      title: 'Spectral Denoise Filter',
-      description: 'Suppressed -18dB background hum on A1 track',
-      changeType: 'modified',
-      timestamp: 'A1 Audio',
-      status: 'pending',
-    },
-  ]);
+  const [actionDiffs, setActionDiffs] = useState<ActionDiff[]>([]);
 
   const slashCommands = [
     { command: '/silence', label: 'Cut Silences', desc: 'Detect & trim dead air gaps > 0.5s', icon: <Scissors className="w-3.5 h-3.5 text-amber-400" /> },
@@ -101,39 +75,63 @@ export const AIPromptConsole: React.FC = () => {
     setIsProcessing(true);
     setActiveStep(0);
 
-    // Simulate Stepper Progress
-    setTimeout(() => setActiveStep(1), 600);
-    setTimeout(() => setActiveStep(2), 1200);
-    setTimeout(() => setActiveStep(3), 1800);
+    try {
+      const commands = await agentOrchestrator.processPrompt(cmdToRun, (log) => {
+        // Advance stepper based on log messages if possible
+        if (log.type === 'thought') {
+          setActiveStep(1); // Analyzing / Planning
+        } else if (log.type === 'tool') {
+          setActiveStep(2); // Slicing / Action
+        } else if (log.type === 'response') {
+          setActiveStep(3); // Arranging / Completed
+        }
+      });
 
-    await agentOrchestrator.processPrompt(cmdToRun, () => {});
-
-    setTimeout(() => {
       setIsProcessing(false);
-      // Add a new diff card
+      setActiveStep(3);
+      const { CompoundCommand } = await import('../core/commands/transaction');
+
       const newDiff: ActionDiff = {
         id: `diff-${Date.now()}`,
         type: cmdToRun.includes('silence') ? 'cut' : cmdToRun.includes('color') ? 'color' : 'subtitle',
         title: `AI Action: ${cmdToRun.slice(0, 24)}...`,
-        description: `Applied AI sequence edit based on "${cmdToRun}"`,
+        description: `Generated ${commands.length} timeline edits based on "${cmdToRun}"`,
         changeType: 'modified',
         timestamp: 'Just now',
         status: 'pending',
+        command: commands.length > 0 ? new CompoundCommand(commands) : undefined
       };
       setActionDiffs((prev) => [newDiff, ...prev]);
-    }, 2000);
+    } catch (err) {
+      setIsProcessing(false);
+      throw err;
+    }
   };
 
   const handleAcceptAll = () => {
-    setActionDiffs((prev) =>
-      prev.map((d) => ({ ...d, status: 'accepted' }))
-    );
+    import('../store/timelineStore').then(({ useTimelineStore }) => {
+      import('../core/commands/transaction').then(({ CompoundCommand }) => {
+        const pending = actionDiffs.filter(d => d.status === 'pending' && d.command);
+        if (pending.length > 0) {
+          const allCommands = pending.map(d => d.command!).filter(Boolean);
+          if (allCommands.length > 0) {
+            useTimelineStore.getState().executeCommand(new CompoundCommand(allCommands));
+          }
+        }
+        setActionDiffs((prev) =>
+          prev.map((d) => d.status === 'pending' ? { ...d, status: 'accepted' } : d)
+        );
+      });
+    });
   };
 
   const handleRollback = () => {
-    setActionDiffs((prev) =>
-      prev.map((d) => ({ ...d, status: 'rejected' }))
-    );
+    import('../store/timelineStore').then(({ useTimelineStore }) => {
+      useTimelineStore.getState().undo();
+      setActionDiffs((prev) =>
+        prev.map((d) => ({ ...d, status: 'rejected' }))
+      );
+    });
   };
 
   const toggleInspectorSection = (section: 'transform' | 'audio' | 'color') => {
@@ -308,11 +306,16 @@ export const AIPromptConsole: React.FC = () => {
                       Reject
                     </button>
                     <button
-                      onClick={() =>
-                        setActionDiffs((prev) =>
-                          prev.map((d) => (d.id === diff.id ? { ...d, status: 'accepted' } : d))
-                        )
-                      }
+                      onClick={() => {
+                        import('../store/timelineStore').then(({ useTimelineStore }) => {
+                          if (diff.command) {
+                            useTimelineStore.getState().executeCommand(diff.command);
+                          }
+                          setActionDiffs((prev) =>
+                            prev.map((d) => (d.id === diff.id ? { ...d, status: 'accepted' } : d))
+                          );
+                        });
+                      }}
                       className="px-2 py-0.5 bg-indigo-accent hover:bg-indigo-hover text-white rounded text-[10px] font-medium shadow transition-colors flex items-center space-x-1"
                     >
                       <Check className="w-3 h-3" />
