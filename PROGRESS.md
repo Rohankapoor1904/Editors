@@ -63,3 +63,8 @@
 | **R9.5** | UI & UX | Timeline track management & clip drag-to-move | `todo` | unclaimed | `src/components/TimelineTrackEditor.tsx` (depends on R9.1) |
 | **R9.6** | UI & UX | Global NLE keyboard shortcuts manager | `todo` | unclaimed | `src/utils/keyboardShortcuts.ts`, `src/App.tsx` (depends on R9.1) |
 | **R9.7** | UI & UX | AI prompt console real diff execution & transaction commit | `todo` | unclaimed | `src/components/AIPromptConsole.tsx` (depends on R9.5) |
+| **R10.1** | Playback | Video frame feed into ProgramMonitor | `todo` | unclaimed | `src/components/ProgramMonitor.tsx` (depends on R9.2) |
+| **R10.2** | Playback | 2D Canvas fallback renderer | `todo` | unclaimed | `src/engine/webgpuRenderer.ts` (depends on R10.1) |
+| **R10.3** | Playback | Timeline clip WebAudio playback engine | `todo` | unclaimed | `src/engine/audioEngine.ts` (depends on R9.4) |
+| **R10.4** | Editorial | Clip Inspector & Property Controls panel | `todo` | unclaimed | `src/components/ClipInspector.tsx` (depends on R9.5) |
+| **R10.5** | Editorial | Project Document Save/Open dialogs (.cinecraft JSON) | `todo` | unclaimed | `src/services/projectPersistence.ts` (depends on R9.1) |
