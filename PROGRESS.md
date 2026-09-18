@@ -43,7 +43,7 @@
 | **R6.2** | AI | Forced alignment + text-binding | `done` | Jules | `npm run test` passes, reverse temporal ripple delete tested |
 | **R6.3** | AI | Real Silero VAD | `done` | Jules | `cargo test` and `npm run test` pass, returning real silence segments |
 | **R6.4** | AI | Micro-crossfades on cut seams | `done` | Jules | `npm test` runs without failure and micro-crossfade logic handles audio seams correctly |
-| **R6.5** | AI | Real object tracking (partial) | `todo` | | |
+| **R6.5** | AI | Real object tracking (partial) | `done` | `npm test` passed, verified in PR #51 | |
 | **R6.6** | AI | Auto-reframe on tracking | `todo` | | |
 | **R6.7** | AI | Kinetic captions rendering | `todo` | | |
 | **R6.8** | AI | Neural voice isolation | `todo` | | |
