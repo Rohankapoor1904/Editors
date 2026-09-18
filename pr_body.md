@@ -26,7 +26,7 @@ computing gzip size...
 dist/index.html                   0.50 kB │ gzip:  0.34 kB
 dist/assets/index-8zzvL1Nr.css   39.32 kB │ gzip:  7.18 kB
 dist/assets/index-BxAyYUi-.js   278.27 kB │ gzip: 81.78 kB
-✓ built in 3.78s
+✓ built in 3.88s
 
 TEST:
 
@@ -40,8 +40,8 @@ TEST:
 
  Test Files  36 passed (36)
       Tests  148 passed | 1 skipped (149)
-   Start at  14:16:55
-   Duration  19.36s (transform 1.27s, setup 4.53s, collect 2.54s, tests 2.02s, environment 35.77s, prepare 3.05s)
+   Start at  14:36:21
+   Duration  20.05s (transform 1.41s, setup 4.87s, collect 2.72s, tests 1.96s, environment 37.12s, prepare 3.19s)
 
 
 LINT:
