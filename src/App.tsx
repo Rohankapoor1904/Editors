@@ -6,6 +6,7 @@ import { AIPromptConsole } from './components/AIPromptConsole';
 import { TimelineTrackEditor } from './components/TimelineTrackEditor';
 import { TranscriptEditor } from './components/TranscriptEditor';
 import { ExportModal } from './components/ExportModal';
+import { AudioWorkspace } from './components/AudioWorkspace';
 import { useTimelineStore } from './store/timelineStore';
 
 export const App: React.FC = () => {
@@ -49,6 +50,8 @@ export const App: React.FC = () => {
           <div className="flex-1 flex items-center justify-center bg-neutral-950 p-4">
             <ExportModal />
           </div>
+        ) : activeWorkspace === 'audio' ? (
+          <AudioWorkspace />
         ) : (
           <ProgramMonitor />
         )}
