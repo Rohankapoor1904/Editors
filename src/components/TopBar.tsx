@@ -3,8 +3,11 @@ import { useTimelineStore } from '../store/timelineStore';
 import { TimelineState } from '../types/timeline';
 import { Video, Sparkles, Palette, Volume2, Share2, Magnet, Cpu, Zap, Download, ShieldAlert, FlaskConical } from 'lucide-react';
 import { getRuntimeMode, setRuntimeMode, subscribeRuntimeMode, RuntimeMode } from '../services/runtimeConfig';
+import { serializeProject, deserializeProject } from '../core/project/serialize';
+import { useMediaPoolStore } from '../store/mediaPool';
 
 export const TopBar: React.FC = () => {
+  const { assets: mediaPoolAssets, addAsset } = useMediaPoolStore();
   const {
     activeWorkspace, setWorkspace,
     magneticSnapping, toggleMagneticSnapping,
@@ -39,6 +42,61 @@ export const TopBar: React.FC = () => {
 
   const menus = React.useMemo<Record<string, { label?: string; action?: () => void; divider?: boolean }[]>>(() => ({
     File: [
+      { label: 'Save Project', action: () => {
+        const state = useTimelineStore.getState();
+        try {
+          const jsonString = serializeProject(state, mediaPoolAssets);
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'project.cinecraft';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error('Failed to save project', err);
+          alert('Failed to save project. Ensure all fields are filled.');
+        }
+      } },
+      { label: 'Open Project', action: () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.cinecraft,application/json';
+        input.onchange = (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (re) => {
+            try {
+              const text = re.target?.result as string;
+              const { timelineState, assets } = deserializeProject(text);
+
+              // Load assets into media pool
+              for (const a of assets) {
+                addAsset(a);
+              }
+
+              // Set timeline state
+              useTimelineStore.setState({
+                version: timelineState.version,
+                projectId: timelineState.projectId,
+                metadata: timelineState.metadata,
+                tracks: timelineState.tracks,
+                playheadPosition: { value: 0, rate: 1 },
+                selectedClipIds: []
+              });
+            } catch (err) {
+              console.error('Failed to open project', err);
+              alert('Failed to open project file: Invalid format');
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      } },
+      { divider: true },
       { label: 'Export...', action: () => setWorkspace('export') },
     ],
     Edit: [
