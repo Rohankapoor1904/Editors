@@ -1,13 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { TimelineState } from '../types/timeline';
 import { Video, Sparkles, Palette, Volume2, Share2, Magnet, Cpu, Zap, Download, ShieldAlert, FlaskConical } from 'lucide-react';
 import { getRuntimeMode, setRuntimeMode, subscribeRuntimeMode, RuntimeMode } from '../services/runtimeConfig';
 
 export const TopBar: React.FC = () => {
-  const { activeWorkspace, setWorkspace, magneticSnapping, toggleMagneticSnapping, metadata } =
-    useTimelineStore();
+  const {
+    activeWorkspace, setWorkspace,
+    magneticSnapping, toggleMagneticSnapping,
+    metadata,
+    undo, redo, splitClip, selectedClipIds, playheadPosition,
+    setZoomLevel, zoomLevel, addTrack
+  } = useTimelineStore();
+
   const [runtimeMode, setMode] = useState<RuntimeMode>(getRuntimeMode());
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return subscribeRuntimeMode((newMode) => {
@@ -15,9 +23,52 @@ export const TopBar: React.FC = () => {
     });
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const toggleRuntimeMode = () => {
     setRuntimeMode(runtimeMode === 'live' ? 'demo' : 'live');
   };
+
+  const menus = React.useMemo<Record<string, { label?: string; action?: () => void; divider?: boolean }[]>>(() => ({
+    File: [
+      { label: 'Export...', action: () => setWorkspace('export') },
+    ],
+    Edit: [
+      { label: 'Undo', action: () => undo() },
+      { label: 'Redo', action: () => redo() },
+      { divider: true },
+      { label: 'Split at Playhead', action: () => {
+        if (selectedClipIds.length > 0) {
+          splitClip(selectedClipIds[0], playheadPosition);
+        }
+      } },
+    ],
+    View: [
+      { label: 'Zoom In', action: () => setZoomLevel(zoomLevel + 5) },
+      { label: 'Zoom Out', action: () => setZoomLevel(zoomLevel - 5) },
+      { label: 'Reset Zoom', action: () => setZoomLevel(20) },
+      { divider: true },
+      { label: 'Toggle Snapping', action: () => toggleMagneticSnapping() },
+    ],
+    Clip: [
+    ],
+    Sequence: [
+      { label: 'Add Video Track', action: () => addTrack('video') },
+      { label: 'Add Audio Track', action: () => addTrack('audio') },
+    ],
+    Effects: [
+    ],
+    Help: [
+    ]
+  }), [undo, redo, splitClip, selectedClipIds, playheadPosition, setZoomLevel, zoomLevel, toggleMagneticSnapping, addTrack, setWorkspace]);
 
   const workspaces: { id: TimelineState['activeWorkspace']; label: string; icon: React.ReactNode }[] = [
     { id: 'edit', label: 'Edit & Cut', icon: <Video className="w-3.5 h-3.5 mr-1 shrink-0" /> },
@@ -42,14 +93,39 @@ export const TopBar: React.FC = () => {
 
         <div className="h-4 w-[1px] bg-neutral-800" />
 
-        <nav className="hidden xl:flex items-center space-x-2.5 text-neutral-400 text-[11px] font-medium">
-          {['File', 'Edit', 'View', 'Clip', 'Sequence', 'Effects', 'Help'].map((item) => (
-            <span
-              key={item}
-              className="hover:text-neutral-100 cursor-pointer transition-colors px-1 py-0.5 rounded hover:bg-dark-800"
-            >
-              {item}
-            </span>
+        <nav ref={menuRef} className="hidden xl:flex items-center space-x-2.5 text-neutral-400 text-[11px] font-medium relative">
+          {Object.entries(menus).map(([menuName, menuItems]) => (
+            <div key={menuName} className="relative">
+              <button
+                onClick={() => setOpenMenu(openMenu === menuName ? null : menuName)}
+                className={`hover:text-neutral-100 cursor-pointer transition-colors px-2 py-1 rounded ${
+                  openMenu === menuName ? 'bg-dark-800 text-neutral-100' : 'hover:bg-dark-800'
+                }`}
+              >
+                {menuName}
+              </button>
+
+              {openMenu === menuName && (
+                <div className="absolute top-full left-0 mt-1 w-48 bg-dark-900 border border-subtle rounded-panel shadow-xl py-1 z-50">
+                  {menuItems.map((item, idx) =>
+                    item.divider ? (
+                      <div key={idx} className="h-px bg-subtle my-1" />
+                    ) : (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          item.action?.();
+                          setOpenMenu(null);
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-indigo-accent hover:text-white transition-colors text-neutral-300 flex items-center justify-between group"
+                      >
+                        <span>{item.label}</span>
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </nav>
       </div>
