@@ -45,7 +45,7 @@
 | **R6.4** | AI | Micro-crossfades on cut seams | `done` | Jules | `npm test` runs without failure and micro-crossfade logic handles audio seams correctly |
 | **R6.5** | AI | Real object tracking (partial) | `done` | `npm test` passed, verified in PR #51 | |
 | **R6.6** | AI | Auto-reframe on tracking | `done` | | |
-| **R6.7** | AI | Kinetic captions rendering | `todo` | | |
+| **R6.7** | AI | Kinetic captions rendering | `done` | `npm test` passed, verified in PR #53 | |
 | **R6.8** | AI | Neural voice isolation | `todo` | | |
 | **R7.1** | Agent | Typed tool layer | `todo` | | |
 | **R7.2** | Agent | Transactional agent execution | `todo` | | |
