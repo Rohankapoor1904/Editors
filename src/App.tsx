@@ -8,11 +8,14 @@ import { TranscriptEditor } from './components/TranscriptEditor';
 import { ExportModal } from './components/ExportModal';
 import { AudioWorkspace } from './components/AudioWorkspace';
 import { useTimelineStore } from './store/timelineStore';
+import { useMediaPoolStore } from './store/mediaPool';
+import { deserializeProject } from './core/project/serialize';
 import { handleKeyboardShortcuts } from './utils/keyboardShortcuts';
 
 export const App: React.FC = () => {
   const store = useTimelineStore();
   const { activeWorkspace, undo, redo } = store;
+  const { addAsset } = useMediaPoolStore();
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,8 +37,44 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [store, undo, redo]);
 
+    const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.endsWith('.cinecraft') || file.type === 'application/json')) {
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        try {
+          const text = re.target?.result as string;
+          const { timelineState, assets } = deserializeProject(text);
+          for (const a of assets) {
+            addAsset(a);
+          }
+          useTimelineStore.setState({
+            version: timelineState.version,
+            projectId: timelineState.projectId,
+            metadata: timelineState.metadata,
+            tracks: timelineState.tracks,
+            playheadPosition: { value: 0, rate: 1 },
+            selectedClipIds: []
+          });
+        } catch (err) {
+          console.error('Failed to load project from drop', err);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   return (
-    <div className="h-screen w-screen bg-neutral-950 flex flex-col font-sans overflow-hidden text-neutral-200">
+    <div
+      className="h-screen w-screen bg-neutral-950 flex flex-col font-sans overflow-hidden text-neutral-200"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
       {/* Top Application Navbar */}
       <TopBar />
 
