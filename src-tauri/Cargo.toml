@@ -17,5 +17,7 @@ sha2 = "0.11.0"
 hex = "0.4.3"
 whisper-rs = "0.16.0"
 hound = "3.5.1"
+ort = "2.0.0-rc.13"
+ndarray = "0.17.2"
 [dev-dependencies]
 tempfile = "3.8"
