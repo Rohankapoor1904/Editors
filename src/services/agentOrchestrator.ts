@@ -3,6 +3,8 @@ import { whisperService } from './whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
 import { secondsToRational } from '../types/time';
 import { isLiveMode, NotImplementedError } from './runtimeConfig';
+import { Command, RippleDeleteCommand } from '../core/commands';
+import { CompoundCommand } from '../core/commands/transaction';
 
 export interface AgentStepLog {
   type: 'thought' | 'tool' | 'response' | 'user';
@@ -29,12 +31,25 @@ export class AgentOrchestratorService {
       onLog({ type: 'thought', message: 'Analyzing audio track for silent pauses > 0.5s via Silero VAD...' });
       const silences = await sileroVadService.detectSilence('/demo/audio.wav', 0.5);
 
-      for (const silence of silences) {
+      // Sort silences in descending order by startTime to avoid shifting issues
+      const sortedSilences = [...silences].sort((a, b) => b.startTime - a.startTime);
+      const commands: Command[] = [];
+
+      for (const silence of sortedSilences) {
         onLog({
           type: 'tool',
           message: `detect_silence() -> Found silence window (${silence.startTime}s to ${silence.endTime}s).`,
         });
-        useTimelineStore.getState().rippleDelete(secondsToRational(silence.startTime), secondsToRational(silence.duration));
+        commands.push(
+          new RippleDeleteCommand(
+            secondsToRational(silence.startTime),
+            secondsToRational(silence.duration)
+          )
+        );
+      }
+
+      if (commands.length > 0) {
+        useTimelineStore.getState().executeCommand(new CompoundCommand(commands));
       }
 
       onLog({
