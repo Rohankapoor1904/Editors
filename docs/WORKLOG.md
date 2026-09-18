@@ -38,3 +38,10 @@
 - **Left undone:** None
 - **Next:** R8.4 — Installers & leak audit.
 - **Blockers:** None
+
+## $(date +%Y-%m-%d) — Jules — R9.6
+- **Did:** Implemented `handleKeyboardShortcuts` in `src/utils/keyboardShortcuts.ts` and wired it up in `src/App.tsx`. Listens for Space, j/k/l, c/b, v, s, delete/backspace, arrow keys, and home/end keys to control transport, switch tools, toggle snapping, and edit timeline. Updated `src/components/TimelineTrackEditor.tsx` to listen to `set-active-tool` events. Created `src/utils/keyboardShortcuts.test.ts` to assert coverage and logic.
+- **Verified:** `npm run build`, `npm test`, `npm run lint` all passed successfully.
+- **Left undone:** None
+- **Next:** R9.7 (AI prompt console real diff execution & transaction commit)
+- **Blockers:** None

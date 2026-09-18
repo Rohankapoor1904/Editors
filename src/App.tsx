@@ -8,9 +8,11 @@ import { TranscriptEditor } from './components/TranscriptEditor';
 import { ExportModal } from './components/ExportModal';
 import { AudioWorkspace } from './components/AudioWorkspace';
 import { useTimelineStore } from './store/timelineStore';
+import { handleKeyboardShortcuts } from './utils/keyboardShortcuts';
 
 export const App: React.FC = () => {
-  const { activeWorkspace, undo, redo } = useTimelineStore();
+  const store = useTimelineStore();
+  const { activeWorkspace, undo, redo } = store;
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -22,11 +24,15 @@ export const App: React.FC = () => {
         } else {
           undo();
         }
+        return;
       }
+
+      handleKeyboardShortcuts(e, store);
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo]);
+  }, [store, undo, redo]);
 
   return (
     <div className="h-screen w-screen bg-neutral-950 flex flex-col font-sans overflow-hidden text-neutral-200">
