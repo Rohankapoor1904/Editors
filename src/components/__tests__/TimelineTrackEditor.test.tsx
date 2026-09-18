@@ -79,3 +79,159 @@ describe('TimelineTrackEditor Drag and Drop', () => {
     expect(rationalToSeconds((commandArg as any).clip.startOffset)).toBe(0);
   });
 });
+
+
+describe('TimelineTrackEditor R9.5 Features', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    if (typeof window.HTMLElement.prototype.setPointerCapture !== 'function') {
+      window.HTMLElement.prototype.setPointerCapture = vi.fn();
+      window.HTMLElement.prototype.releasePointerCapture = vi.fn();
+    }
+
+    // Reset timeline store clips
+    useTimelineStore.setState({
+      tracks: [
+        { id: 't1', type: 'video', clips: [{ id: 'c1', name: 'Interview_Take1.mp4', startOffset: { value: 0, rate: 1 }, duration: { value: 10, rate: 1 } }] }
+      ] as any,
+      selectedClipIds: []
+    });
+  });
+
+  it('adds a new video track when Add Track -> Video is clicked', () => {
+    const { getByText, getAllByText } = render(<TimelineTrackEditor />);
+
+    const timelineStore = useTimelineStore.getState();
+    const executeSpy = vi.spyOn(timelineStore, 'executeCommand');
+
+    // Click "Add Track" dropdown toggle
+    fireEvent.click(getAllByText('Add Track')[0]);
+
+    // Click "Video Track"
+    fireEvent.click(getByText('Video Track'));
+
+    expect(executeSpy).toHaveBeenCalled();
+    const commandArg = executeSpy.mock.calls[0][0];
+    expect(commandArg.constructor.name).toBe('AddTrackCommand');
+    expect((commandArg as any).newTrack.type).toBe('video');
+  });
+
+  it('adds a new audio track when Add Track -> Audio is clicked', () => {
+    const { getByText, getAllByText } = render(<TimelineTrackEditor />);
+
+    const timelineStore = useTimelineStore.getState();
+    const executeSpy = vi.spyOn(timelineStore, 'executeCommand');
+
+    // Click "Add Track" dropdown toggle
+    fireEvent.click(getAllByText('Add Track')[0]);
+
+    // Click "Audio Track"
+    fireEvent.click(getByText('Audio Track'));
+
+    expect(executeSpy).toHaveBeenCalled();
+    const commandArg = executeSpy.mock.calls[0][0];
+    expect(commandArg.constructor.name).toBe('AddTrackCommand');
+    expect((commandArg as any).newTrack.type).toBe('audio');
+  });
+
+  it('dispatches MoveCommand when a clip is dragged in select mode', () => {
+    const { getAllByText, queryAllByText } = render(<TimelineTrackEditor />);
+
+    const timelineStore = useTimelineStore.getState();
+    const executeSpy = vi.spyOn(timelineStore, 'executeCommand');
+
+    // Ensure select tool is active
+    fireEvent.click(getAllByText(/Select/i)[0]);
+
+    // Find the first clip text inside the DOM
+    const clipTexts = queryAllByText('Interview_Take1.mp4');
+    let clipNode = null;
+    if (clipTexts.length > 0) {
+      clipNode = clipTexts[0].closest('div[style]');
+    }
+
+    expect(clipNode).not.toBeNull();
+
+    if (clipNode) {
+      fireEvent.pointerDown(clipNode, { clientX: 100 });
+      fireEvent.pointerMove(clipNode, { clientX: 150 });
+      fireEvent.pointerUp(clipNode, { clientX: 150 });
+
+      expect(executeSpy).toHaveBeenCalled();
+      const commandArg = executeSpy.mock.calls.find(call => call[0].constructor.name === 'MoveCommand')?.[0];
+      expect(commandArg).toBeDefined();
+    }
+  });
+
+  it('opens context menu and deletes a clip', () => {
+    const { getByText, queryByText, queryAllByText } = render(<TimelineTrackEditor />);
+
+    const timelineStore = useTimelineStore.getState();
+    const executeSpy = vi.spyOn(timelineStore, 'executeCommand');
+
+    const clipTexts = queryAllByText('Interview_Take1.mp4');
+    let clipNode = null;
+    if (clipTexts.length > 0) {
+      clipNode = clipTexts[0].closest('div[style]');
+    }
+
+    expect(clipNode).not.toBeNull();
+
+    if (clipNode) {
+      window.HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
+        left: 100, top: 0, right: 200, bottom: 64, width: 100, height: 64, x: 100, y: 0, toJSON: () => {}
+      }));
+
+      fireEvent.contextMenu(clipNode, { clientX: 110, clientY: 10 });
+
+      // Menu should be visible
+      const deleteBtn = getByText('Delete Clip');
+      expect(deleteBtn).not.toBeNull();
+
+      fireEvent.click(deleteBtn);
+
+      expect(executeSpy).toHaveBeenCalled();
+      const commandArg = executeSpy.mock.calls.find(call => call[0].constructor.name === 'RemoveClipCommand')?.[0];
+      expect(commandArg).toBeDefined();
+
+      // Menu should disappear
+      expect(queryByText('Delete Clip')).toBeNull();
+    }
+  });
+
+  it('opens context menu and mutes a clip', () => {
+    const { getByText, queryByText, queryAllByText } = render(<TimelineTrackEditor />);
+
+    const timelineStore = useTimelineStore.getState();
+    const executeSpy = vi.spyOn(timelineStore, 'executeCommand');
+
+    const clipTexts = queryAllByText('Interview_Take1.mp4');
+    let clipNode = null;
+    if (clipTexts.length > 0) {
+      clipNode = clipTexts[0].closest('div[style]');
+    }
+
+    expect(clipNode).not.toBeNull();
+
+    if (clipNode) {
+      window.HTMLElement.prototype.getBoundingClientRect = vi.fn(() => ({
+        left: 100, top: 0, right: 200, bottom: 64, width: 100, height: 64, x: 100, y: 0, toJSON: () => {}
+      }));
+
+      fireEvent.contextMenu(clipNode, { clientX: 110, clientY: 10 });
+
+      // Menu should be visible
+      const muteBtn = getByText('Mute / Unmute');
+      expect(muteBtn).not.toBeNull();
+
+      fireEvent.click(muteBtn);
+
+      expect(executeSpy).toHaveBeenCalled();
+      const commandArg = executeSpy.mock.calls.find(call => call[0].constructor.name === 'ToggleClipMuteCommand')?.[0];
+      expect(commandArg).toBeDefined();
+
+      // Menu should disappear
+      expect(queryByText('Mute / Unmute')).toBeNull();
+    }
+  });
+});

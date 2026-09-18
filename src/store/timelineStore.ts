@@ -3,6 +3,7 @@ import { TimelineState, Track, Clip } from '../types/timeline';
 import { secondsToRational, compareRational, RationalTime } from '../types/time';
 import { Command } from '../core/commands';
 import { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand } from '../core/commands/storeCommands';
+import { ToggleClipMuteCommand } from '../core/commands/edits';
 import {
   SplitCommand,
   TrimCommand,
@@ -38,6 +39,7 @@ interface TimelineStoreActions {
   slipClip: (clipId: string, delta: RationalTime) => void;
   slideClip: (clipId: string, delta: RationalTime) => void;
   overwriteClip: (trackId: string, clip: Clip) => void;
+  toggleClipMute: (clipId: string) => void;
 }
 
 export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
@@ -279,5 +281,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
 
   overwriteClip: (trackId, clip) => {
     get().executeCommand(new OverwriteCommand(trackId, clip));
+  },
+  toggleClipMute: (clipId) => {
+    get().executeCommand(new ToggleClipMuteCommand(clipId));
   },
 }));

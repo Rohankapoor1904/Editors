@@ -3,7 +3,7 @@ import { useTimelineStore } from '../store/timelineStore';
 import { useMediaPoolStore } from '../store/mediaPool';
 import { Clip } from '../types/timeline';
 import { rationalToSeconds, secondsToRational, addRational } from '../types/time';
-import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical } from 'lucide-react';
+import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical, ChevronDown, ListPlus, Trash2, SplitSquareHorizontal, VolumeX } from 'lucide-react';
 
 export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
 
@@ -49,6 +49,13 @@ const FilmstripPreview: React.FC = () => {
 
 export const TimelineTrackEditor: React.FC = () => {
   const [activeTool, setActiveTool] = useState<EditingTool>('select');
+  const [showAddTrackMenu, setShowAddTrackMenu] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    clipId: string;
+    timeOffset: import('../types/time').RationalTime;
+  } | null>(null);
 
   const {
     tracks,
@@ -58,16 +65,21 @@ export const TimelineTrackEditor: React.FC = () => {
     setPlayheadPosition,
     setZoomLevel,
     toggleTrackState,
+    addTrack,
     selectClip,
     splitClip,
     trimClip,
     slipClip,
-    slideClip
+    slideClip,
+    moveClip,
+    removeClip,
+    toggleClipMute
   } = useTimelineStore();
 
   const totalDuration = 60; // 60 seconds view window
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (contextMenu) setContextMenu(null);
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = clickX / zoomLevel;
@@ -76,6 +88,7 @@ export const TimelineTrackEditor: React.FC = () => {
 
   const handleClipClick = (e: React.MouseEvent<HTMLDivElement>, clipId: string) => {
     e.stopPropagation();
+    if (contextMenu) setContextMenu(null);
     if (activeTool === 'select') {
       selectClip(clipId);
     } else if (activeTool === 'blade') {
@@ -100,25 +113,29 @@ export const TimelineTrackEditor: React.FC = () => {
 
   const [dragState, setDragState] = useState<{
     clipId: string;
-    type: 'trimIn' | 'trimOut' | 'slip' | 'slide';
+    type: 'trimIn' | 'trimOut' | 'slip' | 'slide' | 'move';
+    startOffset?: import('../types/time').RationalTime;
     startX: number;
   } | null>(null);
 
   const handlePointerDown = (
     e: React.PointerEvent<HTMLDivElement>,
     clipId: string,
-    type: 'trimIn' | 'trimOut' | 'slip' | 'slide'
+    type: 'trimIn' | 'trimOut' | 'slip' | 'slide' | 'move'
   ) => {
     e.stopPropagation();
+    if (contextMenu) setContextMenu(null);
 
     // Only allow operations if track is not locked
     const track = tracks.find(t => t.clips.some(c => c.id === clipId));
     if (track?.locked) return;
 
+    const clip = track?.clips.find(c => c.id === clipId);
     setDragState({
       clipId,
       type,
       startX: e.clientX,
+      startOffset: clip?.startOffset,
     });
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -147,6 +164,12 @@ export const TimelineTrackEditor: React.FC = () => {
           slipClip(dragState.clipId, delta);
         } else if (dragState.type === 'slide') {
           slideClip(dragState.clipId, delta);
+        } else if (dragState.type === 'move' && dragState.startOffset) {
+          const newStartOffset = addRational(dragState.startOffset, delta);
+          const trackId = tracks.find(t => t.clips.some(c => c.id === dragState.clipId))?.id;
+          if (trackId) {
+            moveClip(dragState.clipId, newStartOffset, trackId);
+          }
         }
       } catch (err) {
         console.error(`Failed to apply ${dragState.type}`, err);
@@ -187,7 +210,41 @@ export const TimelineTrackEditor: React.FC = () => {
         </div>
 
         {/* Zoom & Track Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 relative">
+          <div className="relative">
+            <button
+              onClick={() => setShowAddTrackMenu(!showAddTrackMenu)}
+              className="flex items-center space-x-1 px-2.5 py-1 bg-dark-900 border border-subtle hover:bg-neutral-800/80 rounded-panel transition-colors text-neutral-300 font-medium text-[11px]"
+            >
+              <ListPlus className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Add Track</span>
+              <ChevronDown className="w-3 h-3 text-neutral-500" />
+            </button>
+            {showAddTrackMenu && (
+              <div className="absolute top-full right-0 mt-1 w-36 bg-dark-900 border border-subtle shadow-xl rounded-md z-50 overflow-hidden divide-y divide-subtle">
+                <button
+                  className="w-full px-3 py-2 text-left hover:bg-indigo-950 flex items-center space-x-2 text-indigo-100 transition-colors"
+                  onClick={() => {
+                    addTrack('video');
+                    setShowAddTrackMenu(false);
+                  }}
+                >
+                  <Film className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Video Track</span>
+                </button>
+                <button
+                  className="w-full px-3 py-2 text-left hover:bg-teal-950 flex items-center space-x-2 text-teal-100 transition-colors"
+                  onClick={() => {
+                    addTrack('audio');
+                    setShowAddTrackMenu(false);
+                  }}
+                >
+                  <Music className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Audio Track</span>
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex items-center space-x-2 bg-dark-900 px-2.5 py-1 rounded-panel border border-subtle">
             <ZoomOut
               className="w-3.5 h-3.5 hover:text-white cursor-pointer transition-colors"
@@ -339,16 +396,34 @@ export const TimelineTrackEditor: React.FC = () => {
                         handlePointerDown(e, clip.id, 'slip');
                       } else if (activeTool === 'slide') {
                         handlePointerDown(e, clip.id, 'slide');
+                      } else if (activeTool === 'select') {
+                        handlePointerDown(e, clip.id, 'move');
                       }
                     }}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (activeTool !== 'select') return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const clickXInClip = e.clientX - rect.left;
+                      const timeOffsetInClip = secondsToRational(clickXInClip / zoomLevel);
+                      const absoluteTime = addRational(clip.startOffset, timeOffsetInClip);
+
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        clipId: clip.id,
+                        timeOffset: absoluteTime
+                      });
+                    }}
                     style={{
                       left: `${rationalToSeconds(clip.startOffset) * zoomLevel}px`,
                       width: `${rationalToSeconds(clip.duration) * zoomLevel}px`,
                       cursor: activeTool === 'blade' ? 'crosshair' : activeTool === 'slip' ? 'ew-resize' : activeTool === 'slide' ? 'move' : 'pointer'
                     }}
-                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate transition-all shadow-md group relative overflow-hidden ${
+                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate transition-all shadow-md group relative overflow-hidden ${clip.muted ? 'opacity-50 grayscale' : ''} ${
                       track.type === 'video'
                         ? isSelected
                           ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white ring-2 ring-indigo-400 shadow-indigo-500/30'
@@ -420,6 +495,47 @@ export const TimelineTrackEditor: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-dark-900 border border-subtle shadow-2xl rounded-md py-1 z-[100] w-48 text-neutral-300 text-[11px] font-medium"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 flex items-center space-x-2 transition-colors"
+            onClick={() => {
+              splitClip(contextMenu.clipId, contextMenu.timeOffset);
+              setContextMenu(null);
+            }}
+          >
+            <SplitSquareHorizontal className="w-3.5 h-3.5" />
+            <span>Split at Cursor</span>
+          </button>
+          <button
+            className="w-full px-3 py-1.5 text-left hover:bg-neutral-800 flex items-center space-x-2 transition-colors"
+            onClick={() => {
+              toggleClipMute(contextMenu.clipId);
+              setContextMenu(null);
+            }}
+          >
+            <VolumeX className="w-3.5 h-3.5" />
+            <span>Mute / Unmute</span>
+          </button>
+          <div className="h-px bg-neutral-800 my-1 w-full" />
+          <button
+            className="w-full px-3 py-1.5 text-left hover:bg-red-900/50 hover:text-red-300 text-red-400 flex items-center space-x-2 transition-colors"
+            onClick={() => {
+              removeClip(contextMenu.clipId);
+              setContextMenu(null);
+            }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Clip</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -533,3 +533,44 @@ export class TrimCommand implements Command {
     return this.previousState;
   }
 }
+
+
+export class ToggleClipMuteCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(private readonly clipId: string) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+
+    let targetClip: Clip | undefined;
+    for (const track of state.tracks) {
+      const clip = track.clips.find(c => c.id === this.clipId);
+      if (clip) {
+        targetClip = clip;
+        break;
+      }
+    }
+
+    if (!targetClip) {
+      throw new Error(`Clip with id ${this.clipId} not found`);
+    }
+
+    return {
+      ...state,
+      tracks: state.tracks.map(track => ({
+        ...track,
+        clips: track.clips.map(clip =>
+          clip.id === this.clipId ? { ...clip, muted: !clip.muted } : clip
+        )
+      }))
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) {
+      return state;
+    }
+    return this.previousState;
+  }
+}
