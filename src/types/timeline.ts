@@ -36,6 +36,7 @@ export interface Clip {
   duration: RationalTime;    // Clip duration on timeline (seconds)
   transform?: Transform;
   volume?: number;     // In dB
+  muted?: boolean;
   pan?: number;        // -1.0 to 1.0
   effects?: Effect[];
   audioEffects?: Effect[];
