@@ -1,5 +1,6 @@
 import { Clip } from '../types/timeline';
 import { useTimelineStore } from '../store/timelineStore';
+import { addRational, compareRational } from '../types/time';
 import { AudioGraph } from './audioGraph';
 
 export class WebAudioEngineManager {
@@ -129,6 +130,47 @@ export class WebAudioEngineManager {
 
   // Resolves timeline time to context time given the current playback state and base offsets
   // Since context is hardware time, we calculate when in the future the time will occur.
+
+
+
+  // Applies a 10ms micro-crossfade between two adjacent clips on a cut seam to avoid clicks.
+  applyMicroCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimelineSec: number) {
+    const gainNodeLeft = this.getOrCreateClipGain(leftClip.id);
+    const gainNodeRight = this.getOrCreateClipGain(rightClip.id);
+
+    if (!gainNodeLeft || !gainNodeRight || !this.ctx) return;
+
+    const leftEnd = addRational(leftClip.startOffset, leftClip.duration);
+
+    // Exact rational time comparison to ensure they are on a cut seam
+    const isAdjacent = compareRational(leftEnd, rightClip.startOffset) === 0;
+
+    if (isAdjacent) {
+      const leftEndSec = leftEnd.value / leftEnd.rate;
+
+      // Find context-relative offsets
+      const seamOffsetContext = (leftEndSec - playheadTimelineSec) + playbackContextAnchorSec;
+
+      const fadeDuration = 0.005; // 5ms fade out, 5ms fade in, total 10ms
+
+      // Only schedule if it's in the future or very close to present
+      if (seamOffsetContext + fadeDuration > this.ctx.currentTime) {
+         const scheduleStartLeft = Math.max(seamOffsetContext - fadeDuration, this.ctx.currentTime);
+         const scheduleStartRight = Math.max(seamOffsetContext, this.ctx.currentTime);
+
+         // Fade out left clip (5ms before seam)
+         gainNodeLeft.gain.cancelScheduledValues(scheduleStartLeft);
+         gainNodeLeft.gain.setValueAtTime(1.0, scheduleStartLeft);
+         gainNodeLeft.gain.linearRampToValueAtTime(0.0, seamOffsetContext);
+
+         // Fade in right clip (5ms after seam)
+         gainNodeRight.gain.cancelScheduledValues(scheduleStartRight);
+         gainNodeRight.gain.setValueAtTime(0.0, scheduleStartRight);
+         gainNodeRight.gain.linearRampToValueAtTime(1.0, seamOffsetContext + fadeDuration);
+      }
+    }
+  }
+
   applyCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimelineSec: number) {
     const gainNodeLeft = this.getOrCreateClipGain(leftClip.id);
     const gainNodeRight = this.getOrCreateClipGain(rightClip.id);

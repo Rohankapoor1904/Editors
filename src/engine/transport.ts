@@ -45,6 +45,7 @@ export class TransportEngine {
     audioEngine.resumeContext().catch(e => console.error('Failed to resume audio context', e));
 
     this.playbackStartTimeSec = audioEngine.getCurrentTime();
+    this.applyAudioCrossfades();
 
     this.requestRef = requestAnimationFrame(() => this.loop());
     this.notifyListeners();
@@ -159,11 +160,33 @@ export class TransportEngine {
     store.setPlayheadPosition(newPos);
   }
 
+
+  private applyAudioCrossfades() {
+    const store = useTimelineStore.getState();
+    const playheadTimelineSec = store.playheadPosition.value / store.playheadPosition.rate;
+
+    for (const track of store.tracks) {
+      if (track.type !== 'audio' && track.type !== 'video') continue;
+      if (track.muted || track.locked) continue;
+
+      // Sort clips by start time
+      const sortedClips = [...track.clips].sort((a, b) =>
+        (a.startOffset.value / a.startOffset.rate) - (b.startOffset.value / b.startOffset.rate)
+      );
+
+      for (let i = 0; i < sortedClips.length - 1; i++) {
+        const leftClip = sortedClips[i];
+        const rightClip = sortedClips[i + 1];
+
+        audioEngine.applyMicroCrossfade(leftClip, rightClip, this.playbackStartTimeSec, playheadTimelineSec);
+      }
+    }
+  }
+
   private loop() {
     if (!this.isPlaying) return;
 
     this.updatePlayheadPosition(audioEngine.getCurrentTime());
-
     if (this.isPlaying) {
       this.requestRef = requestAnimationFrame(() => this.loop());
     }

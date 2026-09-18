@@ -61,6 +61,39 @@ describe('WebAudioEngineManager R2.5', () => {
         expect(clipGain.gain.setValueAtTime).toHaveBeenCalledWith(0.5, 0);
     });
 
+
+    test('applyMicroCrossfade schedules a 10ms crossfade between adjacent clips', () => {
+        const clip1: Clip = {
+            id: 'c1', assetId: 'a1', name: 'clip1',
+            startOffset: { value: 0, rate: 1 },
+            sourceIn: { value: 0, rate: 1 },
+            sourceOut: { value: 10, rate: 1 },
+            duration: { value: 10, rate: 1 } // ends at 10
+        };
+        const clip2: Clip = {
+            id: 'c2', assetId: 'a2', name: 'clip2',
+            startOffset: { value: 10, rate: 1 }, // starts at 10
+            sourceIn: { value: 0, rate: 1 },
+            sourceOut: { value: 10, rate: 1 },
+            duration: { value: 10, rate: 1 }
+        };
+
+        const gainNode1 = engine.getOrCreateClipGain(clip1.id) as any;
+        const gainNode2 = engine.getOrCreateClipGain(clip2.id) as any;
+
+        // Context anchor is 100s, playhead is at 0s
+        engine.applyMicroCrossfade(clip1, clip2, 100, 0);
+
+        // Seam is at 10s on timeline -> 110s in context
+        // Left clip fades out from 109.995 to 110
+        expect(gainNode1.gain.setValueAtTime).toHaveBeenCalledWith(1.0, 109.995);
+        expect(gainNode1.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 110);
+
+        // Right clip fades in from 110 to 110.005
+        expect(gainNode2.gain.setValueAtTime).toHaveBeenCalledWith(0, 110);
+        expect(gainNode2.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, 110.005);
+    });
+
     test('overlapping clips crossfade without clicks', () => {
         const clip1: Clip = {
             id: 'c1', assetId: 'a1', name: 'clip1',
