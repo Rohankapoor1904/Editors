@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportTaskConfig {
@@ -82,5 +83,33 @@ impl HardwareExportNative {
             binary: "ffmpeg".to_string(),
             args,
         }
+    }
+
+    /// Probes available hardware encoders by running `ffmpeg -encoders`
+    pub fn get_available_encoders() -> Vec<String> {
+        let mut encoders = vec!["Software x264".to_string()];
+
+        let output = match Command::new("ffmpeg").arg("-encoders").output() {
+            Ok(output) => output,
+            Err(_) => return encoders,
+        };
+
+        if !output.status.success() {
+            return encoders;
+        }
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        if output_str.contains("h264_videotoolbox") {
+            encoders.push("VideoToolbox (Apple)".to_string());
+        }
+        if output_str.contains("h264_nvenc") {
+            encoders.push("NVENC (NVIDIA)".to_string());
+        }
+        if output_str.contains("h264_qsv") {
+            encoders.push("QuickSync (Intel)".to_string());
+        }
+
+        encoders
     }
 }

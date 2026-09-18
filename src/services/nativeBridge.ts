@@ -200,6 +200,22 @@ export class NativeBridgeService {
     // Fallback web mock
     return true;
   }
+
+  async getAvailableEncoders(): Promise<string[]> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<string[]> } }).__TAURI_INTERNALS__.invoke('get_available_encoders');
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Failed to fetch available encoders:', err);
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Encoder Detection');
+    }
+
+    return ['Software x264', 'VideoToolbox (Apple)', 'NVENC (NVIDIA)', 'QuickSync (Intel)'];
+  }
 }
 
 export const nativeBridge = new NativeBridgeService();

@@ -1,2 +1,2 @@
 #!/bin/bash
-sed -i 's/| \*\*R7.4\*\* | Agent | Multimodal perception (VLM) | `todo` | | |/| \*\*R7.4\*\* | Agent | Multimodal perception (VLM) | `blocked` | Jules | VLM interfaces added, but implementation throws NotImplementedError because on-device vision encoder needs Rust setup. |/g' PROGRESS.md
+sed -i 's/| **R8.2** | Export | Encoder capability detection | `todo` | | |/| **R8.2** | Export | Encoder capability detection | `done` | Jules | `npm test` and `cargo check` pass, dynamically detects ffmpeg hardware encoders |/' PROGRESS.md
