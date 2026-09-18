@@ -13,6 +13,6 @@ export class SemanticSearchService {
     if (getRuntimeMode() === 'live') {
       throw new Error('NotImplementedError: Semantic search not implemented in live mode');
     }
-    return [{ clipId: 'mock-clip-1', score: 0.99 }];
+    throw new Error('NotImplementedError: Semantic search not implemented in demo mode');
   }
 }
