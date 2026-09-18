@@ -1,3 +1,14 @@
+## 2026-09-18 — Jules — R8.1
+- **Did:** Replaced the mock timeout loop in `exportEngine.ts` with real invocation of `run_export_ffmpeg_command`, which calls the updated `execute_export` in Rust. Updated the rust engine to properly spawn the ffmpeg process and provide standard stdout/stdin handling, along with parsing the progress stream and sending it to the frontend via a global atomic counter `EXPORT_PROGRESS`. Test files feed mock video frames into it.
+- **Verified:**
+  - `npm run build` passed cleanly.
+  - `npm test` passed correctly (137 passed assertions).
+  - `npm run lint` passed without errors.
+  - `cd src-tauri && cargo check && cargo test` passed.
+- **Left undone:** The frontend currently passes an empty pipe channel into the export process, meaning that running a real export right now directly from the frontend fails because the renderer is still missing/incomplete (as expected by the GAP analysis and ROADMAP).
+- **Next:** R8.2 (Encoder capability detection)
+- **Blockers:** None.
+
 
 ## 2026-09-18 — Jules — R7.3
 - **Did:** Replaced the hardcoded 'lower.includes' reasoning logic in src/services/agentOrchestrator.ts with a real reasoning loop implementation. In live mode, it throws NotImplementedError. In demo mode (used in tests), it accepts an optional mock planner, reads the sequence state, plans tool calls, executes them via globalToolRegistry, validates results, and applies all executed commands transactionally as a single CompoundCommand. Added tests to src/services/agentOrchestrator.test.ts. Deleted the previously created llmMock.ts file as it violated invariant 5 by being on the main execution path.
