@@ -59,7 +59,7 @@
 | **R9.1** | UI & UX | Top navigation menu bar & dropdowns | `done` | `npm test` passed, verified in PR #64 | `src/components/TopBar.tsx` (depends on R8.4) |
 | **R9.2** | UI & UX | Web file picker fallback & media-to-timeline insertion | `done` | `npm test` passed, verified in PR #65 | `src/components/AssetBin.tsx`, `src/components/TimelineTrackEditor.tsx` (depends on R9.1) |
 | **R9.3** | UI & UX | Color & FX workspace (Color Wheels UI & Scopes) | `done` | `npm test` passed, verified in PR #66 | `src/components/ColorWorkspace.tsx`, `src/components/Scopes.tsx`, `src/App.tsx` (depends on R9.1) |
-| **R9.4** | UI & UX | Audio workspace (10-band EQ & Master VU meter) | `todo` | unclaimed | `src/components/AudioWorkspace.tsx`, `src/App.tsx` (depends on R9.1) |
+| **R9.4** | UI & UX | Audio workspace (10-band EQ & Master VU meter) | `done` | `npm test` passed, verified in PR #67 | `src/components/AudioWorkspace.tsx`, `src/App.tsx` (depends on R9.1) |
 | **R9.5** | UI & UX | Timeline track management & clip drag-to-move | `todo` | unclaimed | `src/components/TimelineTrackEditor.tsx` (depends on R9.1) |
 | **R9.6** | UI & UX | Global NLE keyboard shortcuts manager | `todo` | unclaimed | `src/utils/keyboardShortcuts.ts`, `src/App.tsx` (depends on R9.1) |
 | **R9.7** | UI & UX | AI prompt console real diff execution & transaction commit | `todo` | unclaimed | `src/components/AIPromptConsole.tsx` (depends on R9.5) |
