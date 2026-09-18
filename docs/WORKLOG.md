@@ -22,3 +22,23 @@
 - **Left undone:** Ready for next automated GitHub Actions orchestrator run.
 - **Next:** Task R6.1 - Real Whisper ASR (ONNX).
 - **Blockers:** None.
+
+### [Jules] Did R6.3 - Real Silero VAD
+- Replaced the hardcoded Silero VAD engine in `src-tauri/src/silero_vad.rs` with real `ort` ONNX runtime integration.
+- Added dependency `ort` (ONNX Runtime) and `ndarray` in `src-tauri/Cargo.toml`.
+- Loaded `silero_vad.onnx` and successfully processed audio to compute speech probabilities and extract silent intervals.
+- The TS service `sileroVadService` in `src/services/sileroVad.ts` remains mostly the same, as it already calls the native command `detect_vad_silence`.
+
+### Verified
+- Built native backend (`cargo check`, `cargo test`) and frontend (`npm run build`).
+- Linted frontend (`npm run lint`).
+- Mechanically verified (`npm run test`), tested using `fixtures/jfk.wav`.
+
+### Left undone
+- Real client-side fallback using ONNX Web. The client-side fallback continues to throw `NotImplementedError` in live mode, prioritizing native computation.
+
+### Next
+- R6.4 - Micro-crossfades on cut seams.
+
+### Blockers
+- None.

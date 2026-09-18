@@ -144,3 +144,8 @@ Format:
   the previous tracker. `AGENTS.md` documents the anti-patterns by name.
 - **Consequences:** Honest baseline; a new agent cannot be misled by historical optimism. Cost: the
   project's apparent completion drops from 100% to roughly the UI shell, which is the accurate figure.
+
+## Silero VAD ONNX Runtime Integration
+- Decision: Used `ort` crate for ONNX Runtime integration in Rust (`src-tauri/src/silero_vad.rs`).
+- Rationale: High performance, direct memory access.
+- Alternative: WebAssembly/WebGPU via `onnxruntime-web`. Decided against due to overhead and prioritizing native Rust execution for backend compute consistency.
