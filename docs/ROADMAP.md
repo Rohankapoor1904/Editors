@@ -163,6 +163,27 @@ validated, undoable tool calls, optionally using visual understanding.
 
 ---
 
+## Phase R9 — UI Interactivity, Editorial UX & Workspace Panels
+
+Goal: Bridge the gap between the tested backend engines and the frontend user interface. Wire all
+top navigation menus, provide web browser file ingestion, render dedicated Color & FX and Audio
+workspaces, enable timeline track management and clip drag-to-move, wire NLE keyboard shortcuts, and
+commit real AI action diffs.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R9.1** | **Top navigation menu bar & dropdowns.** Wire File, Edit, View, Clip, Sequence, Effects, and Help with real dropdown menus. Connect File (New/Save/Import/Export), Edit (Undo/Redo/Split), View (Zoom In/Out/Reset/Snapping), and Sequence (Add Track) to `timelineStore`. Include click-outside to close. | `src/components/TopBar.tsx`, `src/components/TopBar.test.tsx` | Clicking menu items opens interactive dropdowns; clicking options dispatches store actions; unit tests verify dropdown rendering and action dispatch. |
+| **R9.2** | **Web file picker fallback & media-to-timeline insertion.** In `AssetBin.tsx`, add an HTML5 file input fallback (`<input type="file" />`) for browser environments; generate valid media assets with ObjectURLs/duration; add "Add to Timeline" button on asset cards; enable drag-and-drop of assets onto timeline tracks. | `src/components/AssetBin.tsx`, `src/components/TimelineTrackEditor.tsx`, `src/services/nativeBridge.ts` | In web mode, selecting files adds media assets to the pool; clicking Add to Timeline creates a new clip on the targeted track with matching duration; unit tests verify media ingestion and timeline clip creation. |
+| **R9.3** | **Color & FX workspace (Color Wheels UI & Scopes).** Mount `Scopes.tsx` (RGB Parade, Vectorscope, Histogram) alongside interactive Lift/Gamma/Gain 3-way color wheels and Saturation/Contrast controls when `activeWorkspace === 'color'`. Wire adjustments to `colorEngine.ts` and `webgpuRenderer.ts`. | `src/components/ColorWorkspace.tsx`, `src/components/Scopes.tsx`, `src/App.tsx`, `src/engine/colorEngine.ts` | Switching to 'color' workspace renders ColorWorkspace with scopes and grading controls; changing color wheel values updates active clip grading uniforms; tests verify component mounting and uniform propagation. |
+| **R9.4** | **Audio workspace (10-Band EQ & Master VU meter).** Mount visual 10-band EQ curve interactive editor, track volume faders, and live stereo VU/LUFS meter when `activeWorkspace === 'audio'`. Wire sliders to `parametricEq.ts`, `limiter.ts`, and `loudness.ts`. | `src/components/AudioWorkspace.tsx`, `src/components/ParametricEqView.tsx`, `src/App.tsx`, `src/engine/parametricEq.ts` | Switching to 'audio' workspace renders audio mixer view; adjusting EQ sliders updates `ParametricEqEngine` frequency gains; tests verify slider interaction and graph parameter synchronization. |
+| **R9.5** | **Timeline track management & clip drag-to-move.** Add "+ Add Track" dropdown (Video/Audio) in timeline header; implement horizontal drag-to-move for clips on the canvas dispatching `MoveCommand`; add clip context menu (Delete, Split, Mute). | `src/components/TimelineTrackEditor.tsx`, `src/store/timelineStore.ts`, `src/core/commands/edits.ts` | Clicking Add Track adds a new track in the store; dragging a clip updates its `startOffset` and `trackId` via `MoveCommand`; tests verify track addition and clip repositioning. |
+| **R9.6** | **Global NLE keyboard shortcuts manager.** Implement centralized keyboard shortcut listener: Space (Play/Pause), J/K/L (Shuttle), C/B (Blade tool), V (Select tool), S (Snapping toggle), Delete/Backspace (Ripple delete selected clip), Left/Right (Step 1 frame), Home/End (Jump to start/end). Inactive while typing in input fields. | `src/utils/keyboardShortcuts.ts`, `src/App.tsx` | Keyboard event handler dispatches corresponding store commands for all specified hotkeys; typing in text inputs does not trigger shortcuts; unit tests verify key event mapping to store actions. |
+| **R9.7** | **AI prompt console real diff execution & transaction commit.** Wire AI Prompt Console diff cards ("Accept", "Reject", "Accept All", "Rollback") to real `executeCommand` transactions so accepting a diff modifies the timeline EDL and rolling back reverts the transactional compound command. | `src/components/AIPromptConsole.tsx`, `src/services/agentOrchestrator.ts`, `src/core/commands/transaction.ts` | Accepting a silence-cut diff executes real ripple deletes on the timeline; rolling back reverts the timeline state to pre-AI snapshot; tests assert timeline mutations on diff acceptance. |
+
+**Phase exit:** all navigation menus, workspace views, media ingestion, track operations, and keyboard controls are fully interactive with zero dummy buttons.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:

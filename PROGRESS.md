@@ -56,3 +56,10 @@
 | **R8.2** | Export | Encoder capability detection | `done` | Jules | `npm test` and `cargo check` pass, dynamically detects ffmpeg hardware encoders |
 | **R8.3** | Export | Batch export queue | `done` | Jules | `npm test` runs 2 assertions and batch export UI verified |
 | **R8.4** | Export | Installers & leak audit | `done` | Jules | `cargo check` and `npm test` pass, soak test passes without memory growth |
+| **R9.1** | UI & UX | Top navigation menu bar & dropdowns | `todo` | unclaimed | `src/components/TopBar.tsx` (depends on R8.4) |
+| **R9.2** | UI & UX | Web file picker fallback & media-to-timeline insertion | `todo` | unclaimed | `src/components/AssetBin.tsx`, `src/components/TimelineTrackEditor.tsx` (depends on R9.1) |
+| **R9.3** | UI & UX | Color & FX workspace (Color Wheels UI & Scopes) | `todo` | unclaimed | `src/components/ColorWorkspace.tsx`, `src/components/Scopes.tsx`, `src/App.tsx` (depends on R9.1) |
+| **R9.4** | UI & UX | Audio workspace (10-band EQ & Master VU meter) | `todo` | unclaimed | `src/components/AudioWorkspace.tsx`, `src/App.tsx` (depends on R9.1) |
+| **R9.5** | UI & UX | Timeline track management & clip drag-to-move | `todo` | unclaimed | `src/components/TimelineTrackEditor.tsx` (depends on R9.1) |
+| **R9.6** | UI & UX | Global NLE keyboard shortcuts manager | `todo` | unclaimed | `src/utils/keyboardShortcuts.ts`, `src/App.tsx` (depends on R9.1) |
+| **R9.7** | UI & UX | AI prompt console real diff execution & transaction commit | `todo` | unclaimed | `src/components/AIPromptConsole.tsx` (depends on R9.5) |
