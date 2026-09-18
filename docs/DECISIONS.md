@@ -149,3 +149,8 @@ Format:
 - Decision: Used `ort` crate for ONNX Runtime integration in Rust (`src-tauri/src/silero_vad.rs`).
 - Rationale: High performance, direct memory access.
 - Alternative: WebAssembly/WebGPU via `onnxruntime-web`. Decided against due to overhead and prioritizing native Rust execution for backend compute consistency.
+
+## [YYYY-MM-DD] - VLM and Semantic Search safe-by-default stubs
+- **Context:** R7.4/R7.5 tasks require multimodal perception and semantic media search logic, however, actual AI logic requires complex Rust backend support and local AI weight management.
+- **Decision:** Added frontend interfaces and testable stubs for `MultimodalPerceptionEngine` and `SemanticSearchService` that comply strictly with `AGENTS.md` and throw `NotImplementedError` in live mode, preventing unverified usage on main paths.
+- **Consequences:** Safe, testable stubs exist for the UI/agents, but actual inferencing will fail loudly in `live` mode until backend rust layer implementation for CLIP is finished.

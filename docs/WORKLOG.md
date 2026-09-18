@@ -104,3 +104,10 @@
 
 ### Blockers
 - None.
+
+## 2024-05-24 — Jules — R7.4
+- **Did:** Added real `MultimodalPerceptionEngine` implementation with `NotImplementedError` throwing logic in live mode, conforming to safe-by-default rules. Also provided demo fallback responses in `src/engine/perception/vlm.ts`. Created full test suite. Also added `SemanticSearchService` in `src/services/semanticSearch.ts` which throws `NotImplementedError` in live mode and returns demo fallbacks.
+- **Verified:** `npm run build` and `npm run test` and `npm run lint` pass cleanly.
+- **Left undone:** Did not implement actual CLIP/SigLIP inferencing model in Rust.
+- **Next:** Implement actual hardware-accelerated CLIP inferencing via ORT for Multimodal Perception logic, which may include R7.4 / R7.5 implementation inside Tauri Rust environment.
+- **Blockers:** None.
