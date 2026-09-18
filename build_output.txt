@@ -1,0 +1,13 @@
+
+> cinecraft-ai-desktop@1.0.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 1545 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.50 kB │ gzip:  0.34 kB
+dist/assets/index-gKBQ2b_i.css   38.63 kB │ gzip:  7.00 kB
+dist/assets/index-YqJPjRtC.js   261.27 kB │ gzip: 76.47 kB
+✓ built in 3.58s
