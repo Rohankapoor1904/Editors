@@ -3,6 +3,7 @@ import { whisperService, WordTimestamp } from '../services/whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
 import { rationalToSeconds, secondsToRational } from '../types/time';
 import { FileText, Trash2, Play } from 'lucide-react';
+import { deleteWordsFromTimeline } from '../services/alignment';
 
 export const TranscriptEditor: React.FC = () => {
   const [words, setWords] = useState<WordTimestamp[]>([]);
@@ -30,16 +31,12 @@ export const TranscriptEditor: React.FC = () => {
     const selectedWords = words.filter((w) => selectedWordIds.includes(w.id));
     if (selectedWords.length === 0) return;
 
-    // Calculate bounding time range for ripple delete
-    const minStart = Math.min(...selectedWords.map((w) => w.startTime));
-    const maxEnd = Math.max(...selectedWords.map((w) => w.endTime));
-    const duration = maxEnd - minStart;
+    // Execute automated ripple delete on timeline EDL using alignment service
+    // and update local word timestamps to reflect the shifted timeline
+    const updatedWords = deleteWordsFromTimeline({ rippleDelete }, selectedWords, words);
 
-    // Execute automated ripple delete on timeline EDL
-    rippleDelete(secondsToRational(minStart), secondsToRational(duration));
-
-    // Remove deleted words from transcript view
-    setWords((prev) => prev.filter((w) => !selectedWordIds.includes(w.id)));
+    // Remove deleted words from transcript view and update timestamps
+    setWords(updatedWords);
     setSelectedWordIds([]);
   };
 

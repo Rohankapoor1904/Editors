@@ -40,7 +40,7 @@
 | **R5.2** | Audio | 10-band EQ + limiter + PDC | `done` | OpenHands | Frequency response alters correctly |
 | **R5.3** | Audio | LUFS loudness normalization | `done` | Jules | Integrated LUFS metering measures -23 LUFS accurately |
 | **R6.1** | AI | Real Whisper ASR (ONNX) | `done` | `npm test` passed, verified in PR #47 | |
-| **R6.2** | AI | Forced alignment + text-binding | `todo` | | |
+| **R6.2** | AI | Forced alignment + text-binding | `done` | Jules | `npm run test` passes, reverse temporal ripple delete tested |
 | **R6.3** | AI | Real Silero VAD | `todo` | | |
 | **R6.4** | AI | Micro-crossfades on cut seams | `todo` | | |
 | **R6.5** | AI | Real object tracking (partial) | `todo` | | |

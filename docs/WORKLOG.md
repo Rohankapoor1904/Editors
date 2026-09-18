@@ -1,3 +1,10 @@
+## 2024-05-20 — Jules — R6.2
+- **Did:** Implemented `src/services/alignment.ts` to compute exact contiguous ripple deletes from selected transcript words and correctly offset remaining `WordTimestamp` state. Updated `src/components/TranscriptEditor.tsx` to use the new service. Added `src/__tests__/alignment.test.ts` to test timeline boundary logic. Marked R6.2 complete in `PROGRESS.md`.
+- **Verified:** `npm run build` (success in 3.79s), `npm run test` (success 24 suites, 114 passing), `npm run lint` (success). Visual layout changes not applicable (pure state logic).
+- **Left undone:** Nothing in scope. R6.2 criteria strictly met.
+- **Next:** Proceed with R6.3 (Real Silero VAD).
+- **Blockers:** None.
+
 ## 2024-10-25 — Jules — R5.3
 - **Did:** Implemented `measureLUFS` with ITU-R BS.1770-4 logic, including Biquad K-weighting filters and absolute/relative gating blocks in `src/engine/loudness.ts`. Added tests in `src/engine/loudness.test.ts`. Updated `PROGRESS.md`.
 - **Verified:** `npm run build` passes. `npm test` runs and passes, correctly measuring a test tone as -23 LUFS and throwing `NotImplementedError` for unsupported True Peak sample peaks in live mode. `npm run lint` passes.
