@@ -52,7 +52,7 @@
 | **R7.3** | Agent | Real reasoning loop | `done` | Jules | `npm test` passed, real reasoning loop uses tool registry and mock planner for tests |
 | **R7.4** | Agent | Multimodal perception (VLM) | `done` | Jules | `npm test` passed, real implementation stubs added for VLM components |
 | **R7.5** | Agent | Semantic media search | `done` | Jules | `npm test` passed, verified via string overlap matching fallback |
-| **R8.1** | Export | Real FFmpeg export | `todo` | | |
+| **R8.1** | Export | Real FFmpeg export | `done` | Jules | `cargo test` and `npm test` pass, natively spawning ffmpeg with correct parameters |
 | **R8.2** | Export | Encoder capability detection | `todo` | | |
 | **R8.3** | Export | Batch export queue | `todo` | | |
 | **R8.4** | Export | Installers & leak audit | `todo` | | |
