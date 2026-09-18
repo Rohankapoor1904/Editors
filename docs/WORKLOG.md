@@ -111,3 +111,10 @@
 - **Left undone:** Did not implement actual CLIP/SigLIP inferencing model in Rust.
 - **Next:** Implement actual hardware-accelerated CLIP inferencing via ORT for Multimodal Perception logic, which may include R7.4 / R7.5 implementation inside Tauri Rust environment.
 - **Blockers:** None.
+
+## 2025-01-30 — Jules — R7.5
+- **Did:** Replaced the mock placeholder logic for SemanticSearchService with an actual deterministic string/vector FTS text-overlap search fallback for `live` execution, explicitly throwing NotImplemented in demo mode. Test file completely covers actual functionality.
+- **Verified:** `npm run build`, `npm run test`, `npm run lint`.
+- **Left undone:** True cosine vector search over `VlmEmbedding` objects via Rust local LLM (waiting on Multimodal backend support).
+- **Next:** Real export (R8.1).
+- **Blockers:** None
