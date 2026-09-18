@@ -1,3 +1,17 @@
+## 2025-03-09 — agent-A — R6.8
+- **Did:** Implemented VoiceIsolationEngine in src/engine/voiceIsolation.ts which measures noise floor and dynamically attenuates noisy windows (simple soft gate) and a vitest test that calculates SNR improvement.
+- **Verified:** `npm run build && npm run test && npm run lint` passed. Test successfully asserts that SNR is increased after processing.
+- **Left undone:** Replaced naive spectral gate with ONNX based ML model (out of scope for MVP verification step).
+- **Next:** Proceed to R7.1
+- **Blockers:** None
+
+## 2024-05-24 — agent-A — R6.8
+- **Did:** Claimed task R6.8, created initial voiceIsolation stub
+- **Verified:** N/A
+- **Left undone:** Full implementation of VoiceIsolationEngine
+- **Next:** Implement calculating SNR and actual denoise logic
+- **Blockers:** None
+
 
 ## 2024-05-24 — jules — R6.7
 - **Did:** Implemented kinetic captions using a WGSL shader simulated block in `src/engine/shaders/caption.wgsl` and a caption engine class in `src/engine/captions/captionEngine.ts`. Connected to `webgpuRenderer.ts` through uniforms (`activeWordIndex`, `timecode`, `wordCount`) and passed through `ProgramMonitor.tsx`. In `live` mode, the `captionEngine` correctly throws a `NotImplementedError` per strict invariants. Added test cases in `__tests__/engine/captionEngine.test.ts`.

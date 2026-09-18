@@ -74,4 +74,3 @@ dist/assets/index-YqJPjRtC.js   261.27 kB │ gzip: 76.47 kB
 ### Honest Limitations
 - The 1D Kalman filter only tracks subject X position. If vertical tracking/panning becomes a requirement in the future, it will need to be extended to a 2D filter (X, Y).
 - The prediction model uses simple velocity and assumes constant fps. If the actual tracking output drops frames sporadically, timestamps dt might fluctuate, but the current `dt` clamping ensures robustness.
-

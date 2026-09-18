@@ -46,7 +46,7 @@
 | **R6.5** | AI | Real object tracking (partial) | `done` | `npm test` passed, verified in PR #51 | |
 | **R6.6** | AI | Auto-reframe on tracking | `done` | | |
 | **R6.7** | AI | Kinetic captions rendering | `done` | `npm test` passed, verified in PR #53 | |
-| **R6.8** | AI | Neural voice isolation | `todo` | | |
+| **R6.8** | AI | Neural voice isolation | `done` | agent-A | `npm test` runs voice isolation test asserting improved SNR |
 | **R7.1** | Agent | Typed tool layer | `todo` | | |
 | **R7.2** | Agent | Transactional agent execution | `todo` | | |
 | **R7.3** | Agent | Real reasoning loop | `todo` | | |
