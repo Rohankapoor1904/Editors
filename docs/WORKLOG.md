@@ -1,3 +1,10 @@
+## 2024-10-25 — Jules — R6.6
+- **Did:** Implemented Kalman filter smoothing for subject trajectory tracking in `src/engine/autoReframe.ts`. Added strict crop constraints to guarantee the subject is always kept inside the crop window, completing R6.6 acceptance criteria. Added tests in `src/__tests__/autoReframe.test.ts`. Updated `PROGRESS.md`.
+- **Verified:** `npm run build` (success), `npm run test` (success 25 suites, 117 passing), `npm run lint` (success). Visual layout changes not applicable (pure engine logic).
+- **Left undone:** The 1D Kalman filter only tracks subject X position. If vertical tracking/panning becomes a requirement in the future, it will need to be extended to a 2D filter (X, Y).
+- **Next:** Proceed with R6.7 (Kinetic captions).
+- **Blockers:** None.
+
 ## 2024-05-20 — Jules — R6.2
 - **Did:** Implemented `src/services/alignment.ts` to compute exact contiguous ripple deletes from selected transcript words and correctly offset remaining `WordTimestamp` state. Updated `src/components/TranscriptEditor.tsx` to use the new service. Added `src/__tests__/alignment.test.ts` to test timeline boundary logic. Marked R6.2 complete in `PROGRESS.md`.
 - **Verified:** `npm run build` (success in 3.79s), `npm run test` (success 24 suites, 114 passing), `npm run lint` (success). Visual layout changes not applicable (pure state logic).

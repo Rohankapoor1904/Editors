@@ -1,0 +1,92 @@
+
+> cinecraft-ai-desktop@1.0.0 test
+> node scripts/verify-invariants.mjs && vitest run
+
+🔍 Running Mechanical Invariant Checks...
+✅ All mechanical invariants passed cleanly.
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/app[39m
+
+ [32m✓[39m __tests__/core/commands/edits.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+[90mstdout[2m | src/engine/audioEngine.test.ts[2m > [22m[2mWebAudioEngineManager R2.5[2m > [22m[2mgain of -6dB measurably halves amplitude
+[22m[39m[Audio Engine]: WebAudio Sub-frame Graph Initialized at 48000 Hz
+
+[90mstdout[2m | src/engine/audioEngine.test.ts[2m > [22m[2mWebAudioEngineManager R2.5[2m > [22m[2mapplyMicroCrossfade schedules a 10ms crossfade between adjacent clips
+[22m[39m[Audio Engine]: WebAudio Sub-frame Graph Initialized at 48000 Hz
+
+[90mstdout[2m | src/engine/audioEngine.test.ts[2m > [22m[2mWebAudioEngineManager R2.5[2m > [22m[2moverlapping clips crossfade without clicks
+[22m[39m[Audio Engine]: WebAudio Sub-frame Graph Initialized at 48000 Hz
+
+[90mstdout[2m | src/engine/audioEngine.test.ts[2m > [22m[2mWebAudioEngineManager Routes R5.1[2m > [22m[2mroutes track correctly to graph buses based on track id
+[22m[39m[Audio Engine]: WebAudio Sub-frame Graph Initialized at 48000 Hz
+
+ [32m✓[39m src/engine/audioEngine.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/__tests__/core.test.ts [2m([22m[2m23 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/__tests__/vramPool.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/core/project/schema.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m src/engine/effects/baseEffects.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/__tests__/keyframing.behavior.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/__tests__/alignment.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Live Mode (Default): All stubs MUST throw NotImplementedError[2m > [22m[2mwhisperService throws NotImplementedError
+[22m[39m[Whisper Engine]: Processing speech-to-text on /path/to/test.wav...
+[Whisper Engine]: Processing speech-to-text on /path/to/test.wav...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Live Mode (Default): All stubs MUST throw NotImplementedError[2m > [22m[2msileroVadService throws NotImplementedError
+[22m[39m[Silero VAD Engine]: Detecting silent gaps > 0.5s in "/path/to/test.wav"...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Live Mode (Default): All stubs MUST throw NotImplementedError[2m > [22m[2mnativeBridge throws NotImplementedError on probe, demux, and proxy
+[22m[39m[Native Bridge]: Generating H.264 low-res proxy for /path/to/test.mp4...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Live Mode (Default): All stubs MUST throw NotImplementedError[2m > [22m[2mexportEngine throws NotImplementedError
+[22m[39m[Export Engine]: Initiating hardware encode for preset "YouTube 4K"...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Live Mode (Default): All stubs MUST throw NotImplementedError[2m > [22m[2msam2Engine throws NotImplementedError
+[22m[39m[SAM 2 Engine]: Generating dynamic mask for click point (100, 100)...
+[SAM 2 Engine]: Tracking object across 5 frames from (100, 100)...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Demo Mode (Opt-in): Stubs return preview mock data[2m > [22m[2mwhisperService returns mock transcript without throwing
+[22m[39m[Whisper Engine]: Processing speech-to-text on /demo/audio.wav...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Demo Mode (Opt-in): Stubs return preview mock data[2m > [22m[2msileroVadService returns mock silence windows without throwing
+[22m[39m[Silero VAD Engine]: Detecting silent gaps > 0.5s in "/demo/audio.wav"...
+
+[90mstdout[2m | src/__tests__/runtimeMode.test.ts[2m > [22m[2mRuntimeMode & Safe-by-Default Boundary (R0.3)[2m > [22m[2mIn Demo Mode (Opt-in): Stubs return preview mock data[2m > [22m[2msam2Engine returns fallback bounding box without throwing
+[22m[39m[SAM 2 Engine]: Generating dynamic mask for click point (200, 300)...
+
+ [32m✓[39m src/__tests__/runtimeMode.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/engine/frameCache.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m src/engine/parametricEq.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+[90mstdout[2m | src/__tests__/audioMasterClock.test.ts[2m > [22m[2mAudio Master Clock (R2.4)[2m > [22m[2mtest with a VFR fixture: after 60s of playback, A/V offset stays < 1 frame
+[22m[39mFinal offset after 60s playback: 0 seconds
+
+ [32m✓[39m src/__tests__/audioMasterClock.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 103[2mms[22m[39m
+ [32m✓[39m src/__tests__/RenderGraph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+[90mstdout[2m | src/__tests__/webgpuRenderer.test.ts[2m > [22m[2mWebGPURendererEngine[2m > [22m[2mcreates shader module and pipeline on initialization
+[22m[39m[WebGPU Engine]: WebGPU Render Pipeline Initialized (32-bit Float Color Space)
+
+[90mstdout[2m | src/__tests__/webgpuRenderer.test.ts[2m > [22m[2mWebGPURendererEngine[2m > [22m[2mrenders a frame using the pipeline and releases textures
+[22m[39m[WebGPU Engine]: WebGPU Render Pipeline Initialized (32-bit Float Color Space)
+
+ [32m✓[39m src/__tests__/webgpuRenderer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/__tests__/commands.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m src/engine/scopes.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m src/engine/audioGraph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+[90mstdout[2m | src/__tests__/autoReframe.test.ts[2m > [22m[2mAutoReframeEngine (R6.6)[2m > [22m[2mkeeps the subject strictly inside the crop window for every frame despite Kalman smoothing lag
+[22m[39m[Auto-Reframe Engine]: Smoothing trajectory across 100 frames using Kalman filter...
+
+[90mstdout[2m | src/__tests__/autoReframe.test.ts[2m > [22m[2mAutoReframeEngine (R6.6)[2m > [22m[2mhandles empty trajectory safely
+[22m[39m[Auto-Reframe Engine]: Smoothing trajectory across 0 frames using Kalman filter...
+
+ [32m✓[39m src/__tests__/autoReframe.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/core/commands/audio.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m src/__tests__/transforms.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m src/engine/colorManagement.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m src/__tests__/rationalTime.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m src/engine/limiter.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m src/engine/loudness.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/utils/audio.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m25 passed[39m[22m[90m (25)[39m
+[2m      Tests [22m [1m[32m117 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (118)[39m
+[2m   Start at [22m 03:41:07
+[2m   Duration [22m 3.20s[2m (transform 866ms, setup 0ms, collect 1.44s, tests 399ms, environment 6ms, prepare 2.14s)[22m

@@ -1,0 +1,3 @@
+
+> cinecraft-ai-desktop@1.0.0 lint
+> eslint . --ext .ts,.tsx
