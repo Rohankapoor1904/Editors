@@ -4,3 +4,9 @@
 - **Left undone:** N/A
 - **Next:** Start working on R8.3 Batch export queue.
 - **Blockers:** N/A
+## 2024-09-18 — Jules — R8.3
+- **Did:** Implemented the batch export queue. Created a new Zustand store `exportQueue.ts` to manage job statuses (idle, processing, done, failed). Added `ExportQueue.tsx` component to render the jobs and updated `ExportModal.tsx` to add jobs to the queue instead of immediately blocking execution. Added unit tests for sequential queue processing.
+- **Verified:** Ran `npm run build`, `npm run test`, and `npm run lint`. Verified UI visually with Playwright snapshot confirming sequential job additions and explicit failure catching.
+- **Left undone:** None
+- **Next:** R8.4 — Installers & leak audit.
+- **Blockers:** None
