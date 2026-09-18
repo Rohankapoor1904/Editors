@@ -1,13 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { rationalToSeconds, secondsToRational } from '../types/time';
+import { addRational, compareRational, subRational } from '../types/time';
 import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
 import { WordTimestamp } from '../services/whisperTranscriber';
 import { transportEngine } from '../engine/transport';
+import { frameCache } from '../engine/frameCache';
+import { useMediaPoolStore } from '../store/mediaPool';
 
 export const ProgramMonitor: React.FC = () => {
-  const { playheadPosition, metadata, setPlayheadPosition } = useTimelineStore();
+  const { tracks, playheadPosition, metadata, setPlayheadPosition } = useTimelineStore();
+  const { assets } = useMediaPoolStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isWebGPUActive, setIsWebGPUActive] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('9:16');
@@ -34,17 +38,87 @@ export const ProgramMonitor: React.FC = () => {
 
 
   useEffect(() => {
-    if (isWebGPUActive && canvasRef.current) {
-      webgpuEngine.renderFrame({
-        width: metadata.width,
-        height: metadata.height,
-        timecode: rationalToSeconds(playheadPosition),
-        captionData: {
-          words: transcriptWords
-        },
-      });
+    if (!isWebGPUActive || !canvasRef.current) return;
+
+    let activeClip = null;
+
+    // Find the topmost video clip at playheadPosition
+    const videoTracks = tracks.filter(t => t.type === 'video').sort((a, b) => a.index - b.index);
+    for (const track of videoTracks) {
+      if (track.muted || track.locked) continue;
+      const clip = track.clips.find(c =>
+        compareRational(playheadPosition, c.startOffset) >= 0 &&
+        compareRational(playheadPosition, addRational(c.startOffset, c.duration)) < 0
+      );
+      if (clip) {
+        activeClip = clip;
+        break; // Stop at topmost clip
+      }
     }
-  }, [playheadPosition, isWebGPUActive, metadata]);
+
+    if (activeClip) {
+      const asset = assets.find(a => a.id === activeClip.assetId);
+      if (asset) {
+        // timeWithinClip = playheadPosition - clip.startOffset + clip.sourceIn
+        const offsetInClip = subRational(playheadPosition, activeClip.startOffset);
+        const sourceTime = addRational(activeClip.sourceIn, offsetInClip);
+
+        frameCache.getOrFetchFrame(asset.path, sourceTime).then((frameBuffer) => {
+          if (!frameBuffer) return;
+
+          const width = frameBuffer.width;
+          const height = frameBuffer.height;
+          const uvSize = (width / 2) * (height / 2);
+
+          const yData = frameBuffer.data.subarray(0, width * height);
+          const uData = frameBuffer.data.subarray(width * height, width * height + uvSize);
+          const vData = frameBuffer.data.subarray(width * height + uvSize, width * height + uvSize * 2);
+
+          webgpuEngine.renderFrame({
+            width: width,
+            height: height,
+            timecode: rationalToSeconds(playheadPosition),
+            transform: activeClip.transform, // Pass transform if present
+            captionData: {
+              words: transcriptWords
+            },
+            yuvData: {
+              y: yData,
+              u: uData,
+              v: vData
+            }
+          });
+
+          // Free WebGPU buffers if needed, or release frame
+          try {
+            frameBuffer.release();
+          } catch (e) {
+            // ignore
+          }
+        }).catch(err => {
+          console.warn("Error fetching frame for preview", err);
+          webgpuEngine.renderFrame({
+             width: metadata.width,
+             height: metadata.height,
+             timecode: rationalToSeconds(playheadPosition),
+             captionData: { words: transcriptWords }
+          });
+        });
+        return;
+      }
+    }
+
+    // Fallback if no video clip is active
+    webgpuEngine.renderFrame({
+      width: metadata.width,
+      height: metadata.height,
+      timecode: rationalToSeconds(playheadPosition),
+      captionData: {
+        words: transcriptWords
+      },
+    });
+
+  }, [playheadPosition, isWebGPUActive, metadata, tracks, assets]);
 
   const formatTimecode = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
