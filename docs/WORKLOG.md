@@ -1,3 +1,29 @@
+
+## Task R7.1: Typed tool layer
+
+**Did:**
+- Created a robust Typed Tool Layer in `src/services/tools/registry.ts` and `src/services/tools/types.ts`.
+- Implemented schemas and mocked executors for all 12 tools specified in `docs/AGENT_TOOLS.md`.
+- Registered the tools in `globalToolRegistry`.
+- Added tests to `src/__tests__/tools.test.ts` to verify that schemas are properly validated and correct Typed Errors are returned on invalid arguments.
+- Replaced the `any` arguments in `executor(args: any)` with `_args: any` in tools files to pass the lint/build checks.
+
+**Verified:**
+- Mechanical invariants check passed.
+- All Vitest suites passed.
+- ESLint checks passed.
+- TypeScript compilation and Vite build succeeded.
+
+**Left undone:**
+- The tools only throw `NotImplementedError` as required by the spec. No real implementations were created for these tools yet, as that exceeds the current scope.
+- Integration of the tool layer with the orchestration service (R7.3) is deferred for a separate PR.
+
+**Next:**
+- Implement actual core features behind the tools as we progress through R7.
+
+**Blockers:**
+- None.
+
 ## 2025-03-09 — agent-A — R6.8
 - **Did:** Implemented VoiceIsolationEngine in src/engine/voiceIsolation.ts which measures noise floor and dynamically attenuates noisy windows (simple soft gate) and a vitest test that calculates SNR improvement.
 - **Verified:** `npm run build && npm run test && npm run lint` passed. Test successfully asserts that SNR is increased after processing.
