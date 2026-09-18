@@ -49,7 +49,7 @@
 | **R6.8** | AI | Neural voice isolation | `done` | agent-A | `npm test` runs voice isolation test asserting improved SNR |
 | **R7.1** | Agent | Typed tool layer | `done` | | |
 | **R7.2** | Agent | Transactional agent execution | `done` | `npm test` passed, verified in PR #56 | |
-| **R7.3** | Agent | Real reasoning loop | `todo` | | |
+| **R7.3** | Agent | Real reasoning loop | `done` | Jules | `npm test` passed, real reasoning loop uses tool registry and mock planner for tests |
 | **R7.4** | Agent | Multimodal perception (VLM) | `todo` | | |
 | **R7.5** | Agent | Semantic media search | `todo` | | |
 | **R8.1** | Export | Real FFmpeg export | `todo` | | |

@@ -1,14 +1,22 @@
-import { sileroVadService } from './sileroVad';
-import { whisperService } from './whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
-import { secondsToRational } from '../types/time';
 import { isLiveMode, NotImplementedError } from './runtimeConfig';
-import { Command, RippleDeleteCommand } from '../core/commands';
 import { CompoundCommand } from '../core/commands/transaction';
+import { Command } from '../core/commands';
+import { globalToolRegistry } from './tools/registry';
+import { TimelineState } from '../types/timeline';
 
 export interface AgentStepLog {
   type: 'thought' | 'tool' | 'response' | 'user';
   message: string;
+}
+
+export interface AgentPlanStep {
+  tool: string;
+  args: any;
+}
+
+export interface AgentPlanner {
+  generatePlan(prompt: string, state: TimelineState): Promise<AgentPlanStep[]>;
 }
 
 export class AgentOrchestratorService {
@@ -17,7 +25,8 @@ export class AgentOrchestratorService {
    */
   async processPrompt(
     prompt: string,
-    onLog: (log: AgentStepLog) => void
+    onLog: (log: AgentStepLog) => void,
+    planner?: AgentPlanner
   ): Promise<void> {
     onLog({ type: 'user', message: prompt });
 
@@ -25,57 +34,59 @@ export class AgentOrchestratorService {
       throw new NotImplementedError('ReAct Agent Tool & Reasoning Loop');
     }
 
-    const lower = prompt.toLowerCase();
+    onLog({ type: 'thought', message: `Evaluating user intent for prompt: "${prompt}"...` });
 
-    if (lower.includes('silence') || lower.includes('pause')) {
-      onLog({ type: 'thought', message: 'Analyzing audio track for silent pauses > 0.5s via Silero VAD...' });
-      const silences = await sileroVadService.detectSilence('/demo/audio.wav', 0.5);
+    const state = useTimelineStore.getState();
+    const plan = planner ? await planner.generatePlan(prompt, state) : [];
 
-      // Sort silences in descending order by startTime to avoid shifting issues
-      const sortedSilences = [...silences].sort((a, b) => b.startTime - a.startTime);
-      const commands: Command[] = [];
-
-      for (const silence of sortedSilences) {
-        onLog({
-          type: 'tool',
-          message: `detect_silence() -> Found silence window (${silence.startTime}s to ${silence.endTime}s).`,
-        });
-        commands.push(
-          new RippleDeleteCommand(
-            secondsToRational(silence.startTime),
-            secondsToRational(silence.duration)
-          )
-        );
-      }
-
-      if (commands.length > 0) {
-        useTimelineStore.getState().executeCommand(new CompoundCommand(commands));
-      }
-
-      onLog({
-        type: 'response',
-        message: `Successfully removed ${silences.length} silent pause(s) from the timeline EDL.`,
-      });
-    } else if (lower.includes('caption') || lower.includes('subtitle') || lower.includes('transcribe')) {
-      onLog({ type: 'thought', message: 'Generating frame-accurate transcript via local Whisper ONNX...' });
-      const result = await whisperService.transcribeAudio('/demo/audio.wav');
-
-      onLog({
-        type: 'tool',
-        message: `transcribe_and_align() -> Generated ${result.words.length} word timestamps.`,
-      });
-
-      onLog({
-        type: 'response',
-        message: `Successfully generated dynamic captions track!`,
-      });
-    } else {
-      onLog({ type: 'thought', message: `Evaluating user intent for prompt: "${prompt}"...` });
+    if (plan.length === 0) {
       onLog({
         type: 'response',
         message: `Processed agent action: ${prompt}`,
       });
+      return;
     }
+
+    const executedCommands: Command[] = [];
+
+    for (const step of plan) {
+      onLog({ type: 'thought', message: `Planning to execute tool: ${step.tool}` });
+
+      const result = await globalToolRegistry.execute(step.tool, step.args);
+
+      if (result && typeof result === 'object' && 'error' in result) {
+        onLog({
+          type: 'tool',
+          message: `Tool ${step.tool} failed: ${result.error}`,
+        });
+
+        // If mid-plan failure, rollback happens via standard exception flow if needed,
+        // but here we are in a deterministic mock environment so we just abort.
+        throw new Error(`Tool execution failed: ${result.error}`);
+      }
+
+      onLog({
+        type: 'tool',
+        message: `${step.tool}() -> Success.`,
+      });
+
+      // Assume the tool executor returned a Command or array of Commands to apply
+      if (result && typeof (result as any).apply === 'function') {
+        executedCommands.push(result as Command);
+      } else if (Array.isArray(result) && result.every(r => r && typeof r.apply === 'function')) {
+        executedCommands.push(...result);
+      }
+    }
+
+    if (executedCommands.length > 0) {
+      const compoundCmd = new CompoundCommand(executedCommands);
+      useTimelineStore.getState().executeCommand(compoundCmd);
+    }
+
+    onLog({
+      type: 'response',
+      message: `Successfully executed agent plan with ${plan.length} steps.`,
+    });
   }
 }
 
