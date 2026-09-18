@@ -1,4 +1,11 @@
 
+## 2026-09-18 — jules — R10.2
+- **Did:** Implemented 2D Canvas fallback renderer in `src/engine/webgpuRenderer.ts` for environments without WebGPU. Handled YUV420p to RGB conversion, transform math, and caption rendering natively on the 2D canvas.
+- **Verified:** `npm run build`, `npm run test`, and `npm run lint` all passed.
+- **Left undone:** None.
+- **Next:** R10.3 (Timeline clip WebAudio playback engine).
+- **Blockers:** None.
+
 ## 2026-09-18 — agent-jules — R9.4
 - **Did:** Created `AudioWorkspace` and `ParametricEqView` UI components for the audio mixer, wired to `parametricEqEngine` and `audioEngine`. Added them to `App.tsx`. Added component tests.
 - **Verified:** `npm run build`, `npm run test` (152 tests passed), `npm run lint`. Also manually ran playwright to verify visual UI in Web Browser.
