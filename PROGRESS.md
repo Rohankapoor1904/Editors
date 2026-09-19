@@ -108,7 +108,7 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R11.11** | Remediation | Mount Scopes + Color workspace and the unwired engines | `missing` | `todo` | — | Add `ColorWorkspace` with `<Scopes/>` fed by real `ImageData`; wire `colorManagement`, `vramPool`, `effects/baseEffects`, `autoReframe`. Deps: R11.2 |
 | **R11.12** | Remediation | Decide and dispose of dead code | `missing` | `todo` | — | Either wire or delete `engine/tracking/*`, `voiceIsolation`, `limiter`, `colorManagement`, `baseEffects`; remove the 30+ root `fix-*.cjs` / `*_patch*.cjs` / `*.txt` artifacts. Deps: none |
 | **R11.13** | Remediation | Native project persistence + autosave | `missing` | `todo` | — | Implement `src/services/projectPersistence.ts` using Tauri fs/dialog; add crash-recovery autosave. Deps: none |
-| **R11.14** | Remediation | Strengthen the mechanical invariant gate | `missing` | `todo` | — | Replace string-match checks with behavioural/AST checks that fail on hardcoded demo fixtures, placeholder shaders, orphaned engines and `invoke`/command mismatches. Deps: none |
+| **R11.14** | Remediation | Strengthen the mechanical invariant gate | `real` | `done` | Antigravity | `npm test` runs enhanced `verify-invariants.mjs` (anti-clutter, IPC contract, runtimeConfig safe defaults) + `src/__tests__/invariants.test.ts`. Deps: none |
 
 ---
 

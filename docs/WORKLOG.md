@@ -1,3 +1,19 @@
+## 2026-09-19 — Antigravity — R11.14
+- **Did:**
+  - Strengthened `scripts/verify-invariants.mjs` to mechanically block root scratch files, IPC contract mismatches between Tauri `generate_handler!` and frontend `invoke(...)`, and enforced DEV-only demo mode in `runtimeConfig.ts`.
+  - Added behavioural test suite in `src/__tests__/invariants.test.ts`.
+  - Hardened `scripts/jules-orchestrator.py` against agent cheating: implemented task scope enforcement (rejects documentation-only PRs for implementation tasks), locked down `PROGRESS.md` so agents cannot self-assign `done`, banned root scratch files in PR diffs, and updated the prompt dispatch template with strict anti-cheat constraints.
+  - Added invariant verification step to `.github/workflows/verify.yml`.
+- **Verified:**
+  - `node scripts/verify-invariants.mjs` -> Passed cleanly (and verified failure on scratch clutter).
+  - `npm test` -> 41 test files / 175 tests passed (0 failures).
+  - `npm run build` -> Typecheck and Vite production build passed.
+  - `npm run lint` -> 0 errors.
+  - `py -m py_compile scripts/jules-orchestrator.py` -> Clean compilation.
+- **Left undone:** None.
+- **Next:** Proceed with R11.4 / R11.6 in the remediation sequence.
+- **Blockers:** None.
+
 ## 2026-09-19 — Jules — R11.3
 - **Did:** Updated `src/services/runtimeConfig.ts` to block 'demo' mode activation in production environments using a dev mode check. Conditionally rendered the LIVE/DEMO toggle button in `src/components/TopBar.tsx` only for dev environments. Verified via mocked tests in `src/__tests__/runtimeMode.test.ts` and `src/components/TopBar.test.tsx`.
 - **Verified:** `npm run build`, `npm run test`, and `npm run lint` all passed successfully.

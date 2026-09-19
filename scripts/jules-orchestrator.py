@@ -426,6 +426,9 @@ command cannot run, write "unverified in <env>". Never imply verification that d
 - Do not add mock data to a main execution path.
 - Do not write a test that asserts stub, linear-fallback, or hardcoded behaviour as correct.
 - A passing test on a stub is debt, not a victory.
+- NEVER modify PROGRESS.md directly. The orchestrator independently verifies tests and updates PROGRESS.md upon merge. Self-awarded "done" rows will be rejected.
+- NEVER leave scratch scripts (.cjs, .sh, .txt, .py, fix-*.js) in the repository root.
+- You MUST modify actual implementation files in src/ or src-tauri/ declared in the task scope. Documentation-only PRs for engineering tasks are automatically rejected.
 
 ## Autonomous CI/CD Execution (Zero Human-in-the-Loop)
 
@@ -587,6 +590,20 @@ def audit_diff(diff_text):
         if not added.strip():
             continue
 
+        if current and "/" not in current and current not in {
+            "package.json", "package-lock.json", "index.html", "tsconfig.json",
+            "vite.config.ts", "vitest.config.ts", "vitest.setup.ts", "tailwind.config.js",
+            "postcss.config.js", ".eslintrc.cjs", ".gitignore", "AGENTS.md", "PROGRESS.md"
+        }:
+            findings.append(("UNAUTHORIZED ROOT SCRATCH FILE", current, f"Agents must not commit scratch files to root: {current}"))
+
+        if current == "PROGRESS.md" and re.search(r"\|\s*`done`\s*\|", added):
+            findings.append(("UNAUTHORIZED STATUS CHANGE", current, "Agents must not mark tasks 'done' in PROGRESS.md directly; orchestrator updates status upon verified merge."))
+
+        if "test." in (current or "") and "runtimeMode" not in (current or ""):
+            if re.search(r"rejects\.toThrow\(.*NotImplementedError", added):
+                findings.append(("TEST ASSERTS NOT_IMPLEMENTED", current, added.strip()))
+
         if re.search(r"expect\(.*\)\.(toBe|toEqual)\(.*(mock|stub|fallback|demo)", added, re.I):
             findings.append(("TEST ASSERTS STUB", current, added.strip()))
 
@@ -635,7 +652,7 @@ def run(cmd, cwd, timeout=CMD_TIMEOUT):
         return 124, f"timeout after {timeout}s"
 
 
-def verify_pr(pr_number, gh_token):
+def verify_pr(pr_number, gh_token, task_id=None):
     """Clone the PR branch into a scratch dir and verify it. Never trust the self-report."""
     scratch = tempfile.mkdtemp(prefix="jules-verify-")
     result = {"ok": False, "checks": {}, "audit": [], "files": []}
@@ -719,6 +736,10 @@ def verify_pr(pr_number, gh_token):
                             ("REGRESSED EVIDENCE DATE", "PROGRESS.md",
                              f"newest date in PR is {newest_here} but main already has "
                              f"{newest_base}"))
+
+        has_impl_code = any(f.startswith("src/") or f.startswith("src-tauri/") for f in result["files"])
+        if task_id and task_id.upper().startswith("R") and not has_impl_code:
+            result["checks"]["scope"] = f"FAILING: Task {task_id} is an implementation task, but no implementation code in src/ or src-tauri/ was touched in PR #{pr_number}"
 
         has_code = any(not f.endswith(".md") for f in result["files"])
         if not has_code:
@@ -1071,7 +1092,7 @@ def advance(state, jules_key, gh_token, md):
     # -------------------------------------------------------------------- verifying
     if phase == "verifying":
         pr = state["pr"]
-        result = verify_pr(pr, gh_token)
+        result = verify_pr(pr, gh_token, task_id=state.get("task_id"))
         state["history"].append({"t": int(time.time()),
                                  "ev": f"verified PR #{pr}: ok={result['ok']}"})
         log(f"verification ok={result['ok']} checks={result['checks']}")

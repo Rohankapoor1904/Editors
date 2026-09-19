@@ -17,6 +17,10 @@ export function getRuntimeMode(): RuntimeMode {
 }
 
 export function setRuntimeMode(mode: RuntimeMode): void {
+  if (mode === 'demo' && !import.meta.env.DEV) {
+    console.warn('[RuntimeConfig]: Demo mode is restricted to development environments.');
+    return;
+  }
   currentRuntimeMode = mode;
   modeListeners.forEach((listener) => listener(currentRuntimeMode));
 }
