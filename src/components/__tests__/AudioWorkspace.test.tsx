@@ -32,6 +32,6 @@ describe('AudioWorkspace', () => {
 
     // Should render the LUFS meter text
     expect(screen.getByText(/LUFS/i)).toBeDefined();
-    expect(screen.getByText('NO SIG')).toBeDefined();
+    expect(screen.getAllByText('DISABLED').length).toBeGreaterThan(0);
   });
 });

@@ -29,6 +29,11 @@ export class TransportEngine {
     if (this.isPlaying) return;
     this.isPlaying = true;
 
+    // Initialize audio engine on first play
+    if (!audioEngine.isInitialized) {
+      audioEngine.init();
+    }
+
     // Invalidate cached duration so we recompute once on play
     this.cachedDuration = null;
 
@@ -163,7 +168,7 @@ export class TransportEngine {
 
   private applyAudioCrossfades() {
     const store = useTimelineStore.getState();
-    const playheadTimelineSec = store.playheadPosition.value / store.playheadPosition.rate;
+    const playheadTimeline = store.playheadPosition;
 
     for (const track of store.tracks) {
       if (track.type !== 'audio' && track.type !== 'video') continue;
@@ -178,7 +183,7 @@ export class TransportEngine {
         const leftClip = sortedClips[i];
         const rightClip = sortedClips[i + 1];
 
-        audioEngine.applyMicroCrossfade(leftClip, rightClip, this.playbackStartTimeSec, playheadTimelineSec);
+        audioEngine.applyMicroCrossfade(leftClip, rightClip, this.playbackStartTimeSec, playheadTimeline);
       }
     }
   }
