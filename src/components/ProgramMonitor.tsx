@@ -4,8 +4,9 @@ import { rationalToSeconds, secondsToRational } from '../types/time';
 import { addRational, compareRational, subRational } from '../types/time';
 import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
-import { WordTimestamp } from '../services/whisperTranscriber';
+import { WordTimestamp, whisperService } from '../services/whisperTranscriber';
 import { transportEngine } from '../engine/transport';
+import { audioEngine } from '../engine/audioEngine';
 import { frameCache } from '../engine/frameCache';
 import { useMediaPoolStore } from '../store/mediaPool';
 
@@ -17,9 +18,12 @@ export const ProgramMonitor: React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('9:16');
   const [previewQuality, setPreviewQuality] = useState<'Full' | '1/2' | '1/4'>('Full');
   const [isLooping, setIsLooping] = useState(transportEngine.isLooping);
+  const monitorRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [transcriptWords] = useState<WordTimestamp[]>([]);
+  const [transcriptWords, setTranscriptWords] = useState<WordTimestamp[]>([]);
   const [webgpuError, setWebgpuError] = useState<string | null>(null);
+  const [activeClipId, setActiveClipId] = useState<string | null>(null);
+  const [volume, setVolume] = useState<number>(0);
 
   useEffect(() => {
     const unsubscribe = transportEngine.subscribe((playing) => {
@@ -27,6 +31,36 @@ export const ProgramMonitor: React.FC = () => {
     });
     return unsubscribe;
   }, []);
+
+  const computeDimensions = () => {
+    let width = metadata.width;
+    let height = metadata.height;
+
+    // Apply aspect ratio
+    if (aspectRatio === '16:9') {
+      width = Math.max(metadata.width, metadata.height);
+      height = width * (9 / 16);
+    } else if (aspectRatio === '9:16') {
+      height = Math.max(metadata.width, metadata.height);
+      width = height * (9 / 16);
+    } else if (aspectRatio === '1:1') {
+      width = Math.min(metadata.width, metadata.height);
+      height = width;
+    }
+
+    // Apply preview quality
+    if (previewQuality === '1/2') {
+      width = Math.round(width / 2);
+      height = Math.round(height / 2);
+    } else if (previewQuality === '1/4') {
+      width = Math.round(width / 4);
+      height = Math.round(height / 4);
+    }
+
+    return { width, height };
+  };
+
+  const { width: canvasWidth, height: canvasHeight } = computeDimensions();
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -37,9 +71,70 @@ export const ProgramMonitor: React.FC = () => {
         setWebgpuError(err.message || String(err));
       });
     }
-  }, []);
+  }, [canvasWidth, canvasHeight]);
 
 
+  useEffect(() => {
+    let newActiveClipId = null;
+
+    // Find the topmost video clip at playheadPosition
+    const videoTracks = tracks.filter(t => t.type === 'video').sort((a, b) => a.index - b.index);
+    for (const track of videoTracks) {
+      if (track.muted || track.locked) continue;
+      const clip = track.clips.find(c =>
+        compareRational(playheadPosition, c.startOffset) >= 0 &&
+        compareRational(playheadPosition, addRational(c.startOffset, c.duration)) < 0
+      );
+      if (clip) {
+        newActiveClipId = clip.id;
+        break; // Stop at topmost clip
+      }
+    }
+
+    if (newActiveClipId !== activeClipId) {
+       setActiveClipId(newActiveClipId);
+    }
+  }, [playheadPosition, tracks]);
+
+  useEffect(() => {
+    if (!activeClipId) {
+      setTranscriptWords([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    const activeClip = tracks.flatMap(t => t.clips).find(c => c.id === activeClipId);
+    if (!activeClip) return;
+
+    const asset = assets.find(a => a.id === activeClip.assetId);
+    if (!asset) return;
+
+    whisperService.transcribeAudio(asset.path).then(res => {
+      if (isMounted) {
+         const clipStartSec = rationalToSeconds(activeClip.startOffset);
+         const sourceInSec = rationalToSeconds(activeClip.sourceIn);
+
+         const offsetWords = res.words.map(w => {
+            const wordOffsetSec = w.startTime - sourceInSec;
+            const newStartTime = clipStartSec + wordOffsetSec;
+            const newEndTime = newStartTime + (w.endTime - w.startTime);
+            return {
+              ...w,
+              startTime: newStartTime,
+              endTime: newEndTime
+            }
+         }).filter(w => w.endTime >= clipStartSec && w.startTime <= clipStartSec + rationalToSeconds(activeClip.duration));
+
+         setTranscriptWords(offsetWords);
+      }
+    }).catch(err => {
+      console.warn("Failed to fetch captions", err);
+      if (isMounted) setTranscriptWords([]);
+    });
+
+    return () => { isMounted = false; };
+  }, [activeClipId, tracks, assets]);
 
   useEffect(() => {
     if (!isWebGPUActive || !canvasRef.current) return;
@@ -102,8 +197,8 @@ export const ProgramMonitor: React.FC = () => {
         }).catch(err => {
           console.warn("Error fetching frame for preview", err);
           webgpuEngine.renderFrame({
-             width: metadata.width,
-             height: metadata.height,
+             width: canvasWidth,
+             height: canvasHeight,
              timecode: rationalToSeconds(playheadPosition),
              captionData: { words: transcriptWords }
           });
@@ -114,15 +209,15 @@ export const ProgramMonitor: React.FC = () => {
 
     // Fallback if no video clip is active
     webgpuEngine.renderFrame({
-      width: metadata.width,
-      height: metadata.height,
+      width: canvasWidth,
+      height: canvasHeight,
       timecode: rationalToSeconds(playheadPosition),
       captionData: {
         words: transcriptWords
       },
     });
 
-  }, [playheadPosition, isWebGPUActive, metadata, tracks, assets]);
+  }, [playheadPosition, isWebGPUActive, canvasWidth, canvasHeight, tracks, assets, transcriptWords]);
 
   const formatTimecode = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -136,8 +231,31 @@ export const ProgramMonitor: React.FC = () => {
       .padStart(2, '0')}`;
   };
 
+  const handleFullscreen = () => {
+    if (monitorRef.current) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        monitorRef.current.requestFullscreen();
+      }
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    if (audioEngine.isInitialized) {
+       // A bit of a hack: no explicit "setMasterVolume" so we just scale everything using a master bus if possible,
+       // or we'll assume there is no direct exposed `setMasterVolume` in `audioEngine.ts` and set a track volume?
+       // Let's set an internal property or map over tracks. Wait, let's use track volume for all tracks.
+       tracks.filter(t => t.type === 'audio').forEach(t => {
+           audioEngine.setTrackVolume(t.id, val);
+       });
+    }
+  };
+
   return (
-    <div className="flex-1 bg-neutral-950 flex flex-col justify-between items-center p-3 select-none relative overflow-hidden">
+    <div ref={monitorRef} className="flex-1 bg-neutral-950 flex flex-col justify-between items-center p-3 select-none relative overflow-hidden">
       {/* Top Monitor Bar / Quality & Aspect Selectors */}
       <div className="w-full max-w-2xl flex items-center justify-between mb-1.5 px-2 text-[11px] text-neutral-400 shrink-0 gap-2">
         <div className="flex items-center space-x-1 bg-neutral-900/90 p-1 rounded-md border border-neutral-800 shrink-0">
@@ -197,8 +315,8 @@ export const ProgramMonitor: React.FC = () => {
           {/* WebGPU / Canvas2D Surface */}
           <canvas
             ref={canvasRef}
-            width={metadata.width}
-            height={metadata.height}
+            width={canvasWidth}
+            height={canvasHeight}
             className="w-full h-full object-contain"
           />
 
@@ -289,11 +407,23 @@ export const ProgramMonitor: React.FC = () => {
         <div className="flex items-center space-x-3 px-2">
           <div className="flex items-center space-x-1.5">
             <Volume2 className="w-4 h-4 text-neutral-400" />
-            <div className="w-16 bg-neutral-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-indigo-500 h-full w-3/4" />
+            <div className="w-16 bg-neutral-800 h-1.5 rounded-full flex items-center">
+              <input
+                 type="range"
+                 min="-60"
+                 max="0"
+                 value={volume}
+                 onChange={handleVolumeChange}
+                 className="w-full h-full accent-indigo-500 bg-transparent cursor-pointer"
+                 title="Master Volume"
+              />
             </div>
           </div>
-          <button className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white">
+          <button
+             onClick={handleFullscreen}
+             className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"
+             title="Fullscreen"
+          >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
         </div>
