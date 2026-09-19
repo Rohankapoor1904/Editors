@@ -9,7 +9,7 @@ pub mod export_native;
 use ffmpeg_demuxer::{FFmpegDemuxerEngine, MediaProbeInfo};
 use whisper_onnx::{WhisperOnnxEngine, WhisperTranscriptNative};
 use silero_vad::{SileroVadEngine, SilenceSegmentNative};
-use export_native::{HardwareExportNative, ExportTaskConfig, FFmpegCommandSpec};
+use export_native::{HardwareExportNative, ExportTaskConfig, FFmpegCommandSpec, ExportProgress};
 
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -64,6 +64,16 @@ fn get_export_ffmpeg_command(config: ExportTaskConfig) -> Result<FFmpegCommandSp
 }
 
 #[tauri::command]
+fn start_export_task(config: ExportTaskConfig) -> Result<String, String> {
+    HardwareExportNative::start_export_task(config)
+}
+
+#[tauri::command]
+fn poll_export_task(id: String) -> Result<ExportProgress, String> {
+    HardwareExportNative::poll_export_task(id)
+}
+
+#[tauri::command]
 fn get_available_encoders() -> Result<Vec<String>, String> {
     Ok(HardwareExportNative::get_available_encoders())
 }
@@ -76,6 +86,8 @@ fn main() {
             run_whisper_stt,
             detect_vad_silence,
             get_export_ffmpeg_command,
+            start_export_task,
+            poll_export_task,
             get_available_encoders,
             get_file_fingerprint,
             check_file_exists

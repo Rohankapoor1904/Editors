@@ -15,6 +15,12 @@ export interface NativeFFmpegCommand {
   args: string[];
 }
 
+export interface ExportProgress {
+  status: 'processing' | 'done' | 'failed';
+  percent: number;
+  error?: string;
+}
+
 import { isLiveMode, NotImplementedError } from '../services/runtimeConfig';
 
 export class HardwareExportEngine {
@@ -63,17 +69,15 @@ export class HardwareExportEngine {
   ): Promise<boolean> {
     console.log(`[Export Engine]: Initiating hardware encode for preset "${config.presetName}"...`);
 
-    try {
-      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-        const commandSpec = await (window as unknown as {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      try {
+        const invoke = (window as unknown as {
           __TAURI_INTERNALS__: {
-            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{
-              binary: string;
-              args: string[];
-            }>;
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<any>;
           };
-        }).__TAURI_INTERNALS__.invoke('get_export_ffmpeg_command', {
-          config: {
+        }).__TAURI_INTERNALS__.invoke;
+
+        const taskId = await invoke('start_export_task', { config: {
             preset_name: config.presetName,
             width: config.width,
             height: config.height,
@@ -81,27 +85,38 @@ export class HardwareExportEngine {
             bitrate_mbps: config.bitrateMbps,
             encoder: config.encoder,
             output_path: config.outputPath,
-          },
+          }
         });
 
-        console.log('[Export Engine Native Command]:', commandSpec.binary, commandSpec.args.join(' '));
+        let isPolling = true;
+        while (isPolling) {
+          const progress: ExportProgress = await invoke('poll_export_task', { id: taskId });
+          if (progress.status === 'processing') {
+            onProgress(progress.percent);
+          } else if (progress.status === 'done') {
+            onProgress(100);
+            isPolling = false;
+            return true;
+          } else if (progress.status === 'failed') {
+            isPolling = false;
+            throw new Error(progress.error || 'Export failed');
+          }
+          if (isPolling) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+        }
+      } catch (err) {
+        console.warn('[Export Engine]: Native hardware export failed:', err);
+        throw err; // throw instead of silently failing
       }
-    } catch (err) {
-      console.warn('[Export Engine]: Native hardware export fallback:', err);
     }
 
     if (isLiveMode()) {
       throw new NotImplementedError('Hardware Export Render Engine');
     }
 
-    // Simulate hardware encoding progress loop (demo mode only)
-    for (let percent = 0; percent <= 100; percent += 10) {
-      await new Promise((resolve) => setTimeout(resolve, 120));
-      onProgress(percent);
-    }
-
-    console.log(`[Export Engine]: Successfully rendered video to ${config.outputPath}`);
-    return true;
+    // In demo mode we fail loudly as well (no faking progress)
+    throw new Error('Export not supported in this environment');
   }
 
   async renderSequence(

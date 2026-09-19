@@ -214,7 +214,7 @@ export class NativeBridgeService {
       throw new NotImplementedError('Native Encoder Detection');
     }
 
-    return ['Software x264', 'VideoToolbox (Apple)', 'NVENC (NVIDIA)', 'QuickSync (Intel)'];
+    return [];
   }
 }
 
