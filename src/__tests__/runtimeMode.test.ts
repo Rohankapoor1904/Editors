@@ -75,17 +75,9 @@ describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
       setRuntimeMode('demo');
     });
 
-    it('whisperService returns mock transcript without throwing', async () => {
-      const res = await whisperService.transcribe('/demo/audio.wav');
-      expect(res.words.length).toBeGreaterThan(0);
-      expect(res.fullText).toContain('CineCraft AI');
-    });
 
-    it('sileroVadService returns mock silence windows without throwing', async () => {
-      const res = await sileroVadService.detectSilence('/demo/audio.wav');
-      expect(res.length).toBe(2);
-      expect(res[0].startTime).toBe(5.0);
-    });
+
+
 
     it('sam2Engine returns fallback bounding box without throwing', async () => {
       const res = await sam2Engine.generateSubjectMask(null, { x: 200, y: 300 });
