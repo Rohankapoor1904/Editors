@@ -1,4 +1,3 @@
-import { isLiveMode, NotImplementedError } from '../../services/runtimeConfig';
 import captionWgsl from '../shaders/caption.wgsl?raw';
 
 export interface CaptionWord {
@@ -14,9 +13,6 @@ export interface CaptionTrackData {
 
 export class CaptionEngine {
     getWGSLShaderCode(): string {
-        if (isLiveMode()) {
-            throw new NotImplementedError('Real Text Layout / Caption Engine WGSL');
-        }
         return captionWgsl;
     }
 
