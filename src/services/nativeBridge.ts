@@ -1,3 +1,4 @@
+import { open } from '@tauri-apps/plugin-dialog';
 import { isLiveMode, NotImplementedError } from './runtimeConfig';
 import { RationalTime, createRational, addRational, rationalToSeconds } from '../types/time';
 
@@ -58,32 +59,57 @@ export class FrameBuffer {
 
 export class NativeBridgeService {
   /**
-   * Invokes native open file dialog via Tauri 2.0 IPC or fallback web file API
+   * Separates file picking from file probing.
+   * If file_path is empty, prompts user with a file dialog.
+   * Then probes the file to get metadata.
    */
   async importMediaFile(file_path: string): Promise<MediaProbeMetadata | null> {
-    try {
-      // Check if running inside Tauri 2.0 desktop shell
+    let pathToProbe = file_path;
+
+    // 1. Pick file
+    if (!pathToProbe) {
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-        // Native Tauri IPC invocation
-        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('open_media_file_dialog', { filePath: file_path });
+        try {
+          const selected = await open({
+            multiple: false,
+            filters: [{ name: 'Media', extensions: ['mp4', 'mkv', 'avi', 'mov', 'mp3', 'wav'] }]
+          });
+          if (!selected) return null; // User canceled
+          pathToProbe = selected as string;
+        } catch (err) {
+          console.error('Failed to open file dialog:', err);
+          return null;
+        }
+      } else {
+        if (isLiveMode()) {
+          throw new NotImplementedError('Native Media Dialog Import');
+        }
+        pathToProbe = '/user_media/sample_interview_4k.mp4';
+      }
+    }
+
+    // 2. Probe file
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('probe_media_file', { filePath: pathToProbe });
         return response;
       }
     } catch (err) {
-      console.error('Failed to import media file:', err);
+      console.error('Failed to probe media file:', err);
       if (isLiveMode()) {
-        throw new NotImplementedError('Native Media Dialog Import');
+        throw new NotImplementedError('Native Media Probe');
       }
       return null;
     }
 
     if (isLiveMode()) {
-      throw new NotImplementedError('Native Media Probe & File Dialog');
+      throw new NotImplementedError('Native Media Probe');
     }
 
     // Fallback web probe generator for local development preview (demo mode only)
     return {
-      path: '/user_media/sample_interview_4k.mp4',
-      filename: 'sample_interview_4k.mp4',
+      path: pathToProbe,
+      filename: pathToProbe.split('/').pop() || 'sample_interview_4k.mp4',
       durationSeconds: 42.8,
       width: 3840,
       height: 2160,
