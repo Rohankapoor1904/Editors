@@ -1077,9 +1077,28 @@ def advance(state, jules_key, gh_token, md):
         if jstate == "COMPLETED":
             pr = session_pr(session_id, gh_token, state.get("task_id"))
             if not pr:
-                log(f"session COMPLETED but no OPEN PR found for task {state.get('task_id')} yet; waiting")
-                state["last_update"] = None
-                return "COMPLETED"
+                attempts = state.get("no_pr_attempts", 0) + 1
+                state["no_pr_attempts"] = attempts
+                task_id = state.get("task_id")
+                task_slug = re.sub(r"[^a-zA-Z0-9]+", "-", (task_id or "").lower()).strip("-")
+                if attempts <= 2:
+                    log(f"session COMPLETED but no OPEN PR found for task {task_id}; nudging Jules to push branch and open PR (attempt {attempts})")
+                    send_message(
+                        session_id,
+                        f"Your session is marked completed, but no open Pull Request was found on GitHub for Task {task_id}.\n\n"
+                        f"Please checkout branch `task-{task_slug}`, commit your changes, push to GitHub, and open a Pull Request referencing `Task: {task_id}` so independent verification can proceed.",
+                        jules_key
+                    )
+                    state["history"].append({"t": int(time.time()), "ev": f"nudge open PR (attempt {attempts})"})
+                    state["last_update"] = None
+                    return "COMPLETED"
+                else:
+                    log(f"session COMPLETED without PR after {attempts} attempts; minting fresh session for task {task_id}")
+                    state["session_id"] = None
+                    state["no_pr_attempts"] = 0
+                    state["phase"] = "idle"
+                    state["history"].append({"t": int(time.time()), "ev": "mint fresh session (no PR created)"})
+                    return advance(state, jules_key, gh_token, md)
             state.update({"phase": "verifying", "pr": pr["number"],
                           "branch": pr["head"]["ref"]})
             state["history"].append({"t": int(time.time()), "ev": f"PR #{pr['number']} detected"})
