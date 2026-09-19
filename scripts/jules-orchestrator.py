@@ -267,7 +267,7 @@ def mark_task_done_in_progress(task_id, evidence, gh_token):
     sha = file_data.get("sha")
     import base64
     content = base64.b64decode(file_data.get("content", "")).decode("utf-8")
-    pattern = rf"(\|\s*\*\*{re.escape(task_id)}\*\*\s*\|[^|]+\|[^|]+\|)\s*`?(?:todo|in_progress)`?\s*(\|)[^|]*(\|)"
+    pattern = rf"(\|\s*\*\*{re.escape(task_id)}\*\*\s*\|[^|]*\|[^|]*\|[^|]*\|)\s*`?(?:todo|in_progress)`?\s*(\|)[^|]*(\|)"
     if re.search(pattern, content):
         updated = re.sub(pattern, rf"\1 `done` \2 `npm test` passed, {evidence} \3", content)
         encoded = base64.b64encode(updated.encode("utf-8")).decode("utf-8")
@@ -285,31 +285,40 @@ def mark_task_done_in_progress(task_id, evidence, gh_token):
 def parse_queue(md):
     """Parse the Work Queue markdown table into task dicts.
 
-    Rows whose column count does not match the header are skipped, which is deliberate:
-    a hand-edit that drops a column must not be silently reinterpreted. Such damage is
-    reported separately by audit_tables so it surfaces instead of being swallowed.
+    Columns are located by **header name**, not by position. The table gained an `Impl`
+    column (ADR-007), and a positional parser would silently read `Impl` as `Status` and
+    dispatch work that is deliberately blocked. Rows whose column count does not match the
+    header are skipped, which is deliberate: a hand-edit that drops a column must not be
+    silently reinterpreted. Such damage is reported separately by audit_tables.
     """
-    rows, header_cols = [], None
+    rows, header = [], None
     for line in md.splitlines():
         if not line.strip().startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if re.match(r"^\|\s*ID\s*\|", line):
-            header_cols = len(cells)
+            header = {re.sub(r"[`*\s]", "", c).lower(): i for i, c in enumerate(cells)}
             continue
         m = re.match(r"\*\*(R\d+\.\d+)\*\*", cells[0])
-        if not m:
+        if not m or header is None:
             continue
-        if header_cols is not None and len(cells) != header_cols:
+        if len(cells) != len(header):
             continue
-        if len(cells) < 6:
-            continue
+
+        def col(*names):
+            for name in names:
+                idx = header.get(name)
+                if idx is not None and idx < len(cells):
+                    return re.sub(r"[`*]", "", cells[idx]).strip()
+            return ""
+
         rows.append({
             "id": m.group(1),
-            "task": re.sub(r"`", "", cells[1]),
-            "phase": cells[2],
-            "status": re.sub(r"[`*]", "", cells[3]).strip().lower(),
-            "scope": re.sub(r"[`*]", "", cells[5]) if len(cells) > 6 else "",
+            "task": col("task"),
+            "phase": col("phase"),
+            "status": col("status").lower(),
+            "impl": col("impl").lower(),
+            "scope": col("evidence/blocker", "evidence", "scope", "files"),
             "deps": re.findall(r"R\d+\.\d+", cells[-1]),
         })
     return rows
@@ -359,7 +368,13 @@ def open_pr_tasks(gh_token):
 
 
 def next_task(rows, in_flight=None):
-    """First claimable task: todo or partial, dependencies done, no PR already open."""
+    """First claimable task: status `todo`, dependencies done, no PR already open.
+
+    `blocked` is never returned. Under the ADR-007 vocabulary a row is `blocked` precisely
+    because a prerequisite task (named in its evidence cell) has not landed, so dispatching
+    it would produce the unverifiable work this repo is trying to stop. `partial` is still
+    accepted for backward compatibility with older trackers that used it as a status.
+    """
     in_flight = in_flight or set()
     done = {r["id"] for r in rows if r["status"] == "done"}
     for r in rows:

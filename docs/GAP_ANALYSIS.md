@@ -154,3 +154,101 @@ Stated explicitly so no reader over-trusts §2:
 4. **Fail loudly** — mocks must be deleted from main paths or gated behind an explicit
    `demo mode` flag, never silently substituted (invariant §5.5 of `AGENTS.md`).
 5. **Evidence lines** — every `done` row in `PROGRESS.md` carries the command or test that proves it.
+
+---
+
+## 6. Re-audit — 2026-09-19 (HEAD `a7a14cc`)
+
+> **Scope.** A three-phase audit (static mock detection → dataflow/taint tracing → UI↔IPC contract
+> verification) of the tree at `a7a14cc`, after Phases R0–R10 were merged and all marked `done`.
+>
+> **Method.** Every finding was confirmed by reading the source and tracing the value's origin and
+> destination, not by matching strings. Where a claim was mechanical, the command was run:
+> `node scripts/verify-invariants.mjs` → **exit 0** and `npm run lint` → clean.
+>
+> **Verification limits.** `cargo check` / `cargo test` were **not** run (no Rust toolchain in the audit
+> environment). Nothing in this section was observed at runtime in a Tauri host; the Tauri-shell
+> findings are stated as source-level facts with `file:line` evidence.
+
+### 6.1 Verdict
+
+R0–R10 were marked `done` while the following were still on the main path: a broken IPC contract that
+makes real STT unreachable, a shader that throws during renderer init on every launch, a user-facing
+toggle that swaps production behaviour for fabricated data, an export path that writes no file, a
+boot-time hardcoded demo project, and five engines with real logic and zero call sites. This is the
+same class of failure §3 documents, recurring under new phase names.
+
+| Implementation status (this audit) | Rows |
+| :--- | :--- |
+| `real` — computes from real inputs, behavioural test exists | 18 |
+| `partial` — real subset, blocked on a named task | 25 |
+| `stub` — fabricated/hardcoded on the main path | 15 |
+| `missing` — no implementation, or the promised file does not exist | 6 |
+
+Every row's corrected mark and evidence is in `PROGRESS.md`. Remediation is **Phase R11** in
+`docs/ROADMAP.md`.
+
+### 6.2 Critical — broken contracts and dead real engines
+
+| # | Location | Finding | Evidence |
+| :--- | :--- | :--- | :--- |
+| 1 | `whisperTranscriber.ts:26` vs `main.rs:52` | **The real Whisper engine is unreachable.** The frontend invokes `transcribe_audio`; Rust registers `run_whisper_stt` (and only that name is in `generate_handler!`, `main.rs:73-82`). The call can never resolve, so the code always falls through to the throw or the hardcoded transcript. | invoke/call-site enumeration; both files read in full |
+| 2 | `webgpuRenderer.ts:69-74,140-147` | **The WebGPU pipeline never initialises.** `init()` unconditionally calls `captionEngine.getWGSLShaderCode()`, which throws `NotImplementedError` in live mode (`captionEngine.ts:17`). The throw is caught and swallowed, silently downgrading to Canvas2D. Because `live` is the default, this happens on every launch. | `captionEngine.ts:16-21`; catch block at `:140-147` |
+| 3 | `exportEngine.ts:98-104` | **Export writes nothing.** The progress bar is a `setTimeout(120ms)` loop that then returns `true`; `get_export_ffmpeg_command`'s result is only `console.log`ged (`:87`). `exportQueue.ts:50-53` trusts the boolean and marks the job `done, progress:100`. | function read in full; no `Command`/`spawn` anywhere in the JS export path |
+| 4 | `timelineStore.ts:47-163` | **A fabricated project boots on every launch** (`proj_demo_01`, `Interview_Take1.mp4`, `Product_Broll.mp4`, `Upbeat_Lofi_Beat.mp3`). | initial-state literal |
+| 5 | `TopBar.tsx:39-41,212-232` | **Demo mode is a shipped control.** `toggleRuntimeMode` flips `live → demo` in one user click, and demo mode returns fabricated transcripts, silence windows and probe metadata with no error. This defeats the Safe-by-Default invariant §5.5 even though `runtimeConfig.ts:12` defaults correctly. | toggle handler + demo fallbacks in 5 services |
+| 6 | `main.rs:51-54` | **Orphaned backend command.** `run_whisper_stt` is registered but invoked from nowhere in `src/` — the real implementation is dead code. | repo-wide reference search |
+
+### 6.3 Detail — fabricated data still reachable
+
+| Location | Finding |
+| :--- | :--- |
+| `whisperTranscriber.ts:47-66` | Hardcoded 15-word transcript (`"Welcome to CineCraft AI…"`) returned as STT output. |
+| `sileroVad.ts:51-54` | Hardcoded silence windows `[{5.0, 7.5}, {18.2, 19.8}]` returned as VAD output. |
+| `nativeBridge.ts:84-94` | Invented probe metadata (3840×2160, 59.94 fps, `sample_interview_4k.mp4`). |
+| `nativeBridge.ts:181` | `mock_sha256_${filePath}` presented as a content fingerprint. |
+| `nativeBridge.ts:201` | `checkFileExists → true` unconditionally, so nothing is ever flagged offline. |
+| `nativeBridge.ts:217` | Fabricated encoder list incl. NVENC regardless of hardware. |
+| `sam2Masking.ts:39-43,60-82` | Fabricated bbox + 1×1 PNG mask; the "trajectory" is a static offset with a linear confidence decay. |
+| `caption.wgsl:8-16` | Shader body self-declares *"placeholder shader because we don't have a real text layout engine yet"*. |
+| `ProgramMonitor.tsx:17-18,140-183,272-282` | `previewQuality`, `aspectRatio`, the volume bar and the fullscreen control are decorative. |
+| `AIPromptConsole.tsx:389-552` | Inspector tab is static `defaultValue` inputs with no `onChange`. |
+| `TimelineTrackEditor.tsx:13-17,33-48` | Fixed `barHeights` array as "waveform"; 8 identical gradient boxes as "filmstrip". |
+| `TranscriptEditor.tsx:14` | Transcribes `/demo/audio.wav` on mount; promise has no `.catch`. |
+| `ProgramMonitor.tsx:21` | `transcriptWords` is never populated, so captions can never render. |
+| `Scopes.tsx` | Zero inbound imports; never receives `ImageData`. |
+| `engine/tracking/sam2.ts`, `sam2MaskingTracker.ts` | Dead files (interfaces only, no imports). |
+| repo root | 30+ committed one-shot agent artifacts (`fix-*.cjs`, `update-*.cjs`, `*_patch*.cjs`, `*_output.txt`). |
+| `verify.yml:34-46` | The gate greps for one literal string (`Math.sin(i * 0.1)`); it cannot detect any of the above, so it passes while they all persist. |
+
+### 6.4 What the gate must be able to catch
+
+The mechanical gate (`scripts/verify-invariants.mjs` + `verify.yml`) is the single most valuable
+artifact in this repo, and it is currently too weak to do its job. It must be able to fail on:
+
+1. A hardcoded demo fixture on a boot/main path (e.g. a non-empty `initialTimelineState` with demo asset names).
+2. A shader file or shader-source accessor that self-declares "placeholder" or throws outside demo.
+3. An exported module with zero inbound imports outside its own directory (orphaned engine).
+4. An `invoke('<name>')` string with no matching `#[tauri::command]` (R11.1).
+5. A progress/success report that is not backed by a file write or a real async result (R11.5).
+
+Adopting these as failing checks is task **R11.14**. Until then, treat a green `npm test` as evidence
+that nothing *compiled incorrectly*, not that anything *works*.
+
+### 6.5 Detail of what was NOT verified
+
+- **Rust**: `cargo check` / `cargo test` were not run. `ffmpeg_demuxer.rs`, `export_native.rs`,
+  `whisper_onnx.rs`, `silero_vad.rs` and `main.rs` were read only. Their implementation looks genuine
+  (real `ffprobe`/`ffmpeg` invocation, real ONNX session, real SHA-256), but the Rust tests that would
+  prove it were not executed here.
+- **Tauri runtime behaviour**: all IPC findings are static. The `transcribe_audio` mismatch is
+  unambiguous from the two source files, but no live Tauri invocation was performed.
+- **Visual/UI claims** attributed to peer-agent sandboxes (screenshots, Playwright runs) in
+  `docs/WORKLOG.md` were **not** independently reproduced in this audit and are not treated as evidence
+  here.
+
+### 6.6 Ground rule carried forward
+
+A row may be `done` only with `Impl = real` and a behavioural test named in its evidence cell. This
+audit found 15 rows that were `done` without meeting that bar. Recurrence of that gap is itself a
+process failure, and is recorded in `docs/DECISIONS.md` **ADR-007**.

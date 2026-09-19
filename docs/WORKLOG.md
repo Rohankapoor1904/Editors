@@ -1,3 +1,14 @@
+## 2026-09-19 — OpenHands — Audit + docs (Phase R11 definition)
+- **Did:** Ran a three-phase codebase audit (static mock/stub/dead-code detection → dataflow & persistence tracing → UI↔IPC contract verification) against `a7a14cc`, and recorded the results in the docs:
+  - `docs/GAP_ANALYSIS.md` §6 — new re-audit section with the critical findings (Whisper invoke/command mismatch `whisperTranscriber.ts:26` vs `main.rs:52`; WebGPU init blocked by `captionEngine.ts:17`; export writes no file `exportEngine.ts:98-104`; boot-time demo project `timelineStore.ts:47-163`; shipped demo toggle `TopBar.tsx:39-41`; `run_whisper_stt` orphaned), a fabricated-data catalogue, what the gate must catch, and what was NOT verified.
+  - `PROGRESS.md` — corrected every R0.1–R10.5 row with an explicit `Impl` column (`real`/`partial`/`stub`/`missing`) and `file:line` evidence; added the R11.1–R11.14 remediation queue.
+  - `docs/ROADMAP.md` — added Phase R11 (remediation) with acceptance criteria per task.
+  - `docs/DECISIONS.md` — added ADR-007 (`done` requires `Impl = real`; a green gate is not proof of function).
+- **Verified:** `node scripts/verify-invariants.mjs` → exit 0 (gate passes today, which is itself finding §6.4). `npm run lint` → clean (`lint_output.txt`). Docs only — no source code was changed, so `npm run build` / `npm test` were not re-run against a source diff. **NOT VERIFIED:** `cargo check` / `cargo test` (no Rust toolchain in this environment) and all Tauri runtime behaviour (no Tauri host). Rust findings are source-reading only.
+- **Left undone:** Every task R11.1–R11.14 is `todo`. No source file was modified; the audit found the problems and the docs now describe them, but none are fixed yet.
+- **Next:** Claim **R11.1** (fix the `transcribe_audio` → `run_whisper_stt` contract + delete fabricated transcripts) and **R11.2** (stop `captionEngine` throwing in live mode so WebGPU initialises). Both are small and unblock whole phases. Then R11.14 to strengthen the gate.
+- **Blockers:** Rust/Tauri verification requires a desktop host with a Rust toolchain; several R11 tasks (R11.6, R11.13) should be marked `unverified: requires desktop Tauri host` if completed outside one.
+
 ## 2024-05-24 — Jules — R10.3
 - **Did:** Implemented Phase R10.3 (WebAudio Clip Playback Engine), Phase R10.4 (Clip Inspector property panel), and Phase R10.5 (Project Document Save/Open dialogs & drag-and-drop persistence).
 - **Verified:** Ran `npm run build`, `npm run test`, and `npm run lint` natively to verify zero-drift TS models and tests pass cleanly.

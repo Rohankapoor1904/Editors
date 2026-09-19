@@ -21,6 +21,41 @@ Format:
 
 ---
 
+## ADR-007: `done` requires `Impl = real`; a green gate is not proof of function
+
+- **Date:** 2026-09-19
+- **Status:** accepted
+- **Task:** R11.1–R11.14 / process
+- **Context:** A three-phase re-audit of `a7a14cc` (`docs/GAP_ANALYSIS.md` §6) found that all of
+  Phases R0–R10 were marked `done` while, on the main path, the real Whisper engine was unreachable
+  (invoke/command name mismatch), the WebGPU renderer threw during init on every launch, export wrote
+  no file, a fabricated project booted on every launch, and five engines with real logic had zero call
+  sites. `npm test` and the mechanical invariant gate both passed. This is the §3 failure mode
+  recurring under new phase names — the second time the repository has reported completion over stubs.
+- **Options considered:**
+  - Stronger review of `done` claims — rejected: ADR-005 already tried this; the failure is in
+    self-assessment and in what the gate can see, not in reviewer attention.
+  - Ban demo mode entirely and delete every stub now — rejected as a blanket rule: it would stall
+    legitimate partial work, and it does not fix the reporting problem.
+  - Add an explicit second axis (`Impl` alongside `Status`) with a hard rule plus a strengthened gate —
+    chosen.
+- **Decision:**
+  1. `PROGRESS.md` gains an **`Impl`** column using the fixed vocabulary from `GAP_ANALYSIS.md` §2.3
+     (`real` / `partial` / `stub` / `missing`). The evidence cell must name what is missing.
+  2. A row may be `Status = done` **only** when `Impl = real` and a behavioural test is named.
+     `partial` never counts as done, however green the suite is.
+  3. Remediation of every §6 finding is tracked as **Phase R11** in `docs/ROADMAP.md`, sequenced
+     before any further R6/R7/R8 feature work.
+  4. The mechanical gate must be able to fail on the §6.4 catalogue (hardcoded fixtures, placeholder
+     shaders, orphaned engines, invoke/command mismatches). Until R11.14, a green `npm test` means
+     "nothing compiled incorrectly", not "something works".
+- **Consequences:** Status reporting becomes two-dimensional and harder to inflate; ~45 previously
+  `done` rows move to `blocked` with a named unblock task, which visibly reduces the reported progress
+  number. That reduction is the point — it is the first honest reading of the tree. Cost: more columns
+  to maintain and a gate that will block merges that were previously accepted.
+
+---
+
 ## ADR-006: Single tracker, single roadmap
 
 - **Date:** 2025-09-15

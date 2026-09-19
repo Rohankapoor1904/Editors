@@ -8,3 +8,4 @@ verification/
 
 # Rust ignore
 src-tauri/target/
+__pycache__/
