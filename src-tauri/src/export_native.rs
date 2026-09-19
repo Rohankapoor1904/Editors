@@ -220,7 +220,22 @@ impl HardwareExportNative {
         Ok(task_id)
     }
 
-    pub fn poll_export_task(id: String) -> Result<ExportProgress, String> {
+    pub async fn poll_export_task(id: String, last_percent: f64) -> Result<ExportProgress, String> {
+        // Long poll: check up to 50 times (5 seconds)
+        for _ in 0..50 {
+            {
+                let map = EXPORT_TASKS.lock().unwrap();
+                if let Some(progress) = map.get(&id) {
+                    if progress.status != "processing" || (progress.percent - last_percent).abs() > 0.001 {
+                        return Ok(progress.clone());
+                    }
+                } else {
+                    return Err("Task not found".to_string());
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+
         let map = EXPORT_TASKS.lock().unwrap();
         if let Some(progress) = map.get(&id) {
             Ok(progress.clone())

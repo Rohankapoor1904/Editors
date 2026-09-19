@@ -89,10 +89,12 @@ export class HardwareExportEngine {
         });
 
         let isPolling = true;
+        let lastPercent = -1;
         while (isPolling) {
-          const progress: ExportProgress = await invoke('poll_export_task', { id: taskId });
+          const progress: ExportProgress = await invoke('poll_export_task', { id: taskId, lastPercent });
           if (progress.status === 'processing') {
             onProgress(progress.percent);
+            lastPercent = progress.percent;
           } else if (progress.status === 'done') {
             onProgress(100);
             isPolling = false;
@@ -100,9 +102,6 @@ export class HardwareExportEngine {
           } else if (progress.status === 'failed') {
             isPolling = false;
             throw new Error(progress.error || 'Export failed');
-          }
-          if (isPolling) {
-            await new Promise((resolve) => setTimeout(resolve, 200));
           }
         }
       } catch (err) {

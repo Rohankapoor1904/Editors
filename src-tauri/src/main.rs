@@ -69,8 +69,8 @@ fn start_export_task(config: ExportTaskConfig) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn poll_export_task(id: String) -> Result<ExportProgress, String> {
-    HardwareExportNative::poll_export_task(id)
+async fn poll_export_task(id: String, last_percent: f64) -> Result<ExportProgress, String> {
+    HardwareExportNative::poll_export_task(id, last_percent).await
 }
 
 #[tauri::command]
