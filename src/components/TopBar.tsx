@@ -152,7 +152,7 @@ export const TopBar: React.FC = () => {
         <div className="h-4 w-[1px] bg-neutral-800" />
 
         <nav ref={menuRef} className="hidden xl:flex items-center space-x-2.5 text-neutral-400 text-[11px] font-medium relative">
-          {Object.entries(menus).map(([menuName, menuItems]) => (
+          {Object.entries(menus).map(([menuName, menuItems]: [string, any[]]) => (
             <div key={menuName} className="relative">
               <button
                 onClick={() => setOpenMenu(openMenu === menuName ? null : menuName)}
