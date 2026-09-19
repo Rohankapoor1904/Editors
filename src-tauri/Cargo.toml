@@ -19,5 +19,6 @@ whisper-rs = "0.16.0"
 hound = "3.5.1"
 ort = "2.0.0-rc.13"
 ndarray = "0.17.2"
+regex = "1.13.1"
 [dev-dependencies]
 tempfile = "3.8"

@@ -83,3 +83,8 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running CineCraft AI Tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    include!("tests/contract_test.rs");
+}
