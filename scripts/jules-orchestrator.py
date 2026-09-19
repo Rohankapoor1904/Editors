@@ -48,7 +48,7 @@ JULES = "https://jules.googleapis.com/v1alpha"
 GH = "https://api.github.com"
 
 MAX_FIX_ATTEMPTS = 3
-STUCK_MINUTES = 25
+STUCK_MINUTES = 8
 STUCK_THRESHOLD_S = STUCK_MINUTES * 60
 MAX_NUDGES = 2
 MAX_PLAN_REJECTIONS = 2
@@ -943,12 +943,30 @@ def advance(state, jules_key, gh_token, md):
         updated = sess.get("updateTime")
         log(f"session {session_id} state={jstate} updated={updated}")
 
+        # Check if an open PR for this task already exists on GitHub across any session state
+        pr = session_pr(session_id, gh_token, state.get("task_id"))
+        if pr:
+            log(f"PR #{pr['number']} detected for Task {state.get('task_id')} (session state: {jstate}); advancing immediately to verification")
+            state.update({"phase": "verifying", "pr": pr["number"], "branch": pr["head"]["ref"]})
+            state["history"].append({"t": int(time.time()), "ev": f"PR #{pr['number']} detected ({jstate})"})
+            return advance(state, jules_key, gh_token, md)
+
         if jstate == "FAILED":
             reason = failure_reason(get_activities(session_id, jules_key))
             sig = error_signature(reason)
             log(f"session FAILED: {reason} (sig: {sig})")
             state["history"].append({"t": int(time.time()),
                                      "ev": f"session FAILED: {reason[:60]}"})
+
+            # Google Cloud VM provision failure cannot be revived by a message; restart fresh immediately
+            if sig == "vm_provision":
+                log(f"Google Cloud VM provisioning failed in session {session_id} ({reason}); immediately restarting fresh session")
+                state["session_id"] = None
+                state["last_error_sig"] = None
+                state["phase"] = "idle"
+                state["history"].append({"t": int(time.time()), "ev": "fresh session minted (VM provision failed)"})
+                return advance(state, jules_key, gh_token, md)
+
             if sig == "conflict":
                 msg = (
                     f"Your previous attempt failed with a git merge conflict:\n"
@@ -972,13 +990,19 @@ def advance(state, jules_key, gh_token, md):
                 state["phase"] = "idle"
                 return advance(state, jules_key, gh_token, md)
 
-            send_message(
+            st_msg, res_msg = send_message(
                 session_id,
                 "Your previous attempt failed with:\n"
                 f"{reason}\n\n"
                 "That looks like an environment or session failure rather than a problem with "
                 "the task. Please retry the last instruction from a clean workspace state.",
                 jules_key)
+            if st_msg not in (200, 201):
+                log(f"failed to send message to failed session {session_id} (HTTP {st_msg}); minting fresh session")
+                state["session_id"] = None
+                state["phase"] = "idle"
+                return advance(state, jules_key, gh_token, md)
+
             state["last_error_sig"] = sig
             state["stuck_since"] = None
             return "COMPLETED"
@@ -1049,7 +1073,13 @@ def advance(state, jules_key, gh_token, md):
                 "3. Strict Invariants: Never add fallback mock arrays or stubs on main execution paths. Keep rational time.\n"
                 "4. Proceed Immediately: Execute code edits, run `npm run build`, `npm run test`, and `npm run lint`, and open the Pull Request."
             )
-            send_message(session_id, steering_prompt, jules_key)
+            st_steer, res_steer = send_message(session_id, steering_prompt, jules_key)
+            if st_steer not in (200, 201):
+                log(f"failed to send steering prompt to session {session_id} (HTTP {st_steer}); minting fresh session")
+                state["session_id"] = None
+                state["phase"] = "idle"
+                return advance(state, jules_key, gh_token, md)
+
             state["history"].append({"t": int(time.time()), "ev": f"auto-steered user input (attempt {attempts})"})
             state["last_update"] = None
             return "COMPLETED"
@@ -1059,16 +1089,26 @@ def advance(state, jules_key, gh_token, md):
             if stamp == state.get("last_update"):
                 stuck = state.get("stuck_since") or stamp
                 state["stuck_since"] = stuck
-                if time.time() - stuck > STUCK_THRESHOLD_S and state.get("nudges", 0) < MAX_NUDGES:
-                    send_message(session_id,
-                                  "No activity has been observed on this session for a while. "
-                                  "Please continue from where you left off and report what you are "
-                                  "working on. If you are blocked, say what is blocking you.",
-                                  jules_key)
-                    state["nudges"] = state.get("nudges", 0) + 1
-                    state["stuck_since"] = None
-                    state["history"].append({"t": int(time.time()), "ev": "stuck nudge"})
-                    log("sent stuck nudge")
+                if time.time() - stuck > STUCK_THRESHOLD_S:
+                    nudges = state.get("nudges", 0)
+                    if nudges < MAX_NUDGES:
+                        send_message(session_id,
+                                      "No activity has been observed on this session for a while. "
+                                      "Please continue from where you left off and report what you are "
+                                      "working on. If you are blocked, say what is blocking you.",
+                                      jules_key)
+                        state["nudges"] = nudges + 1
+                        state["stuck_since"] = time.time()
+                        state["history"].append({"t": int(time.time()), "ev": f"stuck nudge (attempt {nudges + 1})"})
+                        log(f"sent stuck nudge (attempt {nudges + 1}) to session {session_id}")
+                    else:
+                        log(f"session {session_id} remains stuck after {MAX_NUDGES} nudges ({int(time.time() - stuck)}s inactive); abandoning dead session and minting fresh session from main")
+                        state["session_id"] = None
+                        state["nudges"] = 0
+                        state["stuck_since"] = None
+                        state["phase"] = "idle"
+                        state["history"].append({"t": int(time.time()), "ev": "abandoned stuck session (max nudges reached)"})
+                        return advance(state, jules_key, gh_token, md)
             else:
                 state["stuck_since"] = None
             state["last_update"] = stamp
