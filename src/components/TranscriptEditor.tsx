@@ -1,20 +1,66 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { whisperService, WordTimestamp } from '../services/whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
+import { useMediaPoolStore } from '../store/mediaPool';
 import { rationalToSeconds, secondsToRational } from '../types/time';
-import { FileText, Trash2, Play } from 'lucide-react';
+import { FileText, Trash2, Play, AlertCircle, Loader2 } from 'lucide-react';
 import { deleteWordsFromTimeline } from '../services/alignment';
 
 export const TranscriptEditor: React.FC = () => {
   const [words, setWords] = useState<WordTimestamp[]>([]);
   const [selectedWordIds, setSelectedWordIds] = useState<string[]>([]);
-  const { playheadPosition, setPlayheadPosition, rippleDelete } = useTimelineStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { playheadPosition, setPlayheadPosition, rippleDelete, selectedClipIds, tracks } = useTimelineStore();
+  const { assets } = useMediaPoolStore();
+
+  const activeAssetPath = useMemo(() => {
+    if (selectedClipIds.length === 0) return null;
+    const clipId = selectedClipIds[0];
+
+    // Find the clip in the tracks
+    for (const track of tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (clip) {
+        const asset = assets.find(a => a.id === clip.assetId);
+        return asset?.path || null;
+      }
+    }
+    return null;
+  }, [selectedClipIds, tracks, assets]);
 
   useEffect(() => {
-    whisperService.transcribeAudio('/demo/audio.wav').then((res) => {
-      setWords(res.words);
-    });
-  }, []);
+    if (!activeAssetPath) {
+      setWords([]);
+      setError(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoading(true);
+    setError(null);
+
+    whisperService.transcribeAudio(activeAssetPath)
+      .then((res) => {
+        if (isMounted) {
+          setWords(res.words);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error("Transcription failed", err);
+          setError(err.message || 'Failed to transcribe audio');
+          setIsLoading(false);
+          setWords([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeAssetPath]);
 
   const handleWordClick = (word: WordTimestamp, e: React.MouseEvent) => {
     if (e.shiftKey) {
@@ -60,28 +106,50 @@ export const TranscriptEditor: React.FC = () => {
       </div>
 
       {/* Word-Level Interactive Transcript */}
-      <div className="flex-1 overflow-y-auto font-sans leading-relaxed text-neutral-300 space-x-1">
-        {words.map((w) => {
-          const isActive = rationalToSeconds(playheadPosition) >= w.startTime && rationalToSeconds(playheadPosition) <= w.endTime;
-          const isSelected = selectedWordIds.includes(w.id);
+      <div className="flex-1 overflow-y-auto font-sans leading-relaxed text-neutral-300 space-x-1 relative">
+        {!activeAssetPath ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 space-y-2">
+            <FileText className="w-8 h-8 opacity-50" />
+            <p>Select a clip in the timeline to transcribe</p>
+          </div>
+        ) : isLoading ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 space-y-2">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+            <p>Transcribing audio...</p>
+          </div>
+        ) : error ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-red-400/80 space-y-2 text-center p-4">
+            <AlertCircle className="w-8 h-8 mb-2" />
+            <p className="font-semibold text-red-400">Transcription Failed</p>
+            <p className="text-[10px] opacity-80">{error}</p>
+          </div>
+        ) : words.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center text-neutral-500">
+            <p>No speech detected.</p>
+          </div>
+        ) : (
+          words.map((w) => {
+            const isActive = rationalToSeconds(playheadPosition) >= w.startTime && rationalToSeconds(playheadPosition) <= w.endTime;
+            const isSelected = selectedWordIds.includes(w.id);
 
-          return (
-            <span
-              key={w.id}
-              onClick={(e) => handleWordClick(w, e)}
-              className={`inline-block px-1 py-0.5 rounded cursor-pointer transition-all ${
-                isSelected
-                  ? 'bg-red-900 text-red-200 font-bold'
-                  : isActive
-                  ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-300'
-                  : 'hover:bg-neutral-800 hover:text-white'
-              }`}
-              title={`${w.startTime.toFixed(2)}s - ${w.endTime.toFixed(2)}s`}
-            >
-              {w.word}
-            </span>
-          );
-        })}
+            return (
+              <span
+                key={w.id}
+                onClick={(e) => handleWordClick(w, e)}
+                className={`inline-block px-1 py-0.5 rounded cursor-pointer transition-all ${
+                  isSelected
+                    ? 'bg-red-900 text-red-200 font-bold'
+                    : isActive
+                    ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-300'
+                    : 'hover:bg-neutral-800 hover:text-white'
+                }`}
+                title={`${w.startTime.toFixed(2)}s - ${w.endTime.toFixed(2)}s`}
+              >
+                {w.word}
+              </span>
+            );
+          })
+        )}
       </div>
 
       {/* Footer Info */}
