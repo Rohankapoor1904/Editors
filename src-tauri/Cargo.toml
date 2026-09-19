@@ -20,5 +20,7 @@ hound = "3.5.1"
 ort = "2.0.0-rc.13"
 ndarray = "0.17.2"
 regex = "1.13.1"
+lazy_static = "1.5.0"
+uuid = { version = "1.26.1", features = ["v4"] }
 [dev-dependencies]
 tempfile = "3.8"
