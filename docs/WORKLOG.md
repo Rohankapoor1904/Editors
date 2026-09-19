@@ -1,3 +1,10 @@
+## 2026-09-19 — Jules — R11.3
+- **Did:** Updated `src/services/runtimeConfig.ts` to block 'demo' mode activation in production environments using a dev mode check. Conditionally rendered the LIVE/DEMO toggle button in `src/components/TopBar.tsx` only for dev environments. Verified via mocked tests in `src/__tests__/runtimeMode.test.ts` and `src/components/TopBar.test.tsx`.
+- **Verified:** `npm run build`, `npm run test`, and `npm run lint` all passed successfully.
+- **Left undone:** N/A.
+- **Next:** Proceed with R11.4 to remove the hardcoded demo project on boot.
+- **Blockers:** None.
+
 # Session Worklog
 
 ---
