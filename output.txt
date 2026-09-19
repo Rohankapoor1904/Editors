@@ -1,0 +1,91 @@
+Task: R11.6
+
+### Verification commands output
+
+> cinecraft-ai-desktop@1.0.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 1564 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                        0.50 kB │ gzip:  0.34 kB
+dist/assets/index-B2nMpOId.css        41.72 kB │ gzip:  7.45 kB
+dist/assets/transaction-olRqB7ll.js    0.42 kB │ gzip:  0.27 kB
+dist/assets/index-D-akShih.js        302.33 kB │ gzip: 89.00 kB
+✓ built in 4.42s
+
+> cinecraft-ai-desktop@1.0.0 test
+> node scripts/verify-invariants.mjs && vitest run
+
+🔍 Running Mechanical Invariant Checks...
+✅ All mechanical invariants passed cleanly.
+
+ RUN  v2.1.9 /app
+
+ ✓ __tests__/core/commands/edits.test.ts (8 tests) 16ms
+ ✓ src/__tests__/core.test.ts (23 tests | 1 skipped) 13ms
+ ✓ src/components/__tests__/TimelineTrackEditor.test.tsx (6 tests) 1332ms
+ ✓ src/engine/audioEngine.test.ts (4 tests) 22ms
+ ✓ src/engine/effects/baseEffects.test.ts (6 tests) 17ms
+ ✓ src/utils/keyboardShortcuts.test.ts (15 tests) 25ms
+ ✓ src/__tests__/vramPool.test.ts (7 tests) 17ms
+ ✓ src/core/project/schema.test.ts (3 tests) 8ms
+ ✓ src/__tests__/keyframing.behavior.test.ts (14 tests) 12ms
+ ✓ src/__tests__/alignment.test.ts (4 tests) 15ms
+ ✓ src/components/__tests__/AIPromptConsole.test.tsx (2 tests) 330ms
+ ✓ src/__tests__/audioMasterClock.test.ts (1 test) 104ms
+ ✓ src/__tests__/runtimeMode.test.ts (10 tests) 12ms
+ ✓ src/components/TopBar.test.tsx (3 tests) 433ms
+ ✓ src/engine/frameCache.test.ts (4 tests) 7ms
+ ✓ src/services/agentOrchestrator.test.ts (1 test) 18ms
+ ✓ src/engine/exportQueue.test.ts (2 tests) 109ms
+ ✓ src/components/__tests__/AssetBin.test.tsx (3 tests) 473ms
+ ✓ src/engine/parametricEq.test.ts (3 tests) 8ms
+ ✓ src/__tests__/webgpuRenderer.test.ts (2 tests) 11ms
+ ✓ src/__tests__/RenderGraph.test.ts (2 tests) 5ms
+ ✓ src/__tests__/tools.test.ts (9 tests) 12ms
+ ✓ src/__tests__/commands.test.ts (2 tests) 7ms
+ ✓ src/engine/scopes.test.ts (3 tests) 9ms
+ ✓ src/engine/audioGraph.test.ts (2 tests) 13ms
+ ✓ src/__tests__/autoReframe.test.ts (2 tests) 32ms
+ ✓ src/engine/voiceIsolation.test.ts (1 test) 37ms
+ ✓ src/core/commands/audio.test.ts (2 tests) 6ms
+ ✓ src/__tests__/transforms.test.ts (3 tests) 8ms
+ ✓ src/engine/colorManagement.test.ts (4 tests) 9ms
+ ✓ src/services/semanticSearch.test.ts (3 tests) 8ms
+ ✓ src/components/ExportModal.test.tsx (2 tests) 286ms
+ ✓ src/__tests__/rationalTime.test.ts (1 test) 6ms
+ ✓ src/engine/limiter.test.ts (2 tests) 11ms
+ ✓ src/engine/perception/vlm.test.ts (4 tests) 10ms
+ ✓ src/engine/loudness.test.ts (2 tests) 58ms
+ ✓ src/components/__tests__/AudioWorkspace.test.tsx (1 test) 86ms
+ ✓ src/components/__tests__/ParametricEqView.test.tsx (2 tests) 333ms
+ ✓ __tests__/engine/captionEngine.test.ts (2 tests) 4ms
+ ✓ src/utils/audio.test.ts (2 tests) 4ms
+
+ Test Files  40 passed (40)
+      Tests  171 passed | 1 skipped (172)
+   Start at  12:44:59
+   Duration  24.05s
+
+> cinecraft-ai-desktop@1.0.0 lint
+> eslint . --ext .ts,.tsx
+
+
+### Changed Files
+- `package.json`
+- `package-lock.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/Cargo.lock`
+- `src-tauri/src/main.rs`
+- `src-tauri/capabilities/default.json`
+- `src-tauri/gen/schemas/acl-manifests.json`
+- `src-tauri/gen/schemas/capabilities.json`
+- `src-tauri/gen/schemas/desktop-schema.json`
+- `src-tauri/gen/schemas/linux-schema.json`
+- `src/services/nativeBridge.ts`
+
+### Honest Limitations
+Everything from the R11.6 task scope was completed, but this relies on a desktop Tauri host for full native testing as specified. In Web mode, it behaves correctly by failing with a `NotImplementedError` when native dependencies like Dialog or Probe are missing.
