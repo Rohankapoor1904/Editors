@@ -50,3 +50,5 @@ export class LimiterEngine {
         }
     }
 }
+
+export const limiterEngine = new LimiterEngine();

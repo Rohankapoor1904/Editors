@@ -6,6 +6,7 @@ import { Clip } from '../types/timeline';
 class MockGainNode {
     gain: any;
     connect = vi.fn();
+    disconnect = vi.fn();
     constructor() {
         this.gain = {
             setValueAtTime: vi.fn(),
@@ -24,6 +25,25 @@ class MockAudioContext {
     createGain() { return new MockGainNode(); }
     createAnalyser() { return { getFloatTimeDomainData: vi.fn() }; }
     resume = vi.fn().mockResolvedValue(undefined);
+    createBiquadFilter = vi.fn(() => ({
+        type: '',
+        frequency: { value: 0 },
+        Q: { value: 0 },
+        gain: { value: 0 },
+        connect: vi.fn()
+    }));
+    createDynamicsCompressor = vi.fn(() => ({
+        threshold: { value: 0 },
+        knee: { value: 0 },
+        ratio: { value: 0 },
+        attack: { value: 0 },
+        release: { value: 0 },
+        connect: vi.fn()
+    }));
+    createDelay = vi.fn(() => ({
+        delayTime: { value: 0 },
+        connect: vi.fn()
+    }));
 }
 
 describe('WebAudioEngineManager R2.5', () => {
@@ -82,7 +102,7 @@ describe('WebAudioEngineManager R2.5', () => {
         const gainNode2 = engine.getOrCreateClipGain(clip2.id) as any;
 
         // Context anchor is 100s, playhead is at 0s
-        engine.applyMicroCrossfade(clip1, clip2, 100, 0);
+        engine.applyMicroCrossfade(clip1, clip2, 100, { value: 0, rate: 1 });
 
         // Seam is at 10s on timeline -> 110s in context
         // Left clip fades out from 109.995 to 110
@@ -114,7 +134,7 @@ describe('WebAudioEngineManager R2.5', () => {
         const gainNode2 = engine.getOrCreateClipGain(clip2.id) as any;
 
         // Context anchor is 100s, playhead is at 0s
-        engine.applyCrossfade(clip1, clip2, 100, 0);
+        engine.applyCrossfade(clip1, clip2, 100, { value: 0, rate: 1 });
 
         // Right clip starts at 9 on timeline -> 109 in context
         // Overlap ends at 10 on timeline -> 110 in context
@@ -135,6 +155,38 @@ describe('WebAudioEngineManager Routes R5.1', () => {
         engine = new WebAudioEngineManager();
         engine.init(48000);
     });
+    test('seam math avoids float accumulation (zero drift)', () => {
+        // Create an extreme rational fraction (e.g., 1/3) that would accumulate float drift
+        const clip1: Clip = {
+            id: 'c1', assetId: 'a1', name: 'clip1',
+            startOffset: { value: 0, rate: 3 },
+            sourceIn: { value: 0, rate: 3 },
+            sourceOut: { value: 1, rate: 3 },
+            duration: { value: 1, rate: 3 } // ends at 1/3
+        };
+        const clip2: Clip = {
+            id: 'c2', assetId: 'a2', name: 'clip2',
+            startOffset: { value: 1, rate: 3 }, // starts at 1/3
+            sourceIn: { value: 0, rate: 3 },
+            sourceOut: { value: 1, rate: 3 },
+            duration: { value: 1, rate: 3 }
+        };
+
+        const gainNode1 = engine.getOrCreateClipGain(clip1.id) as any;
+        const gainNode2 = engine.getOrCreateClipGain(clip2.id) as any;
+
+        // Context anchor is 0, playhead is at 0
+        engine.applyMicroCrossfade(clip1, clip2, 0, { value: 0, rate: 1 });
+
+        // Expected float target for 1/3 is exactly 1/3
+        const seamTime = 1 / 3;
+
+        // Ensure that the calculated schedule matches exactly our single float conversion
+        // and doesn't drift by adding multiple floats.
+        expect(gainNode1.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, seamTime);
+        expect(gainNode2.gain.setValueAtTime).toHaveBeenCalledWith(0, seamTime);
+    });
+
     test('routes track correctly to graph buses based on track id', () => {
         const dialogueGain = engine.getOrCreateTrackGain('dialogue_1') as any;
         expect(dialogueGain.connect).toHaveBeenCalled();

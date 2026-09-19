@@ -1,7 +1,9 @@
 import { Clip } from '../types/timeline';
 import { useTimelineStore } from '../store/timelineStore';
-import { addRational, compareRational } from '../types/time';
+import { addRational, compareRational, subRational, RationalTime } from '../types/time';
 import { AudioGraph } from './audioGraph';
+import { parametricEqEngine } from './parametricEq';
+import { limiterEngine } from './limiter';
 
 export class WebAudioEngineManager {
   private ctx: AudioContext | null = null;
@@ -17,6 +19,18 @@ export class WebAudioEngineManager {
     if (AudioCtx) {
       this.ctx = new AudioCtx({ sampleRate });
       this.graph = new AudioGraph(this.ctx);
+
+      const masterBus = this.graph.getBus('master');
+      if (masterBus) {
+         masterBus.output.disconnect();
+         const eqFilters = parametricEqEngine.init(this.ctx);
+         const limiterNodes = limiterEngine.init(this.ctx);
+
+         masterBus.output.connect(eqFilters[0]);
+         eqFilters[eqFilters.length - 1].connect(limiterNodes.input);
+         limiterNodes.output.connect(this.ctx.destination);
+      }
+
       // Ensure default buses exist
       this.graph.createBus('dialogue');
       this.graph.createBus('music');
@@ -134,7 +148,7 @@ export class WebAudioEngineManager {
 
 
   // Applies a 10ms micro-crossfade between two adjacent clips on a cut seam to avoid clicks.
-  applyMicroCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimelineSec: number) {
+  applyMicroCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimeline: RationalTime) {
     const gainNodeLeft = this.getOrCreateClipGain(leftClip.id);
     const gainNodeRight = this.getOrCreateClipGain(rightClip.id);
 
@@ -146,10 +160,11 @@ export class WebAudioEngineManager {
     const isAdjacent = compareRational(leftEnd, rightClip.startOffset) === 0;
 
     if (isAdjacent) {
-      const leftEndSec = leftEnd.value / leftEnd.rate;
+      const seamOffsetTimeline = subRational(leftEnd, playheadTimeline);
+      const seamOffsetTimelineSec = seamOffsetTimeline.value / seamOffsetTimeline.rate;
 
       // Find context-relative offsets
-      const seamOffsetContext = (leftEndSec - playheadTimelineSec) + playbackContextAnchorSec;
+      const seamOffsetContext = seamOffsetTimelineSec + playbackContextAnchorSec;
 
       const fadeDuration = 0.005; // 5ms fade out, 5ms fade in, total 10ms
 
@@ -171,23 +186,25 @@ export class WebAudioEngineManager {
     }
   }
 
-  applyCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimelineSec: number) {
+  applyCrossfade(leftClip: Clip, rightClip: Clip, playbackContextAnchorSec: number, playheadTimeline: RationalTime) {
     const gainNodeLeft = this.getOrCreateClipGain(leftClip.id);
     const gainNodeRight = this.getOrCreateClipGain(rightClip.id);
 
     if (!gainNodeLeft || !gainNodeRight || !this.ctx) return;
 
-    const leftStart = leftClip.startOffset.value / leftClip.startOffset.rate;
-    const leftDur = leftClip.duration.value / leftClip.duration.rate;
-    const leftEnd = leftStart + leftDur;
+    const leftEnd = addRational(leftClip.startOffset, leftClip.duration);
 
-    const rightStart = rightClip.startOffset.value / rightClip.startOffset.rate;
-
-    if (rightStart < leftEnd) {
+    if (compareRational(rightClip.startOffset, leftEnd) < 0) {
       // Find context-relative offsets
       // e.g., if rightStart is 10s on timeline, and playhead is at 9s, then rightStart is 1s in the future.
-      const overlapStartOffsetContext = (rightStart - playheadTimelineSec) + playbackContextAnchorSec;
-      const overlapEndOffsetContext = (leftEnd - playheadTimelineSec) + playbackContextAnchorSec;
+      const overlapStartTimeline = subRational(rightClip.startOffset, playheadTimeline);
+      const overlapEndTimeline = subRational(leftEnd, playheadTimeline);
+
+      const overlapStartTimelineSec = overlapStartTimeline.value / overlapStartTimeline.rate;
+      const overlapEndTimelineSec = overlapEndTimeline.value / overlapEndTimeline.rate;
+
+      const overlapStartOffsetContext = overlapStartTimelineSec + playbackContextAnchorSec;
+      const overlapEndOffsetContext = overlapEndTimelineSec + playbackContextAnchorSec;
 
       // Only schedule if it's in the future or very close to present
       if (overlapEndOffsetContext > this.ctx.currentTime) {
