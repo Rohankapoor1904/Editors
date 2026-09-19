@@ -139,6 +139,7 @@ export class WebGPURendererEngine {
       }
     } catch (err) {
       console.error('Failed to initialize WebGPU renderer:', err);
+      throw err;
     }
 
     this.context2d = canvas.getContext('2d');

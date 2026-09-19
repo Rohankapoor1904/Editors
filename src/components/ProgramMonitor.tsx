@@ -19,6 +19,7 @@ export const ProgramMonitor: React.FC = () => {
   const [isLooping, setIsLooping] = useState(transportEngine.isLooping);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [transcriptWords] = useState<WordTimestamp[]>([]);
+  const [webgpuError, setWebgpuError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = transportEngine.subscribe((playing) => {
@@ -31,6 +32,9 @@ export const ProgramMonitor: React.FC = () => {
     if (canvasRef.current) {
       webgpuEngine.init(canvasRef.current).then((supported: boolean) => {
         setIsWebGPUActive(supported);
+        setWebgpuError(null);
+      }).catch((err) => {
+        setWebgpuError(err.message || String(err));
       });
     }
   }, []);
@@ -198,18 +202,31 @@ export const ProgramMonitor: React.FC = () => {
             className="w-full h-full object-contain"
           />
 
+          {webgpuError && (
+            <div className="absolute inset-0 bg-neutral-900/90 flex flex-col items-center justify-center p-4 text-center z-20">
+              <span className="text-red-400 font-bold mb-2">Renderer Error</span>
+              <span className="text-red-300 text-xs">{webgpuError}</span>
+            </div>
+          )}
+
           {/* Timecode Badge Overlay (Top Left) */}
           <div className="absolute top-2 left-2 bg-neutral-950/85 backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] font-mono text-indigo-400 border border-neutral-800 shadow-lg font-semibold z-10 pointer-events-none">
             {formatTimecode(rationalToSeconds(playheadPosition))}
           </div>
 
           {/* WebGPU Status Pill Overlay (Bottom Right) */}
-          <div className="absolute bottom-2 right-2 bg-neutral-950/85 backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-mono flex items-center space-x-1 border border-neutral-800 shadow-lg z-10 pointer-events-none">
-            <Cpu className={`w-2.5 h-2.5 ${isWebGPUActive ? 'text-emerald-400' : 'text-amber-400'}`} />
-            <span className={isWebGPUActive ? 'text-emerald-300 font-semibold' : 'text-amber-300'}>
-              {isWebGPUActive ? 'WebGPU' : 'Canvas2D'}
-            </span>
-          </div>
+          {webgpuError ? (
+            <div className="absolute bottom-2 right-2 bg-red-950/85 backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-mono flex items-center space-x-1 border border-red-800 shadow-lg z-10 pointer-events-none">
+              <span className="text-red-300 font-semibold">WebGPU Error</span>
+            </div>
+          ) : (
+            <div className="absolute bottom-2 right-2 bg-neutral-950/85 backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-mono flex items-center space-x-1 border border-neutral-800 shadow-lg z-10 pointer-events-none">
+              <Cpu className={`w-2.5 h-2.5 ${isWebGPUActive ? 'text-emerald-400' : 'text-amber-400'}`} />
+              <span className={isWebGPUActive ? 'text-emerald-300 font-semibold' : 'text-amber-300'}>
+                {isWebGPUActive ? 'WebGPU' : 'Canvas2D'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
