@@ -38,7 +38,7 @@ fn check_file_exists(file_path: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn open_media_file_dialog(file_path: String) -> Result<MediaProbeInfo, String> {
+fn probe_media_file(file_path: String) -> Result<MediaProbeInfo, String> {
     FFmpegDemuxerEngine::probe_file(&file_path)
 }
 
@@ -80,8 +80,9 @@ fn get_available_encoders() -> Result<Vec<String>, String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            open_media_file_dialog,
+            probe_media_file,
             demux_video_frames,
             run_whisper_stt,
             detect_vad_silence,
