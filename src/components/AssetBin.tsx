@@ -12,7 +12,7 @@ export const AssetBin: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [scrubPosition, setScrubPosition] = useState<{ [assetId: string]: number }>({});
 
-  const { assets, addAsset, updateAssetStatus, relinkAsset } = useMediaPoolStore();
+  const { assets, addAsset, updateAssetStatus, relinkAsset, selectedAssetId, selectAsset } = useMediaPoolStore();
 
   // Optionally periodic check for offline files.
   // In a real app we might watch files or check on focus.
@@ -284,10 +284,11 @@ export const AssetBin: React.FC = () => {
                 <div
                   key={asset.id}
                   draggable={true}
+                  onClick={(e) => { e.stopPropagation(); selectAsset(asset.id); }}
                   onDragStart={(e) => { e.dataTransfer.setData("text/plain", asset.id); }}
                   onMouseMove={(e) => handleMouseMove(e, asset.id)}
                   onMouseLeave={() => handleMouseLeave(asset.id)}
-                  className="group relative bg-dark-900 border border-subtle hover:border-indigo-accent/80 rounded-panel p-2 transition-all duration-150 cursor-pointer shadow hover:shadow-indigo-500/10 flex flex-col justify-between"
+                  className={`group relative bg-dark-900 border ${asset.id === selectedAssetId ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-subtle hover:border-indigo-accent/80'} rounded-panel p-2 transition-all duration-150 cursor-pointer shadow hover:shadow-indigo-500/10 flex flex-col justify-between`}
                 >
                   {/* Thumbnail Graphic Representation with Hover Scrub */}
                   <div className="w-full h-20 bg-dark-950 rounded border border-subtle overflow-hidden relative flex items-center justify-center">
@@ -380,8 +381,9 @@ export const AssetBin: React.FC = () => {
               <div
                 key={asset.id}
                 draggable={true}
+                onClick={(e) => { e.stopPropagation(); selectAsset(asset.id); }}
                 onDragStart={(e) => { e.dataTransfer.setData("text/plain", asset.id); }}
-                className={`flex items-center justify-between p-2 rounded-panel bg-dark-900 border hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all ${asset.isOffline ? 'border-red-900/30' : 'border-subtle'}`}
+                className={`flex items-center justify-between p-2 rounded-panel bg-dark-900 border hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all ${asset.isOffline ? 'border-red-900/30' : asset.id === selectedAssetId ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-subtle'}`}
               >
                 <div className="flex items-center space-x-2.5 truncate">
                   {asset.type === 'video' || asset.type === 'ai' ? (

@@ -15,14 +15,18 @@ export interface MediaAsset {
 
 interface MediaPoolState {
   assets: MediaAsset[];
+  selectedAssetId: string | null;
   addAsset: (asset: MediaAsset) => void;
   removeAsset: (assetId: string) => void;
   updateAssetStatus: (assetId: string, isOffline: boolean) => void;
   relinkAsset: (assetId: string, newPath: string) => void;
+  selectAsset: (assetId: string | null) => void;
 }
 
 export const useMediaPoolStore = create<MediaPoolState>((set) => ({
   assets: [],
+  selectedAssetId: null,
+  selectAsset: (assetId) => set({ selectedAssetId: assetId }),
   addAsset: (asset) =>
     set((state) => {
       const existsIndex = state.assets.findIndex((a) => a.fingerprint === asset.fingerprint);
