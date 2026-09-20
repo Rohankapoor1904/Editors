@@ -618,3 +618,74 @@ export class UpdateTransformCommand implements Command {
     return this.previousState;
   }
 }
+
+export class UpdateClipEffectCommand implements Command {
+  private previousState: TimelineState | null = null;
+  public coalesceKey?: string;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly effectId: string,
+    private readonly effectType: string,
+    private readonly newParams: Record<string, unknown>
+  ) {
+    this.coalesceKey = `UpdateClipEffectCommand_${clipId}_${effectId}`;
+  }
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let foundClip = false;
+
+    const newTracks = state.tracks.map(track => ({
+      ...track,
+      clips: track.clips.map(clip => {
+        if (clip.id === this.clipId) {
+          foundClip = true;
+          const currentEffects = clip.effects || [];
+          const effectIndex = currentEffects.findIndex(e => e.id === this.effectId);
+
+          let newEffects;
+          if (effectIndex >= 0) {
+            newEffects = [...currentEffects];
+            newEffects[effectIndex] = {
+              ...newEffects[effectIndex],
+              params: {
+                ...newEffects[effectIndex].params,
+                ...this.newParams
+              }
+            };
+          } else {
+            newEffects = [...currentEffects, {
+              id: this.effectId,
+              type: this.effectType,
+              enabled: true,
+              params: this.newParams
+            }];
+          }
+
+          return {
+            ...clip,
+            effects: newEffects
+          };
+        }
+        return clip;
+      })
+    }));
+
+    if (!foundClip) {
+      throw new Error(`Clip with id ${this.clipId} not found for effect update`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) {
+      return state;
+    }
+    return this.previousState;
+  }
+}

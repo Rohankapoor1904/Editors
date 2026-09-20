@@ -181,11 +181,14 @@ export const ProgramMonitor: React.FC = () => {
           const uData = frameBuffer.data.subarray(width * height, width * height + uvSize);
           const vData = frameBuffer.data.subarray(width * height + uvSize, width * height + uvSize * 2);
 
+          const colorGradeEffect = activeClip.effects?.find(e => e.type === 'colorGrade' && e.enabled);
+
           webgpuEngine.renderFrame({
             width: width,
             height: height,
             timecode: rationalToSeconds(playheadPosition),
             transform: activeClip.transform, // Pass transform if present
+            colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
             captionData: {
               words: transcriptWords
             },
@@ -204,10 +207,12 @@ export const ProgramMonitor: React.FC = () => {
           }
         }).catch(err => {
           console.warn("Error fetching frame for preview", err);
+          const colorGradeEffect = activeClip.effects?.find(e => e.type === 'colorGrade' && e.enabled);
           webgpuEngine.renderFrame({
              width: canvasWidth,
              height: canvasHeight,
              timecode: rationalToSeconds(playheadPosition),
+             colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
              captionData: { words: transcriptWords }
           });
         });

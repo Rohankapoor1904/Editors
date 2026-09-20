@@ -12,7 +12,8 @@ import {
   OverwriteCommand,
   SlipCommand,
   SlideCommand,
-  UpdateTransformCommand
+  UpdateTransformCommand,
+  UpdateClipEffectCommand
 } from '../core/commands/edits';
 
 interface UndoState {
@@ -42,6 +43,7 @@ interface TimelineStoreActions {
   overwriteClip: (trackId: string, clip: Clip) => void;
   toggleClipMute: (clipId: string) => void;
   updateClipTransform: (clipId: string, transform: Transform) => void;
+  updateClipEffect: (clipId: string, effectId: string, effectType: string, params: Record<string, unknown>) => void;
 }
 
 export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
@@ -239,5 +241,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   },
   updateClipTransform: (clipId, transform) => {
     get().executeCommand(new UpdateTransformCommand(clipId, transform));
+  },
+  updateClipEffect: (clipId, effectId, effectType, params) => {
+    get().executeCommand(new UpdateClipEffectCommand(clipId, effectId, effectType, params));
   },
 }));
