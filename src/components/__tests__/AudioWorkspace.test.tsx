@@ -8,6 +8,8 @@ vi.mock('../../engine/audioEngine', () => ({
     isInitialized: false,
     graph: null,
     setTrackVolume: vi.fn(),
+    setTrackPan: vi.fn(),
+    getTrackLevels: vi.fn(() => [-60, -60]),
   },
 }));
 

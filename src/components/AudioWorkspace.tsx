@@ -1,11 +1,8 @@
 import React, { useEffect } from 'react';
-import { useTimelineStore } from '../store/timelineStore';
 import { ParametricEqView } from './ParametricEqView';
-import { audioEngine } from '../engine/audioEngine';
+import { AudioMixer } from './AudioMixer';
 
 export const AudioWorkspace: React.FC = () => {
-  const tracks = useTimelineStore((state) => state.tracks);
-  const audioTracks = tracks.filter((t) => t.type === 'audio');
 
   useEffect(() => {
     // We are honestly disabling the LUFS meter because extracting float data buffers
@@ -20,33 +17,7 @@ export const AudioWorkspace: React.FC = () => {
         <div className="flex-1 space-y-4">
           <ParametricEqView />
 
-          <div className="bg-neutral-900 p-4 rounded-md border border-neutral-800">
-            <h3 className="text-sm font-semibold mb-4 text-neutral-300">Track Mixer</h3>
-            <div className="flex space-x-4">
-              {audioTracks.map(track => (
-                <div key={track.id} className="flex flex-col items-center flex-1 bg-neutral-950 p-2 rounded-md" data-testid={`track-fader-${track.id}`}>
-                  <div className="text-xs font-semibold text-neutral-400 mb-2 truncate w-full text-center" title={track.name}>
-                    {track.name}
-                  </div>
-                  <input
-                    type="range"
-                    min="-48"
-                    max="12"
-                    step="1"
-                    defaultValue="0"
-                    onChange={(e) => {
-                      // Apply track volume via store or engine
-                      // We can directly use audioEngine here
-                      audioEngine.setTrackVolume(track.id, parseFloat(e.target.value));
-                    }}
-                    className="w-2 h-40 appearance-none bg-neutral-700 outline-none rounded-full"
-                    style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
-                  />
-                  <div className="text-[10px] text-neutral-500 mt-2">0 dB</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <AudioMixer />
         </div>
 
         <div className="w-24 bg-neutral-900 p-4 rounded-md border border-neutral-800 flex flex-col items-center opacity-50">
