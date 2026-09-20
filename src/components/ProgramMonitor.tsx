@@ -9,9 +9,17 @@ import { transportEngine } from '../engine/transport';
 import { audioEngine } from '../engine/audioEngine';
 import { frameCache } from '../engine/frameCache';
 import { useMediaPoolStore } from '../store/mediaPool';
+import { TransformGizmo } from './TransformGizmo';
 
 export const ProgramMonitor: React.FC = () => {
-  const { tracks, playheadPosition, metadata, setPlayheadPosition } = useTimelineStore();
+  const {
+    tracks,
+    playheadPosition,
+    metadata,
+    setPlayheadPosition,
+    selectedClipIds,
+    updateClipTransform,
+  } = useTimelineStore();
   const { assets } = useMediaPoolStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isWebGPUActive, setIsWebGPUActive] = useState(false);
@@ -254,6 +262,11 @@ export const ProgramMonitor: React.FC = () => {
     }
   };
 
+  const selectedVideoClip = tracks
+    .filter(t => t.type === 'video')
+    .flatMap(t => t.clips)
+    .find(c => selectedClipIds.includes(c.id));
+
   return (
     <div ref={monitorRef} className="flex-1 bg-neutral-950 flex flex-col justify-between items-center p-3 select-none relative overflow-hidden">
       {/* Top Monitor Bar / Quality & Aspect Selectors */}
@@ -319,6 +332,15 @@ export const ProgramMonitor: React.FC = () => {
             height={canvasHeight}
             className="w-full h-full object-contain"
           />
+
+          {selectedVideoClip && (
+            <TransformGizmo
+              clip={selectedVideoClip}
+              containerWidth={canvasWidth}
+              containerHeight={canvasHeight}
+              onUpdateTransform={(t) => updateClipTransform(selectedVideoClip.id, t)}
+            />
+          )}
 
           {webgpuError && (
             <div className="absolute inset-0 bg-neutral-900/90 flex flex-col items-center justify-center p-4 text-center z-20">

@@ -62,13 +62,22 @@ export const TranscriptEditor: React.FC = () => {
     };
   }, [activeAssetPath]);
 
-  const handleWordClick = (word: WordTimestamp, e: React.MouseEvent) => {
-    if (e.shiftKey) {
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
+
+  const handleWordClick = (word: WordTimestamp, index: number, e: React.MouseEvent) => {
+    if (e.shiftKey && lastClickedIndex !== null) {
+      const start = Math.min(lastClickedIndex, index);
+      const end = Math.max(lastClickedIndex, index);
+      const rangeIds = words.slice(start, end + 1).map(w => w.id);
+      setSelectedWordIds(rangeIds);
+    } else if (e.ctrlKey || e.metaKey) {
       setSelectedWordIds((prev) =>
         prev.includes(word.id) ? prev.filter((id) => id !== word.id) : [...prev, word.id]
       );
+      setLastClickedIndex(index);
     } else {
       setSelectedWordIds([word.id]);
+      setLastClickedIndex(index);
       setPlayheadPosition(secondsToRational(word.startTime));
     }
   };
@@ -84,7 +93,20 @@ export const TranscriptEditor: React.FC = () => {
     // Remove deleted words from transcript view and update timestamps
     setWords(updatedWords);
     setSelectedWordIds([]);
+    setLastClickedIndex(null);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectedWordIds.length > 0) {
+        if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+        e.preventDefault();
+        handleDeleteSelected();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedWordIds, words]);
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 flex flex-col h-full select-none text-xs">
@@ -128,25 +150,45 @@ export const TranscriptEditor: React.FC = () => {
             <p>No speech detected.</p>
           </div>
         ) : (
-          words.map((w) => {
+          words.map((w, index) => {
             const isActive = rationalToSeconds(playheadPosition) >= w.startTime && rationalToSeconds(playheadPosition) <= w.endTime;
             const isSelected = selectedWordIds.includes(w.id);
+            const prevWord = index > 0 ? words[index - 1] : null;
+            const pauseBefore = prevWord ? w.startTime - prevWord.endTime : 0;
 
             return (
-              <span
-                key={w.id}
-                onClick={(e) => handleWordClick(w, e)}
-                className={`inline-block px-1 py-0.5 rounded cursor-pointer transition-all ${
-                  isSelected
-                    ? 'bg-red-900 text-red-200 font-bold'
-                    : isActive
-                    ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-300'
-                    : 'hover:bg-neutral-800 hover:text-white'
-                }`}
-                title={`${w.startTime.toFixed(2)}s - ${w.endTime.toFixed(2)}s`}
-              >
-                {w.word}
-              </span>
+              <React.Fragment key={w.id}>
+                {pauseBefore >= 0.4 && (
+                  <span
+                    onClick={() => {
+                      rippleDelete(secondsToRational(prevWord!.endTime), secondsToRational(pauseBefore));
+                      const updated = words.map(item => item.startTime >= w.startTime ? {
+                        ...item,
+                        startTime: item.startTime - pauseBefore,
+                        endTime: item.endTime - pauseBefore
+                      } : item);
+                      setWords(updated);
+                    }}
+                    className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-[10px] font-mono bg-amber-950/60 text-amber-300 border border-amber-600/40 hover:bg-red-900 hover:text-white cursor-pointer transition-colors shadow-sm"
+                    title={`Pause ${pauseBefore.toFixed(2)}s: Click to ripple delete silence`}
+                  >
+                    [{pauseBefore.toFixed(1)}s]
+                  </span>
+                )}
+                <span
+                  onClick={(e) => handleWordClick(w, index, e)}
+                  className={`inline-block px-1 py-0.5 rounded cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-red-900 text-red-200 font-bold'
+                      : isActive
+                      ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-300'
+                      : 'hover:bg-neutral-800 hover:text-white'
+                  }`}
+                  title={`${w.startTime.toFixed(2)}s - ${w.endTime.toFixed(2)}s (Shift-click to select range)`}
+                >
+                  {w.word}
+                </span>
+              </React.Fragment>
             );
           })
         )}
