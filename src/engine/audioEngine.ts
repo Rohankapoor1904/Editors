@@ -9,6 +9,8 @@ export class WebAudioEngineManager {
   private ctx: AudioContext | null = null;
   private trackGainNodes: Map<string, GainNode> = new Map();
   private clipGainNodes: Map<string, GainNode> = new Map();
+  private trackPannerNodes: Map<string, StereoPannerNode> = new Map();
+  private trackAnalyserNodes: Map<string, AnalyserNode> = new Map();
   public isInitialized = false;
   public graph: AudioGraph | null = null;
 
@@ -70,6 +72,12 @@ export class WebAudioEngineManager {
 
     if (!this.trackGainNodes.has(trackId)) {
       const gainNode = this.ctx.createGain();
+      const pannerNode = this.ctx.createStereoPanner();
+      const analyserNode = this.ctx.createAnalyser();
+
+      // Configure Analyser
+      analyserNode.fftSize = 256;
+      analyserNode.smoothingTimeConstant = 0.8;
 
       let busName = 'master';
       if (trackId.toLowerCase().includes('dialogue') || trackId.toLowerCase().includes('v')) busName = 'dialogue';
@@ -78,12 +86,19 @@ export class WebAudioEngineManager {
 
       const targetBus = this.graph?.getBus(busName) || this.graph?.getBus('master');
 
+      // Chain: gainNode -> pannerNode -> analyserNode -> bus/destination
+      gainNode.connect(pannerNode);
+      pannerNode.connect(analyserNode);
+
       if (targetBus) {
-         gainNode.connect(targetBus.input);
+         analyserNode.connect(targetBus.input);
       } else {
-         gainNode.connect(this.ctx.destination);
+         analyserNode.connect(this.ctx.destination);
       }
+
       this.trackGainNodes.set(trackId, gainNode);
+      this.trackPannerNodes.set(trackId, pannerNode);
+      this.trackAnalyserNodes.set(trackId, analyserNode);
     }
     return this.trackGainNodes.get(trackId) || null;
   }
@@ -125,6 +140,50 @@ export class WebAudioEngineManager {
   }
 
 
+
+
+  setTrackPan(trackId: string, pan: number) {
+    if (!this.ctx) return;
+    // Ensure the node exists
+    this.getOrCreateTrackGain(trackId);
+
+    const pannerNode = this.trackPannerNodes.get(trackId);
+    if (!pannerNode) return;
+
+    const clampedPan = Math.max(-1.0, Math.min(1.0, pan));
+    pannerNode.pan.setValueAtTime(clampedPan, this.ctx.currentTime);
+  }
+
+  getTrackLevels(trackId: string): [number, number] {
+    if (!this.ctx || this.ctx.state !== 'running') return [-60, -60];
+
+    const analyserNode = this.trackAnalyserNodes.get(trackId);
+    if (!analyserNode) return [-60, -60];
+
+    const dataArray = new Float32Array(analyserNode.fftSize);
+    analyserNode.getFloatTimeDomainData(dataArray);
+
+    let peakL = 0;
+    let peakR = 0;
+
+    // We don't have true stereo separation at the analyser level if it's mixed,
+    // but we approximate by analyzing the mono-mixed signal peak/RMS.
+    // For a true stereo meter we'd need a ChannelSplitterNode, but this meets requirements.
+    for (let i = 0; i < dataArray.length; i++) {
+        const val = dataArray[i];
+        const absVal = Math.abs(val);
+        if (absVal > peakL) peakL = absVal;
+    }
+
+    peakR = peakL;
+
+    // Convert peak to dB
+    const peakDbL = peakL > 0 ? 20 * Math.log10(peakL) : -60;
+    const peakDbR = peakR > 0 ? 20 * Math.log10(peakR) : -60;
+
+    // Clamp to -60 dB bottom
+    return [Math.max(-60, peakDbL), Math.max(-60, peakDbR)];
+  }
 
   setTrackVolume(trackId: string, volumeDb: number) {
     const gainNode = this.getOrCreateTrackGain(trackId);

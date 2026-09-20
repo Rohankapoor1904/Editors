@@ -23,7 +23,8 @@ class MockAudioContext {
     state: string = 'running';
     destination: any = {};
     createGain() { return new MockGainNode(); }
-    createAnalyser() { return { getFloatTimeDomainData: vi.fn() }; }
+    createStereoPanner() { return { pan: { setValueAtTime: vi.fn() }, connect: vi.fn() }; }
+    createAnalyser() { return { fftSize: 256, getFloatTimeDomainData: vi.fn(), connect: vi.fn() }; }
     resume = vi.fn().mockResolvedValue(undefined);
     createBiquadFilter = vi.fn(() => ({
         type: '',
