@@ -14,7 +14,7 @@ export const TopBar: React.FC = () => {
     magneticSnapping, toggleMagneticSnapping,
     metadata,
     undo, redo, splitClip, selectedClipIds, playheadPosition,
-    setZoomLevel, zoomLevel, addTrack
+    setZoomLevel, zoomLevel, addTrack, toggleClipMute, removeClip
   } = useTimelineStore();
 
   const [runtimeMode, setMode] = useState<RuntimeMode>(getRuntimeMode());
@@ -131,16 +131,43 @@ export const TopBar: React.FC = () => {
       { label: 'Toggle Snapping', action: () => toggleMagneticSnapping() },
     ],
     Clip: [
+      { label: 'Split Clip at Playhead', action: () => {
+        if (selectedClipIds.length > 0) {
+          splitClip(selectedClipIds[0], playheadPosition);
+        }
+      } },
+      { label: 'Mute / Unmute Clip', action: () => {
+        if (selectedClipIds.length > 0) {
+          toggleClipMute(selectedClipIds[0]);
+        }
+      } },
+      { label: 'Delete Selected Clip', action: () => {
+        if (selectedClipIds.length > 0) {
+          removeClip(selectedClipIds[0]);
+        }
+      } },
     ],
     Sequence: [
       { label: 'Add Video Track', action: () => addTrack('video') },
       { label: 'Add Audio Track', action: () => addTrack('audio') },
     ],
     Effects: [
+      { label: 'Color Workspace & 3D LUT', action: () => setWorkspace('color') },
+      { label: 'Audio DSP & Parametric EQ', action: () => setWorkspace('audio') },
+      { label: 'AI Copilot & Transcription', action: () => setWorkspace('ai') },
+      { divider: true },
+      { label: 'Standard Edit Workspace', action: () => setWorkspace('edit') },
     ],
     Help: [
+      { label: 'Keyboard Shortcuts', action: () => {
+        alert("CineCraft Shortcuts:\n• Space: Play / Pause\n• S: Split Clip at Playhead\n• M: Toggle Clip Mute\n• Backspace / Del: Delete Clip\n• Cmd/Ctrl + Z: Undo\n• Cmd/Ctrl + Shift + Z: Redo\n• Snap toggle: S key");
+      } },
+      { divider: true },
+      { label: 'About CineCraft AI Studio', action: () => {
+        alert("CineCraft AI Studio v1.0.0\nProfessional AI-Native Desktop Video Editor\nBuilt on WebGPU + React 18 + Tauri 2.0");
+      } },
     ]
-  }), [undo, redo, splitClip, selectedClipIds, playheadPosition, setZoomLevel, zoomLevel, toggleMagneticSnapping, addTrack, setWorkspace]);
+  }), [undo, redo, splitClip, selectedClipIds, playheadPosition, setZoomLevel, zoomLevel, toggleMagneticSnapping, addTrack, setWorkspace, toggleClipMute, removeClip]);
 
   const workspaces: { id: TimelineState['activeWorkspace']; label: string; icon: React.ReactNode }[] = [
     { id: 'edit', label: 'Edit & Cut', icon: <Video className="w-3.5 h-3.5 mr-1 shrink-0" /> },
@@ -177,7 +204,7 @@ export const TopBar: React.FC = () => {
                 {menuName}
               </button>
 
-              {openMenu === menuName && (
+              {openMenu === menuName && menuItems.length > 0 && (
                 <div className="absolute top-full left-0 mt-1 w-48 bg-dark-900 border border-subtle rounded-panel shadow-xl py-1 z-50">
                   {menuItems.map((item, idx) =>
                     item.divider ? (
