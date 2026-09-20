@@ -37,9 +37,8 @@ describe('AudioMixer', () => {
     vi.clearAllMocks();
     mockToggleTrackState.mockClear();
 
-    // Mock requestAnimationFrame for the meters
-    vi.stubGlobal('requestAnimationFrame', vi.fn((cb) => setTimeout(cb, 16)));
-    vi.stubGlobal('cancelAnimationFrame', vi.fn((id) => clearTimeout(id)));
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
   });
 
   it('renders correctly with only audio tracks', () => {
@@ -81,13 +80,20 @@ describe('AudioMixer', () => {
     expect(mockToggleTrackState).toHaveBeenCalledWith('track_a1', 'solo');
   });
 
-  it('polls getTrackLevels', async () => {
-    render(<AudioMixer />);
+  it('polls getTrackLevels', () => {
+    let callback: FrameRequestCallback | null = null;
+    vi.stubGlobal('requestAnimationFrame', vi.fn((cb) => {
+      callback = cb;
+      return 1;
+    }));
 
-    // It should have called it on mount
-    await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-    });
+    render(<AudioMixer />);
+    expect(callback).toBeDefined();
+    if (callback) {
+      act(() => {
+        (callback as FrameRequestCallback)(performance.now());
+      });
+    }
 
     expect(audioEngine.getTrackLevels).toHaveBeenCalledWith('track_a1');
   });
