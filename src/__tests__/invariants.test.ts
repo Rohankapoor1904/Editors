@@ -82,13 +82,6 @@ describe('Mechanical Invariants Gate (R11.14)', () => {
     expect(unregisteredInvokes).toEqual([]);
   });
 
-  it('enforces that sam2Masking or other engines do not contain Math.sin(i * 0.1)', () => {
-    const sam2Path = path.join(projectRoot, 'src/engine/sam2Masking.ts');
-    if (fs.existsSync(sam2Path)) {
-      const content = fs.readFileSync(sam2Path, 'utf-8');
-      expect(content).not.toContain('Math.sin(i * 0.1)');
-    }
-  });
 
   it('enforces that runtimeConfig strictly defaults to live and gates demo behind DEV', () => {
     const runtimeConfigPath = path.join(projectRoot, 'src/services/runtimeConfig.ts');

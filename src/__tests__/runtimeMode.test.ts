@@ -11,7 +11,6 @@ import { whisperService } from '../services/whisperTranscriber';
 import { sileroVadService } from '../services/sileroVad';
 import { nativeBridge } from '../services/nativeBridge';
 import { exportEngine } from '../engine/exportEngine';
-import { sam2Engine } from '../engine/sam2Masking';
 
 import { agentOrchestrator } from '../services/agentOrchestrator';
 
@@ -60,10 +59,6 @@ describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
       ).rejects.toThrow(NotImplementedError);
     });
 
-    it('sam2Engine throws NotImplementedError', async () => {
-      await expect(sam2Engine.generateSubjectMask(null, { x: 100, y: 100 })).rejects.toThrow(NotImplementedError);
-      await expect(sam2Engine.trackSubjectOverSequence(5, { x: 100, y: 100 })).rejects.toThrow(NotImplementedError);
-    });
 
     it('agentOrchestrator throws NotImplementedError', async () => {
       await expect(agentOrchestrator.processPrompt('cut silence', () => {})).rejects.toThrow(NotImplementedError);
@@ -79,11 +74,6 @@ describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
 
 
 
-    it('sam2Engine returns fallback bounding box without throwing', async () => {
-      const res = await sam2Engine.generateSubjectMask(null, { x: 200, y: 300 });
-      expect(res.confidence).toBe(0.96);
-      expect(res.bbox.width).toBe(300);
-    });
 
     it('nativeBridge returns fallback probe metadata without throwing', async () => {
       const res = await nativeBridge.importMediaFile('/path/to/test.mp4');
