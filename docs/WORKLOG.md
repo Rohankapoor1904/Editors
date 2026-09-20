@@ -1,3 +1,22 @@
+## 2026-09-20 — Antigravity & Jules — R12.1
+- **Did:**
+  - Replied to Jules session `4858729607881778323` to approve submission of `R12.1 (Source Monitor UI Panel & In/Out Bar)`.
+  - Resolved Jules empty commit on branch `task-r12-1-4858729607881778323` by extracting and applying the full unified diff from Jules activity artifacts (`SourceMonitor.tsx`, `AssetBin.tsx`, `mediaPool.ts`, `App.tsx`).
+  - Enforced strict RationalTime arithmetic (`subRational`, `addRational`, `compareRational`) in `SourceMonitor.tsx` to prevent float accumulation and drift.
+  - Added unit test suite in `src/components/__tests__/SourceMonitor.test.tsx` verifying empty state, asset selection, Mark In/Out, and timeline track insertion.
+  - Pushed to `origin/task-r12-1-4858729607881778323`, updating PR #88 in place.
+  - Orchestrator verified PR #88 independently with 0 violations and merged PR #88 into `main`.
+  - Dispatched next task `R12.2 (1-Click Silence Trimmer Modal)` to Jules session `8855202041122024456`.
+- **Verified:**
+  - `node scripts/verify-invariants.mjs` -> Clean pass.
+  - `npm test` -> 47 passed (190 passed, 1 skipped, 0 failed).
+  - `npm run build` -> Clean Vite and TypeScript build.
+  - `npm run lint` -> 0 errors.
+  - PR #88 merged to `main` via automated GitHub Actions orchestrator workflow.
+- **Left undone:** None for R12.1.
+- **Next:** Jules works on R12.2 (`SilenceTrimmerModal.tsx`); Antigravity monitors session `8855202041122024456`.
+- **Blockers:** None.
+
 ## 2026-09-20 — Antigravity — R13.1, R13.2, R13.3, R13.4
 - **Did:**
   - **R13.1 (Waveforms):** Created `src/utils/waveform.ts` with deterministic peak/RMS amplitude envelope computation and HTML5 canvas dual-lobe rendering; wired into `TimelineTrackEditor.tsx`, replacing static mock bars; added unit tests in `src/__tests__/waveform.test.ts`.
