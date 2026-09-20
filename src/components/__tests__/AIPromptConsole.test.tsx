@@ -59,12 +59,12 @@ describe('AIPromptConsole R9.7 Features', () => {
 
     // Submit prompt
     const input = screen.getAllByPlaceholderText('Type / for commands, or ask AI to edit...')[0];
-    fireEvent.change(input, { target: { value: '/silence' } });
+    fireEvent.change(input, { target: { value: '/denoise' } });
     fireEvent.submit(input);
 
     // Wait for card to appear
     await waitFor(() => {
-      expect(screen.getByText(/AI Action: \/silence/i)).toBeInTheDocument();
+      expect(screen.getByText(/AI Action: \/denoise/i)).toBeInTheDocument();
     });
 
     // Check store before acceptance
@@ -100,11 +100,11 @@ describe('AIPromptConsole R9.7 Features', () => {
     render(<AIPromptConsole />);
 
     const input = screen.getAllByPlaceholderText('Type / for commands, or ask AI to edit...')[0];
-    fireEvent.change(input, { target: { value: '/silence' } });
+    fireEvent.change(input, { target: { value: '/denoise' } });
     fireEvent.submit(input);
 
     await waitFor(() => {
-      expect(screen.getByText(/AI Action: \/silence/i)).toBeInTheDocument();
+      expect(screen.getByText(/AI Action: \/denoise/i)).toBeInTheDocument();
     });
 
     // Accept it globally
