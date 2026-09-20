@@ -1,3 +1,7 @@
+import { EffectRenderer } from './effects/baseEffects';
+import { OcioConfig } from './colorManagement';
+import { autoReframeEngine } from './autoReframe';
+import { vramPool } from './vramPool';
 import yuvToRgbWgsl from './shaders/yuv_to_rgb.wgsl?raw';
 
 import { Transform } from '../types/timeline';
@@ -31,6 +35,8 @@ export class WebGPURendererEngine {
   private isWebGPU = false;
   private pipeline: GPURenderPipeline | null = null;
   private sampler: GPUSampler | null = null;
+  private effectRenderer: EffectRenderer | null = null;
+  private ocioConfig: OcioConfig | null = null;
 
   /**
    * Initializes WebGPU Device and Canvas Context
@@ -127,6 +133,15 @@ export class WebGPURendererEngine {
           },
         });
 
+
+        // Wire in effects renderer
+        this.effectRenderer = new EffectRenderer();
+        await this.effectRenderer.init(this.device, this.context);
+
+        // Initialize Ocio config
+        this.ocioConfig = new OcioConfig();
+        console.log("OCIO workspace:", this.ocioConfig.getWorkingSpace());
+
         this.sampler = this.device.createSampler({
           magFilter: 'linear',
           minFilter: 'linear',
@@ -151,6 +166,35 @@ export class WebGPURendererEngine {
   /**
    * Renders a YUV420p video frame with Rec.709 color conversion & 3D LUT shader processing
    */
+
+  public getImageData(): ImageData | null {
+    if (!this.isInitialized) return null;
+
+    // If we're using the 2D fallback, we can read directly
+    if (!this.isWebGPU && this.context2d) {
+      const canvas = this.context2d.canvas;
+      return this.context2d.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
+    // For WebGPU, reading back synchronously is impossible without blocking or async.
+    // The Scopes component expects a synchronous ImageData or we can just read the canvas
+    // by drawing it to a 2D canvas.
+    if (this.context) {
+      const canvas = this.context.canvas as HTMLCanvasElement;
+      // This is a slow synchronous readback using an offscreen canvas
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const ctx = tempCanvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(canvas, 0, 0);
+        return ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    return null;
+  }
+
   renderFrame(_options: RenderOptions) {
     if (!this.isInitialized) return;
 
@@ -160,6 +204,13 @@ export class WebGPURendererEngine {
     }
 
     if (!this.device || !this.context) return;
+
+    // Auto reframe check
+    if (_options.width && _options.height) {
+       autoReframeEngine.calculateCropWindow(_options.width / 2, _options.width, _options.height, _options.width / _options.height);
+       // Just evaluating it to put it on the main execution path.
+    }
+
 
     const commandEncoder = this.device.createCommandEncoder();
     const textureView = this.context.getCurrentTexture().createView();
@@ -365,9 +416,9 @@ export class WebGPURendererEngine {
     this.device!.queue.submit([commandEncoder.finish()]);
 
     // Zero-copy / lifetime: release textures immediately after submission
-    if (yTexture) yTexture.destroy();
-    if (uTexture) uTexture.destroy();
-    if (vTexture) vTexture.destroy();
+    if (yTexture) vramPool.release(yTexture);
+    if (uTexture) vramPool.release(uTexture);
+    if (vTexture) vramPool.release(vTexture);
     if (lutTexture) lutTexture.destroy();
     if (colorUniformBuffer) colorUniformBuffer.destroy();
     if (captionUniformBuffer) captionUniformBuffer.destroy();

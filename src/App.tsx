@@ -7,6 +7,7 @@ import { TimelineTrackEditor } from './components/TimelineTrackEditor';
 import { TranscriptEditor } from './components/TranscriptEditor';
 import { ExportModal } from './components/ExportModal';
 import { AudioWorkspace } from './components/AudioWorkspace';
+import { ColorWorkspace } from './components/ColorWorkspace';
 import { useTimelineStore } from './store/timelineStore';
 import { useMediaPoolStore } from './store/mediaPool';
 import { deserializeProject } from './core/project/serialize';
@@ -95,6 +96,8 @@ export const App: React.FC = () => {
           <div className="flex-1 flex items-center justify-center bg-neutral-950 p-4">
             <ExportModal />
           </div>
+        ) : activeWorkspace === 'color' ? (
+          <ColorWorkspace />
         ) : activeWorkspace === 'audio' ? (
           <AudioWorkspace />
         ) : (
