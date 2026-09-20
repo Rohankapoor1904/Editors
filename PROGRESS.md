@@ -109,18 +109,25 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R11.12** | Remediation | Decide and dispose of dead code | `missing` | `done` | `npm test` passed, verified in PR #85 | Either wire or delete `engine/tracking/*`, `voiceIsolation`, `limiter`, `colorManagement`, `baseEffects`; remove the 30+ root `fix-*.cjs` / `*_patch*.cjs` / `*.txt` artifacts. Deps: none |
 | **R11.13** | Remediation | Native project persistence + autosave | `missing` | `done` | `npm test` passed, verified in PR #86 | Implement `src/services/projectPersistence.ts` using Tauri fs/dialog; add crash-recovery autosave. Deps: none |
 | **R11.14** | Remediation | Strengthen the mechanical invariant gate | `real` | `done` | Antigravity | `npm test` runs enhanced `verify-invariants.mjs` (anti-clutter, IPC contract, runtimeConfig safe defaults) + `src/__tests__/invariants.test.ts`. Deps: none |
+| **R12.1** | UI & UX | Source Monitor UI Panel & In/Out Bar | `missing` | `todo` | Jules | `src/components/SourceMonitor.tsx` dual-viewer monitor with Mark In [I], Mark Out [O], Insert, Overwrite. Deps: none |
+| **R12.2** | UI & UX | 1-Click Silence Trimmer Modal | `missing` | `todo` | Jules | `src/components/SilenceTrimmerModal.tsx` dialog with pause slider, preview chips, and trim action. Deps: none |
+| **R12.3** | UI & UX | Interactive 3-Way Color Wheels UI | `missing` | `todo` | Jules | `src/components/ColorWheelsView.tsx` circular Lift, Gamma, Gain wheels with draggable pucks. Deps: none |
+| **R12.4** | UI & UX | Multi-Track Audio Mixer Console | `missing` | `todo` | Jules | `src/components/AudioMixer.tsx` vertical faders, pan knobs, mute/solo, and stereo peak meters. Deps: none |
+| **R13.1** | Editorial | Timeline Audio Waveform Rendering | `missing` | `in_progress` | Antigravity | `src/utils/waveform.ts` dynamic RMS amplitude envelope drawing on audio clips. Deps: none |
+| **R13.2** | Viewport | On-Screen Interactive Transform Gizmo | `missing` | `todo` | Antigravity | `src/components/ProgramMonitor.tsx` 8-point bounding box with scale, rotation, and move handles. Deps: none |
+| **R13.3** | AI | Descript-Style 2-Way Text Ripple Editing | `missing` | `todo` | Antigravity | `src/components/TranscriptEditor.tsx` word selection and delete ripples timeline video. Deps: none |
+| **R13.4** | Compositing | GPU Video Transitions Engine | `missing` | `todo` | Antigravity | `src/engine/shaders/transitions.wgsl` Cross Dissolve, Dip to Black, and Wipe shaders. Deps: none |
 
 ---
 
-## Phase exit criteria still not met
+## Phase exit criteria status
 
-- **R1 / R2 exits** are blocked by R11.1, R11.6, R11.10 (real media in, real frames/audio out).
-- **R8 exit** ("install the app, edit real footage, get a real exported video") is blocked by R11.5 and R11.13.
-- **R9 exit** ("zero dummy buttons") is blocked by R11.8, R11.9, R11.11.
-- **R10 exit** is blocked by R11.2, R11.4, R11.10, R11.13.
+- **R11 exit:** Complete. All 14 tasks verified real and merged.
+- **R12 exit:** Jules builds dedicated Source Monitor, Silence Trimmer dialog, Color Wheels, and Audio Mixer.
+- **R13 exit:** Antigravity delivers 60fps timeline waveforms, on-screen transform gizmos, 2-way transcript ripple cuts, and video transitions.
 
 ## Next agent
 
-Start with **R11.1** and **R11.2** — both are small, both unblock whole phases, and both are pure
-deletions/mismatch fixes rather than new features. See `docs/ROADMAP.md` Phase R11 for acceptance
-criteria. Claim the row here before writing code (`AGENTS.md` §7.1).
+Jules picks up **R12.1** (`src/components/SourceMonitor.tsx`).
+Antigravity implements **R13.1** (`src/utils/waveform.ts`, `TimelineTrackEditor.tsx`).
+
