@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AudioMixer } from '../AudioMixer';
 import { audioEngine } from '../../engine/audioEngine';
 
@@ -37,7 +37,15 @@ describe('AudioMixer', () => {
     vi.clearAllMocks();
     mockToggleTrackState.mockClear();
 
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+// Mock requestAnimationFrame for the meters
+    let hasRun = false;
+    vi.stubGlobal('requestAnimationFrame', vi.fn((cb) => {
+      if (!hasRun) {
+        hasRun = true;
+        cb(performance.now());
+      }
+      return 1;
+    }));
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
   });
 
@@ -80,21 +88,10 @@ describe('AudioMixer', () => {
     expect(mockToggleTrackState).toHaveBeenCalledWith('track_a1', 'solo');
   });
 
-  it('polls getTrackLevels', () => {
-    let callback: FrameRequestCallback | null = null;
-    vi.stubGlobal('requestAnimationFrame', vi.fn((cb) => {
-      callback = cb;
-      return 1;
-    }));
-
+  it('polls getTrackLevels', async () => {
     render(<AudioMixer />);
-    expect(callback).toBeDefined();
-    if (callback) {
-      act(() => {
-        (callback as FrameRequestCallback)(performance.now());
-      });
-    }
 
-    expect(audioEngine.getTrackLevels).toHaveBeenCalledWith('track_a1');
+    // It should have called it on mount
+    await waitFor(() => expect(audioEngine.getTrackLevels).toHaveBeenCalledWith('track_a1'));
   });
 });
