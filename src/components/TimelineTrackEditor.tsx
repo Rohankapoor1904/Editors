@@ -7,27 +7,45 @@ import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLef
 
 export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
 
-// Audio Waveform Generator Component
-const AudioWaveform: React.FC<{ color: string }> = ({ color }) => {
-  // Generate deterministic bar heights for a realistic audio waveform
-  const barHeights = [
-    30, 45, 80, 60, 90, 40, 20, 55, 75, 100, 85, 45, 65, 95, 30, 50,
-    80, 70, 40, 90, 60, 85, 35, 75, 50, 90, 65, 40, 80, 95, 30, 60,
-    70, 85, 45, 90, 55, 75, 100, 60, 40, 80, 50, 95, 70, 30, 85, 60
-  ];
+import { getOrCreateWaveformEnvelope, renderWaveformToCanvas } from '../utils/waveform';
+
+// Dynamic Audio Waveform Canvas Component
+const AudioWaveformCanvas: React.FC<{
+  assetId: string;
+  sourceInSeconds: number;
+  durationSeconds: number;
+  volumeDb?: number;
+  color?: string;
+}> = ({ assetId, sourceInSeconds, durationSeconds, volumeDb = 0, color = '#2dd4bf' }) => {
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.clientWidth || 100;
+    const height = canvas.clientHeight || 40;
+    if (width === 0 || height === 0) return;
+
+    const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    ctx.scale(dpr, dpr);
+
+    const envelope = getOrCreateWaveformEnvelope(assetId, Math.max(durationSeconds + sourceInSeconds, 10));
+    renderWaveformToCanvas(ctx, envelope, width, height, sourceInSeconds, durationSeconds, color, volumeDb);
+  }, [assetId, sourceInSeconds, durationSeconds, volumeDb, color]);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-around opacity-30 pointer-events-none px-1 overflow-hidden">
-      {barHeights.map((h, i) => (
-        <div
-          key={i}
-          style={{ height: `${h}%` }}
-          className={`w-0.5 rounded-full ${color}`}
-        />
-      ))}
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none opacity-85"
+    />
   );
 };
+
 
 // Video Filmstrip Generator Component
 const FilmstripPreview: React.FC = () => {
@@ -448,7 +466,13 @@ export const TimelineTrackEditor: React.FC = () => {
                     {track.type === 'video' ? (
                       <FilmstripPreview />
                     ) : (
-                      <AudioWaveform color={isSelected ? 'bg-white' : 'bg-teal-400'} />
+                      <AudioWaveformCanvas
+                        assetId={clip.assetId}
+                        sourceInSeconds={rationalToSeconds(clip.sourceIn)}
+                        durationSeconds={rationalToSeconds(clip.duration)}
+                        volumeDb={clip.volume ?? 0}
+                        color={isSelected ? '#5eead4' : '#2dd4bf'}
+                      />
                     )}
 
                     {/* Clip Edge Drag Handles (Hover / Glow Separators) */}

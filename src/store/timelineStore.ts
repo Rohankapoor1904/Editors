@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { TimelineState, Track, Clip } from '../types/timeline';
+import { TimelineState, Track, Clip, Transform } from '../types/timeline';
 import { secondsToRational, compareRational, RationalTime } from '../types/time';
 import { Command } from '../core/commands';
 import { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand } from '../core/commands/storeCommands';
@@ -11,7 +11,8 @@ import {
   MoveCommand,
   OverwriteCommand,
   SlipCommand,
-  SlideCommand
+  SlideCommand,
+  UpdateTransformCommand
 } from '../core/commands/edits';
 
 interface UndoState {
@@ -40,6 +41,7 @@ interface TimelineStoreActions {
   slideClip: (clipId: string, delta: RationalTime) => void;
   overwriteClip: (trackId: string, clip: Clip) => void;
   toggleClipMute: (clipId: string) => void;
+  updateClipTransform: (clipId: string, transform: Transform) => void;
 }
 
 export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
@@ -234,5 +236,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   },
   toggleClipMute: (clipId) => {
     get().executeCommand(new ToggleClipMuteCommand(clipId));
+  },
+  updateClipTransform: (clipId, transform) => {
+    get().executeCommand(new UpdateTransformCommand(clipId, transform));
   },
 }));
