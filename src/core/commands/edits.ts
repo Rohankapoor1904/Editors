@@ -1,5 +1,5 @@
 import { Command } from './index';
-import { TimelineState, Track, Clip, Transform } from '../../types/timeline';
+import { TimelineState, Track, Clip } from '../../types/timeline';
 import { RationalTime, addRational, subRational, compareRational, createRational } from '../../types/time';
 
 export class SplitCommand implements Command {
@@ -564,50 +564,6 @@ export class ToggleClipMuteCommand implements Command {
           clip.id === this.clipId ? { ...clip, muted: !clip.muted } : clip
         )
       }))
-    };
-  }
-
-  invert(state: TimelineState): TimelineState {
-    if (!this.previousState) {
-      return state;
-    }
-    return this.previousState;
-  }
-}
-
-export class UpdateTransformCommand implements Command {
-  private previousState: TimelineState | null = null;
-
-  constructor(
-    private readonly clipId: string,
-    private readonly newTransform: Transform
-  ) {}
-
-  apply(state: TimelineState): TimelineState {
-    this.previousState = state;
-    let found = false;
-
-    const newTracks = state.tracks.map(track => ({
-      ...track,
-      clips: track.clips.map(clip => {
-        if (clip.id === this.clipId) {
-          found = true;
-          return {
-            ...clip,
-            transform: { ...clip.transform, ...this.newTransform }
-          };
-        }
-        return clip;
-      })
-    }));
-
-    if (!found) {
-      throw new Error(`Clip with id ${this.clipId} not found for transform update`);
-    }
-
-    return {
-      ...state,
-      tracks: newTracks
     };
   }
 

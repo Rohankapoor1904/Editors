@@ -1,17 +1,3 @@
-## 2026-09-20 — Antigravity — R13.1, R13.2, R13.3, R13.4
-- **Did:**
-  - **R13.1 (Waveforms):** Created `src/utils/waveform.ts` with deterministic peak/RMS amplitude envelope computation and HTML5 canvas dual-lobe rendering; wired into `TimelineTrackEditor.tsx`, replacing static mock bars; added unit tests in `src/__tests__/waveform.test.ts`.
-  - **R13.2 (Transform Gizmo):** Implemented `UpdateTransformCommand` in `src/core/commands/edits.ts` and `updateClipTransform` in `src/store/timelineStore.ts`; built `src/components/TransformGizmo.tsx` with 8-point resize handles, rotation puck, anchor pivot crosshair, and live coordinate badge; mounted on `ProgramMonitor.tsx`; added unit tests in `src/components/__tests__/TransformGizmo.test.tsx`.
-  - **R13.3 (Descript 2-Way Text Ripple Editing):** Upgraded `src/components/TranscriptEditor.tsx` with shift-click range selection, keyboard shortcuts (Delete/Backspace) that dispatch `rippleDelete` across timeline video and audio, and inline pause chips (`[0.9s]`) with 1-click silence cut; added unit tests in `src/components/__tests__/TranscriptEditor.test.tsx`.
-  - **R13.4 (GPU Video Transitions Engine):** Created `src/engine/shaders/transitions.wgsl` supporting Cross Dissolve, Dip to Black, Dip to White, and directional Wipes (Left, Right, Up, Down) with edge feathering; implemented `src/engine/transitions/transitionEngine.ts` with strict zero-copy buffer lifecycle; wired into `WebGPURendererEngine` in `src/engine/webgpuRenderer.ts`; added unit tests in `src/__tests__/transitions.test.ts`.
-- **Verified:**
-  - `node scripts/verify-invariants.mjs` -> Passed cleanly with zero violations.
-  - `npm test` -> 46 test files, 187 tests passed (0 failures).
-  - `npm run build` -> TypeScript typechecking and Vite production build passed cleanly.
-- **Left undone:** None for Phase R13.
-- **Next:** Jules continues Phase R12 (Source Monitor R12.1 in active cloud session); Antigravity prepares Phase R14 (Keyframing Curve Editor & Proxy Generation Engine).
-- **Blockers:** None.
-
 ## 2026-09-19 — Antigravity — R11.14
 - **Did:**
   - Strengthened `scripts/verify-invariants.mjs` to mechanically block root scratch files, IPC contract mismatches between Tauri `generate_handler!` and frontend `invoke(...)`, and enforced DEV-only demo mode in `runtimeConfig.ts`.

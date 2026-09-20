@@ -7,11 +7,10 @@ import yuvToRgbWgsl from './shaders/yuv_to_rgb.wgsl?raw';
 import { Transform } from '../types/timeline';
 import { computeTransformMatrix } from './transforms';
 
-import { captionEngine, CaptionTrackData } from './captions/captionEngine';
+import { captionEngine } from './captions/captionEngine';
 import { ColorGradeSettings, colorEngine } from './colorEngine';
-import { transitionEngine, TransitionEngine, TransitionType, TransitionRenderOptions } from './transitions/transitionEngine';
 
-export { TransitionType, type TransitionRenderOptions };
+import { CaptionTrackData } from "./captions/captionEngine";
 
 export interface RenderOptions {
   width: number;
@@ -38,7 +37,6 @@ export class WebGPURendererEngine {
   private sampler: GPUSampler | null = null;
   private effectRenderer: EffectRenderer | null = null;
   private ocioConfig: OcioConfig | null = null;
-  private transitionEngine: TransitionEngine = transitionEngine;
 
   /**
    * Initializes WebGPU Device and Canvas Context
@@ -140,9 +138,6 @@ export class WebGPURendererEngine {
         this.effectRenderer = new EffectRenderer();
         await this.effectRenderer.init(this.device, this.context);
 
-        // Wire in transitions engine
-        await this.transitionEngine.init(this.device, presentationFormat);
-
         // Initialize Ocio config
         this.ocioConfig = new OcioConfig();
         console.log("OCIO workspace:", this.ocioConfig.getWorkingSpace());
@@ -198,14 +193,6 @@ export class WebGPURendererEngine {
     }
 
     return null;
-  }
-
-  public getTransitionEngine(): TransitionEngine {
-    return this.transitionEngine;
-  }
-
-  public renderTransition(options: TransitionRenderOptions): GPUTexture {
-    return this.transitionEngine.renderTransition(options);
   }
 
   renderFrame(_options: RenderOptions) {

@@ -113,10 +113,10 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R12.2** | UI & UX | 1-Click Silence Trimmer Modal | `missing` | `todo` | Jules | `src/components/SilenceTrimmerModal.tsx` dialog with pause slider, preview chips, and trim action. Deps: none |
 | **R12.3** | UI & UX | Interactive 3-Way Color Wheels UI | `missing` | `todo` | Jules | `src/components/ColorWheelsView.tsx` circular Lift, Gamma, Gain wheels with draggable pucks. Deps: none |
 | **R12.4** | UI & UX | Multi-Track Audio Mixer Console | `missing` | `todo` | Jules | `src/components/AudioMixer.tsx` vertical faders, pan knobs, mute/solo, and stereo peak meters. Deps: none |
-| **R13.1** | Editorial | Timeline Audio Waveform Rendering | `real` | `done` | Antigravity | `src/utils/waveform.ts`, `TimelineTrackEditor.tsx`, tested in `src/__tests__/waveform.test.ts`. Deps: none |
-| **R13.2** | Viewport | On-Screen Interactive Transform Gizmo | `real` | `done` | Antigravity | `src/components/TransformGizmo.tsx`, `ProgramMonitor.tsx`, `UpdateTransformCommand`, tested in `src/components/__tests__/TransformGizmo.test.tsx`. Deps: none |
-| **R13.3** | AI | Descript-Style 2-Way Text Ripple Editing | `real` | `done` | Antigravity | `src/components/TranscriptEditor.tsx` word selection & gap chips, tested in `src/components/__tests__/TranscriptEditor.test.tsx`. Deps: none |
-| **R13.4** | Compositing | GPU Video Transitions Engine | `real` | `done` | Antigravity | `src/engine/shaders/transitions.wgsl`, `transitionEngine.ts`, tested in `src/__tests__/transitions.test.ts`. Deps: none |
+| **R13.1** | Editorial | Timeline Audio Waveform Rendering | `missing` | `in_progress` | Antigravity | `src/utils/waveform.ts` dynamic RMS amplitude envelope drawing on audio clips. Deps: none |
+| **R13.2** | Viewport | On-Screen Interactive Transform Gizmo | `missing` | `todo` | Antigravity | `src/components/ProgramMonitor.tsx` 8-point bounding box with scale, rotation, and move handles. Deps: none |
+| **R13.3** | AI | Descript-Style 2-Way Text Ripple Editing | `missing` | `todo` | Antigravity | `src/components/TranscriptEditor.tsx` word selection and delete ripples timeline video. Deps: none |
+| **R13.4** | Compositing | GPU Video Transitions Engine | `missing` | `todo` | Antigravity | `src/engine/shaders/transitions.wgsl` Cross Dissolve, Dip to Black, and Wipe shaders. Deps: none |
 
 ---
 
@@ -124,10 +124,10 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 
 - **R11 exit:** Complete. All 14 tasks verified real and merged.
 - **R12 exit:** Jules builds dedicated Source Monitor, Silence Trimmer dialog, Color Wheels, and Audio Mixer.
-- **R13 exit:** Complete. Antigravity delivered 60fps timeline waveforms, on-screen transform gizmos, 2-way transcript ripple cuts, and GPU video transitions.
+- **R13 exit:** Antigravity delivers 60fps timeline waveforms, on-screen transform gizmos, 2-way transcript ripple cuts, and video transitions.
 
 ## Next agent
 
-Jules is active on **R12.1** (`src/components/SourceMonitor.tsx`) via Cloud Orchestration loop.
-Next unclaimed tasks for Antigravity: Phase R14 (Keyframing Curve Editor & Proxy Generation Engine).
+Jules picks up **R12.1** (`src/components/SourceMonitor.tsx`).
+Antigravity implements **R13.1** (`src/utils/waveform.ts`, `TimelineTrackEditor.tsx`).
 

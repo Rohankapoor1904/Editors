@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useMediaPoolStore } from '../store/mediaPool';
 import { useTimelineStore } from '../store/timelineStore';
-import { RationalTime, secondsToRational, compareRational, addRational, subRational } from '../types/time';
+import { RationalTime, secondsToRational, compareRational, addRational } from '../types/time';
 import { Clip } from '../types/timeline';
 import { ChevronLeft, ChevronRight, ArrowDownToLine, FileSymlink } from 'lucide-react';
 
 export const SourceMonitor: React.FC = () => {
   const { assets, selectedAssetId } = useMediaPoolStore();
   const { tracks, addClipToTrack, overwriteClip } = useTimelineStore();
-  
+
   const [inPoint, setInPoint] = useState<RationalTime | null>(null);
   const [outPoint, setOutPoint] = useState<RationalTime | null>(null);
 
@@ -47,13 +47,16 @@ export const SourceMonitor: React.FC = () => {
       start = end;
       end = temp;
     }
-    
+
     // Bounds check against max duration
     if (compareRational(end, fullDuration) > 0) {
       end = fullDuration;
     }
 
-    const duration = subRational(end, start);
+    const duration = {
+      value: end.value * start.rate - start.value * end.rate,
+      rate: start.rate * end.rate
+    };
 
     return {
       id: `clip_${Date.now()}`,
@@ -62,7 +65,10 @@ export const SourceMonitor: React.FC = () => {
       startOffset: secondsToRational(0), // Will be set by insertion logic
       sourceIn: start,
       sourceOut: end,
-      duration
+      duration: {
+        value: duration.value,
+        rate: duration.rate
+      }
     };
   };
 
@@ -70,16 +76,14 @@ export const SourceMonitor: React.FC = () => {
     if (!selectedAsset) return;
     const targetTrack = tracks.find(t => t.type === selectedAsset.type);
     if (!targetTrack) return;
-    
+
     const clip = createClipFromSelection();
     if (!clip) return;
 
-    let maxEnd = secondsToRational(0);
+    let maxEnd: RationalTime = secondsToRational(0);
     for (const c of targetTrack.clips) {
-       const clipEnd = addRational(c.startOffset, c.duration);
-       if (compareRational(clipEnd, maxEnd) > 0) {
-         maxEnd = clipEnd;
-       }
+       const endRational = addRational(c.startOffset, c.duration);
+       if (compareRational(endRational, maxEnd) > 0) maxEnd = endRational;
     }
     clip.startOffset = maxEnd;
     addClipToTrack(targetTrack.id, clip);
@@ -89,7 +93,7 @@ export const SourceMonitor: React.FC = () => {
     if (!selectedAsset) return;
     const targetTrack = tracks.find(t => t.type === selectedAsset.type);
     if (!targetTrack) return;
-    
+
     const clip = createClipFromSelection();
     if (!clip) return;
 
@@ -145,7 +149,7 @@ export const SourceMonitor: React.FC = () => {
                <ChevronRight className="w-4 h-4" />
              </button>
           </div>
-          
+
           <div className="flex items-center space-x-2">
              <button
                title="Insert (,)"
