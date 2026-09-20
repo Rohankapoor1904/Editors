@@ -1,6 +1,7 @@
 import React from 'react';
 import { TopBar } from './components/TopBar';
 import { AssetBin } from './components/AssetBin';
+import { SourceMonitor } from './components/SourceMonitor';
 import { ProgramMonitor } from './components/ProgramMonitor';
 import { AIPromptConsole } from './components/AIPromptConsole';
 import { TimelineTrackEditor } from './components/TimelineTrackEditor';
@@ -114,7 +115,10 @@ export const App: React.FC = () => {
         ) : activeWorkspace === 'audio' ? (
           <AudioWorkspace />
         ) : (
-          <ProgramMonitor />
+          <div className="flex-1 flex space-x-2 bg-neutral-950 min-h-0">
+            <SourceMonitor />
+            <ProgramMonitor />
+          </div>
         )}
 
         {/* Right: AI Copilot Console */}
