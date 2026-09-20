@@ -4,6 +4,8 @@ import {
   CheckCircle2, Undo2, ChevronDown, ChevronRight, Slash, Check,
   RefreshCw, Volume2, Sun, Layers
 } from 'lucide-react';
+import { SilenceTrimmerModal } from './SilenceTrimmerModal';
+import { useTimelineStore } from '../store/timelineStore';
 import { agentOrchestrator } from '../services/agentOrchestrator';
 import { Command } from '../core/commands';
 
@@ -34,6 +36,20 @@ export const AIPromptConsole: React.FC = () => {
 
   // Action Diff Cards State
   const [actionDiffs, setActionDiffs] = useState<ActionDiff[]>([]);
+  const [showSilenceModal, setShowSilenceModal] = useState(false);
+  const selectedClipIds = useTimelineStore(s => s.selectedClipIds);
+  const tracks = useTimelineStore(s => s.tracks);
+
+  const getSelectedClip = () => {
+    if (selectedClipIds.length === 0) return null;
+    const clipId = selectedClipIds[0];
+    for (const track of tracks) {
+      const clip = track.clips.find(c => c.id === clipId);
+      if (clip) return clip;
+    }
+    return null;
+  };
+
 
   const slashCommands = [
     { command: '/silence', label: 'Cut Silences', desc: 'Detect & trim dead air gaps > 0.5s', icon: <Scissors className="w-3.5 h-3.5 text-amber-400" /> },
@@ -69,6 +85,14 @@ export const AIPromptConsole: React.FC = () => {
     if (e) e.preventDefault();
     const cmdToRun = customPrompt || prompt;
     if (!cmdToRun.trim()) return;
+
+    if (cmdToRun.trim().startsWith('/silence')) {
+      setShowSilenceModal(true);
+      setPrompt('');
+      setShowSlashMenu(false);
+      return;
+    }
+
 
     setPrompt('');
     setShowSlashMenu(false);
@@ -550,6 +574,14 @@ export const AIPromptConsole: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Silence Trimmer Modal */}
+      <SilenceTrimmerModal
+        isOpen={showSilenceModal}
+        onClose={() => setShowSilenceModal(false)}
+        clip={getSelectedClip()}
+      />
+
     </div>
   );
 };
