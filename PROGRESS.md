@@ -117,17 +117,37 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R13.2** | Viewport | On-Screen Interactive Transform Gizmo | `real` | `done` | Antigravity | `src/components/TransformGizmo.tsx`, `ProgramMonitor.tsx`, `UpdateTransformCommand`, tested in `src/components/__tests__/TransformGizmo.test.tsx`. Deps: none |
 | **R13.3** | AI | Descript-Style 2-Way Text Ripple Editing | `real` | `done` | Antigravity | `src/components/TranscriptEditor.tsx` word selection & gap chips, tested in `src/components/__tests__/TranscriptEditor.test.tsx`. Deps: none |
 | **R13.4** | Compositing | GPU Video Transitions Engine | `real` | `done` | Antigravity | `src/engine/shaders/transitions.wgsl`, `transitionEngine.ts`, tested in `src/__tests__/transitions.test.ts`. Deps: none |
+| **R14.1** | Animation | Visual Keyframe Bezier Curve Editor UI | `partial` | `in_progress` | Antigravity | Claimed 2026-09-20. Interactive Bezier curve editor panel with tangent handles. Deps: none |
+| **R14.2** | Animation | Velocity Envelopes & Visual Speed Ramping | `missing` | `todo` | — | Clip-level speed envelope curve (25%-400%) with rational time recalculation. Deps: R14.1 |
+| **R14.3** | Performance | Automatic Background Proxy Generation Engine | `missing` | `todo` | — | Background FFmpeg 720p ProRes/H.264 proxy transcode with monitor toggle. Deps: none |
+| **R15.1** | Editorial | 3-Point & 4-Point Editing Wiring | `missing` | `todo` | — | Connect Source Monitor In/Out markers to Insert [,] & Overwrite [.] commands. Deps: R12.1 |
+| **R15.2** | Editorial | Slip & Slide Trimming Tools | `missing` | `todo` | — | Slip tool (source in/out shifting) and Slide tool (clip position shifting). Deps: none |
+| **R15.3** | Editorial | J-Cuts & L-Cuts Split Audio/Video Trimming | `missing` | `todo` | — | Independent trimming of linked audio/video tracks with sync offset badge. Deps: none |
+| **R16.1** | AI Creator | Kinetic Auto-Captions Engine | `missing` | `todo` | — | Word-highlight kinetic subtitles with pop/bounce styling presets in WebGPU. Deps: R11.2 |
+| **R16.2** | AI Creator | AI Smart Auto-Reframe (16:9 to 9:16) | `missing` | `todo` | — | Kalman crop filter with salience tracking for 9:16 vertical shorts. Deps: none |
+| **R16.3** | AI Creator | AI Beat Detection & Rhythm Snapping | `missing` | `todo` | — | FFT beat detector creating timeline markers and rhythmic magnetic snapping. Deps: none |
+| **R17.1** | Audio | AI Stem Separation (Vocal/Instrumental) | `missing` | `todo` | — | Local ONNX model separating speech from background music to discrete tracks. Deps: none |
+| **R17.2** | Audio | Automated Dynamic Sidechain Ducking | `missing` | `todo` | — | Bus graph detector auto-ducking music when speech exceeds -30dB. Deps: R5.1 |
+| **R17.3** | Audio | One-Click Noise Isolation & Dialogue Leveler | `missing` | `todo` | — | Neural noise suppression targeting fan noise, room echo, and uneven levels. Deps: none |
+| **R18.1** | Export | Hardware NVENC / QSV / VideoToolbox Real Pipeline | `missing` | `todo` | — | Probe and dispatch native GPU encoder pipelines via Rust export_native.rs. Deps: R11.5 |
+| **R18.2** | Export | One-Click Social Platform Presets | `missing` | `todo` | — | Pre-calibrated export presets: YouTube 4K, TikTok/Reels 1080x1920, Broadcast. Deps: none |
+| **R18.3** | Export | Batch Export Queue & Background Packaging | `missing` | `todo` | — | Persistent queue manager executing exports sequentially without blocking UI. Deps: R18.1 |
 
 ---
 
 ## Phase exit criteria status
 
 - **R11 exit:** Complete. All 14 tasks verified real and merged.
-- **R12 exit:** Jules builds dedicated Source Monitor, Silence Trimmer dialog, Color Wheels, and Audio Mixer.
+- **R12 exit:** Complete. Dedicated Source Monitor, Silence Trimmer dialog, Color Wheels, and Audio Mixer merged.
 - **R13 exit:** Complete. Antigravity delivered 60fps timeline waveforms, on-screen transform gizmos, 2-way transcript ripple cuts, and GPU video transitions.
+- **R14 exit:** Keyframing Bezier Curve Editor, Velocity Envelopes, and Background Proxy Video Generation verified.
+- **R15 exit:** 3-Point Source editing, Slip/Slide tools, and J/L cut audio/video split trimming verified.
+- **R16 exit:** Kinetic animated captions, 9:16 AI Auto-Reframe, and musical beat detection verified.
+- **R17 exit:** AI Vocal Stem Separation, Automated Sidechain Ducking, and Voice Isolation verified.
+- **R18 exit:** Hardware NVENC/QSV GPU Export, Social Presets, and Batch Export Queue verified.
 
 ## Next agent
 
-Jules is active on **R12.1** (`src/components/SourceMonitor.tsx`) via Cloud Orchestration loop.
-Next unclaimed tasks for Antigravity: Phase R14 (Keyframing Curve Editor & Proxy Generation Engine).
+Next unclaimed tasks: **Phase R14** (Keyframing Curve Editor & Proxy Generation Engine: R14.1 - R14.3).
+
 
