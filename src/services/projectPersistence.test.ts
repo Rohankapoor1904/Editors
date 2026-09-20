@@ -22,7 +22,7 @@ describe('projectPersistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setRuntimeMode('live');
-    useTimelineStore.setState({ version: '1.4.0', metadata: { name: 'test', fps: 30, width: 1920, height: 1080, sampleRate: 48000, colorSpace: 'sRGB' } });
+    useTimelineStore.setState({ projectId: 'test-id', version: '1.4.0', metadata: { name: 'test', fps: 30, width: 1920, height: 1080, sampleRate: 48000, colorSpace: 'sRGB' } });
   });
 
   it('saves and loads autosave', async () => {

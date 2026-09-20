@@ -48,9 +48,9 @@ const initialTimelineState: TimelineState & UndoState = {
   past: [],
   future: [],
   version: '1.0.0',
-  projectId: 'proj_demo_01',
+  projectId: '',
   metadata: {
-    name: 'Social_Short_Launch',
+    name: 'New Project',
     fps: 59.94,
     width: 1080,
     height: 1920,
@@ -85,33 +85,7 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 72,
-      clips: [
-        {
-          "id": "clip_v1_001",
-          "assetId": "asset_interview_01",
-          "name": "Interview_Take1.mp4",
-          "startOffset": secondsToRational(0.0),
-          "sourceIn": secondsToRational(0.0),
-          "sourceOut": secondsToRational(15.0),
-          "duration": secondsToRational(15.0),
-          "transform": {
-            "position": { "x": 0.0, "y": 0.0 },
-            "scale": { "x": 1.0, "y": 1.0 },
-            "rotation": 0,
-            "opacity": 1.0,
-            "anchorPoint": { "x": 0.5, "y": 0.5 }
-          }
-        },
-        {
-          "id": "clip_v1_002",
-          "assetId": "asset_broll_02",
-          "name": "Product_Broll.mp4",
-          "startOffset": secondsToRational(15.0),
-          "sourceIn": secondsToRational(2.0),
-          "sourceOut": secondsToRational(12.0),
-          "duration": secondsToRational(10.0)
-        }
-      ],
+      clips: [],
     },
     {
       id: 'track_a1',
@@ -122,19 +96,7 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 56,
-      clips: [
-        {
-          "id": "clip_a1_001",
-          "assetId": "asset_interview_01",
-          "name": "Interview_Take1.wav",
-          "startOffset": secondsToRational(0.0),
-          "sourceIn": secondsToRational(0.0),
-          "sourceOut": secondsToRational(15.0),
-          "duration": secondsToRational(15.0),
-          "volume": 0,
-          "pan": 0
-        }
-      ],
+      clips: [],
     },
     {
       id: 'track_a2',
@@ -145,19 +107,7 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 56,
-      clips: [
-        {
-          "id": "clip_a2_001",
-          "assetId": "asset_music_lofi",
-          "name": "Upbeat_Lofi_Beat.mp3",
-          "startOffset": secondsToRational(0.0),
-          "sourceIn": secondsToRational(0.0),
-          "sourceOut": secondsToRational(25.0),
-          "duration": secondsToRational(25.0),
-          "volume": -12,
-          "pan": 0
-        }
-      ],
+      clips: [],
     }
   ],
 };
