@@ -236,12 +236,139 @@ when any of the above regressions is reintroduced.
 
 ---
 
+## Phase R12 — Workspace Controls & Ingest Modals
+
+Goal: Provide dedicated source inspection, automated silence trimming, professional 3-way color wheel UI, and multi-track audio mixing console.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R12.1** | **Source Monitor UI Panel & In/Out Bar.** Dual-viewer layout with Mark In [I], Mark Out [O], Insert, and Overwrite buttons. | `src/components/SourceMonitor.tsx` | Unit tests verify In/Out markers render and trigger correct time range selection. |
+| **R12.2** | **1-Click Silence Trimmer Modal.** Interactive dialog with pause duration threshold slider, preview chips of detected silence windows, and 1-click ripple trim action. | `src/components/SilenceTrimmerModal.tsx` | Tested in `SilenceTrimmerModal.test.tsx`: slider changes threshold, clicking trim dispatches batch silence cut commands. |
+| **R12.3** | **Interactive 3-Way Color Wheels UI.** Circular Lift, Gamma, Gain color wheels with draggable pucks and reset buttons, connected to `colorEngine`. | `src/components/ColorWheelsView.tsx` | Tested in `ColorWheelsView.test.tsx`: dragging color puck updates lift/gamma/gain parameters. |
+| **R12.4** | **Multi-Track Audio Mixer Console.** Dedicated mixer panel with vertical dB faders, stereo VU peak meters, pan knobs, and mute/solo toggles per track. | `src/components/AudioMixer.tsx` | Tested in `AudioMixer.test.tsx`: fader movements update track volume; mute/solo updates store track state. |
+
+**Phase exit:** all 4 workspace dialogs and panels mount, interact cleanly with Zustand store, and pass unit tests.
+
+---
+
+## Phase R13 — Waveforms, Gizmos, 2-Way Text Ripple & Transitions
+
+Goal: Deliver high-performance visual feedback on the timeline and canvas: 60fps audio waveforms, on-screen transform gizmos, Descript-style transcript ripple editing, and real WebGPU transition shaders.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R13.1** | **Timeline Audio Waveform Rendering.** Fast peak extraction and canvas rendering of audio waveforms on timeline clips, cached and drawn at 60fps. | `src/utils/waveform.ts`, `src/components/TimelineTrackEditor.tsx` | Tested in `waveform.test.ts`: audio buffers generate normalized peak arrays; rendering respects zoom level. |
+| **R13.2** | **On-Screen Interactive Transform Gizmo.** Interactive canvas overlay with 8 resize handles, rotation handle, and center anchor point for direct viewport manipulation. | `src/components/TransformGizmo.tsx`, `src/components/ProgramMonitor.tsx` | Tested in `TransformGizmo.test.tsx`: dragging corners updates scale; dragging center updates position via `UpdateTransformCommand`. |
+| **R13.3** | **Descript-Style 2-Way Text Ripple Editing.** Word-level transcript selection, silence gap chips, and ripple deletion of audio/video directly by deleting transcript text. | `src/components/TranscriptEditor.tsx` | Tested in `TranscriptEditor.test.tsx`: selecting words and clicking delete ripples timeline clips by exact word boundaries. |
+| **R13.4** | **GPU Video Transitions Engine.** Real WGSL shader-based video transitions: Crossfade, Dip to Black, Wipe (Left/Right), Zoom, and Slide with duration controls. | `src/engine/shaders/transitions.wgsl`, `src/engine/transitionEngine.ts` | Tested in `transitions.test.ts`: transition progress t ∈ [0,1] blends incoming and outgoing textures cleanly. |
+
+**Phase exit:** timeline renders waveforms, monitor supports on-screen transform manipulation, transcript edits ripple the timeline, and GPU transitions blend adjacent clips.
+
+---
+
+## Phase R14 — Keyframing Curve Editor & Proxy Generation Engine
+
+Goal: Enable precision animation control with visual Bezier curves (After Effects / Vegas style) and background proxy video generation for stutter-free 4K/8K editing (Resolve style).
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R14.1** | **Visual Keyframe Bezier Curve Editor UI.** Dedicated collapsible curve editor panel beneath timeline tracks with draggable Bezier tangent handles for position, scale, rotation, and opacity. | `src/components/CurveEditor.tsx`, `src/utils/keyframing.ts`, `src/store/timelineStore.ts` | Dragging tangent handles modifies easing parameters; unit tests verify Bezier curve evaluation matches store updates. |
+| **R14.2** | **Velocity Envelopes & Visual Speed Ramping.** Clip-level visual speed curve allowing dynamic speed ramps (25% slow-mo to 400% fast-forward) with pitch-corrected audio resample. | `src/engine/speedRamp.ts`, `src/components/TimelineTrackEditor.tsx` | Applying speed envelope recalculates clip duration in rational time without drift; reverse and forward ramps test cleanly. |
+| **R14.3** | **Automatic Background Proxy Generation Engine.** Background worker spawning FFmpeg to generate 720p ProRes/H.264 proxy files for 4K+ media on import, with seamless preview toggle. | `src-tauri/src/proxy_engine.rs`, `src/services/nativeBridge.ts`, `src/components/ProgramMonitor.tsx` | Importing a high-res clip triggers background proxy task; ProgramMonitor preview switches to proxy; export renders from master source. |
+
+**Phase exit:** users can edit visual animation curves with Bezier handles, apply speed ramps, and preview 4K footage smoothly via proxies.
+
+---
+
+## Phase R15 — Advanced Trimming & 3-Point Source Integration
+
+Goal: Implement professional NLE editorial speed tools (Premiere Pro & Final Cut Pro): complete 3-point/4-point editing, slip & slide tools, and J-cut/L-cut split audio/video trimming.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R15.1** | **3-Point & 4-Point Editing Wiring.** Connect Source Monitor In [I] / Out [O] markers to timeline playhead with Insert [,] and Overwrite [.] operations respecting target tracks. | `src/components/SourceMonitor.tsx`, `src/core/commands/edits.ts`, `src/utils/keyboardShortcuts.ts` | Marking in/out in Source Monitor and pressing Insert pushes downstream clips by the exact duration; Overwrite replaces without shifting. |
+| **R15.2** | **Slip & Slide Trimming Tools.** Implement Slip Tool (shifting `sourceIn`/`sourceOut` while maintaining timeline duration) and Slide Tool (moving clip between neighbors with zero gap). | `src/core/commands/edits.ts`, `src/components/TimelineTrackEditor.tsx` | Slip modifies source offsets within media duration limits; Slide adjusts adjacent clip boundaries without gap creation; full test suite. |
+| **R15.3** | **J-Cuts & L-Cuts Split Audio/Video Trimming.** Enable independent head/tail trimming of linked audio and video tracks with out-of-sync indicators and zero-crossing micro-fades. | `src/components/TimelineTrackEditor.tsx`, `src/core/commands/edits.ts` | Trimming audio edge independently creates J/L cut; timeline displays sync offset badge; audio transition has zero click/pop. |
+
+**Phase exit:** editors can perform full 3-point inserts, slip/slide adjustments, and J/L cuts entirely via keyboard shortcuts and mouse trimming.
+
+---
+
+## Phase R16 — Kinetic Captions Engine & AI Auto-Reframe (9:16)
+
+Goal: Equip CineCraft AI with modern creator superpowers (CapCut & Descript): animated kinetic subtitles with word highlights and intelligent AI auto-reframe for vertical social formats.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R16.1** | **Kinetic Auto-Captions Engine (Hormozi / Dynamic Presets).** GPU-rendered animated captions: word-by-word active highlight, scale bounce, and customizable styling presets (font, color, shadow). | `src/engine/captions/captionEngine.ts`, `src/engine/shaders/caption.wgsl`, `src/components/ProgramMonitor.tsx` | Feeding transcript words with timestamps renders synchronized word highlights on canvas during playback at 60fps. |
+| **R16.2** | **AI Smart Auto-Reframe (16:9 Landscape to 9:16 Vertical).** Wire `autoReframe.ts` Kalman crop filter with face/salience tracking to dynamically pan/crop when switching timeline aspect ratio. | `src/engine/autoReframe.ts`, `src/components/ProgramMonitor.tsx`, `src/store/timelineStore.ts` | Switching timeline to 9:16 automatically generates smooth pan keyframes keeping the active subject centered. |
+| **R16.3** | **AI Beat Detection & Rhythm Snapping.** Fast FFT audio transient/beat detector generating rhythm markers on audio tracks; playhead and clip edges snap to musical beats. | `src/engine/beatDetector.ts`, `src/utils/snapping.ts`, `src/components/TimelineTrackEditor.tsx` | Analyzing audio asset creates beat markers at musical peaks; clip drags snap to nearest beat within threshold. |
+
+**Phase exit:** 1-click kinetic captions animate over video playback and 16:9 videos automatically reframe to 9:16 for social platforms.
+
+---
+
+## Phase R17 — AI Neural Audio Finishing
+
+Goal: Deliver broadcast-grade audio finishing (DaVinci Fairlight & Premiere Essential Sound): AI vocal stem separation, automated dynamic ducking, and one-click noise isolation.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R17.1** | **AI Stem Separation (Vocal / Instrumental Split).** Local ONNX model for 1-click separation of dialogue from background music and sound effects into discrete tracks. | `src-tauri/src/audio_separation.rs`, `src/services/nativeBridge.ts`, `src/store/timelineStore.ts` | Processing an audio clip splits it into Vocals and Instrumental audio files placed on separate tracks. |
+| **R17.2** | **Automated Dynamic Sidechain Ducking.** Bus graph sidechain detector that automatically attenuates background music gain (e.g. -12dB) when speech energy is detected. | `src/engine/audioGraph.ts`, `src/components/AudioWorkspace.tsx` | When speech exceeds -30dB, music bus gain drops smoothly with 50ms attack and restores with 300ms release. |
+| **R17.3** | **One-Click Noise Isolation & Dialogue Leveler.** Neural noise suppression filter targeting fan noise, room echo, and uneven mic levels without tonal degradation. | `src/engine/voiceIsolation.ts`, `src-tauri/src/voice_denoise.rs` | Measured SNR improvement on a noisy speech fixture exceeds 12dB while preserving speech intelligibility. |
+
+**Phase exit:** dialogue automatically ducks background music and noisy recordings are isolated and leveled with one click.
+
+---
+
+## Phase R18 — Hardware NVENC/QSV Video Export Pipeline & Social Presets
+
+Goal: High-performance hardware-accelerated video export (DaVinci Resolve Deliver page & Clipchamp): real NVENC/QSV/VideoToolbox encoders, social platform presets, and batch export queue.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R18.1** | **Hardware NVENC / QSV / VideoToolbox Real Pipeline.** Probe and dispatch native GPU encoder pipelines via Rust `export_native.rs`, streaming progress from FFmpeg stderr in real-time. | `src-tauri/src/export_native.rs`, `src/engine/exportEngine.ts`, `src/components/ExportModal.tsx` | Export on NVENC/QSV-enabled hardware uses hardware codec and encodes 1080p60 timeline faster than real-time. |
+| **R18.2** | **One-Click Social Platform Presets.** Pre-calibrated export presets: YouTube 4K (-14 LUFS), TikTok/Reels 1080x1920 30fps (-14 LUFS), and Broadcast 1080p (-24 LUFS). | `src/engine/exportPresets.ts`, `src/components/ExportModal.tsx` | Selecting preset configures dimensions, framerate, bitrate, color space tags, and normalizes master audio to target LUFS. |
+| **R18.3** | **Batch Export Queue & Background Packaging.** Persistent queue manager executing exports sequentially or in parallel without blocking active timeline editing. | `src/engine/exportQueue.ts`, `src/components/ExportQueue.tsx` | Adding multiple export jobs processes each in sequence with independent progress reporting and non-zero output verification. |
+
+**Phase exit:** timeline exports via hardware-accelerated GPU encoders with platform presets and batch queuing.
+
+---
+
+## Phase R19 — Agentic Timeline Copilot & Multimodal Semantic Search
+
+Goal: Deliver an intelligent, autonomous editorial AI copilot with real ReAct reasoning, typed timeline command tools (`probe_media`, `detect_silence`, `cut_and_arrange_timeline`, `apply_color_grade`, `add_subtitles`, `sequence_set_aspect_ratio`), single-undo atomic `CompoundCommand` transactions, visual multimodal perception embeddings, and semantic media search.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R19.1** | **Real Typed Tool Layer & Registry Execution.** Implement real executors in `timelineTools.ts` and `effectsTools.ts` mapping typed tool definitions to real timeline commands (`SplitCommand`, `TrimCommand`, `RippleDeleteCommand`, `AddClipCommand`, `UpdateColorGradeCommand`). | `src/services/tools/timelineTools.ts`, `src/services/tools/effectsTools.ts`, `src/services/tools/registry.ts` | Tool registry executes each defined tool with schema validation; valid inputs mutate timeline state via commands; invalid inputs reject with typed validation errors. |
+| **R19.2** | **Transactional ReAct Reasoning Loop & Copilot Execution.** Remove live mode `NotImplementedError` in `agentOrchestrator.ts`; implement rule-based & LLM-compatible planning loop that converts editorial prompts ("cut silences", "split at 5s", "apply cinematic grade") into tool calls wrapped in an atomic `CompoundCommand` for 1-click rollback in `AIPromptConsole.tsx`. | `src/services/agentOrchestrator.ts`, `src/components/AIPromptConsole.tsx` | Running an edit prompt in `AIPromptConsole` steps through thought/tool logs, generates an ActionDiff with a CompoundCommand, and accepting the diff modifies the timeline while rolling back restores previous EDL. |
+| **R19.3** | **Multimodal Perception & Semantic Media Search.** Implement frame visual feature extraction in `vlm.ts` and multi-attribute cosine similarity & transcript search in `semanticSearch.ts`. | `src/engine/perception/vlm.ts`, `src/services/semanticSearch.ts` | Video frames yield perceptual embeddings; querying semantic search by visual tag or speech transcript returns ranked clips matching target intent. |
+
+**Phase exit:** Natural language requests in AIPromptConsole generate real timeline edits via typed tools, diffs can be accepted or rolled back atomically, and media assets can be queried semantically.
+
+---
+
+## Phase R20 — Multi-Camera Auto-Switching & Synchronized Sequence Engine
+
+Goal: Deliver a broadcast-grade multi-camera production suite with automated audio waveform cross-correlation alignment, a 4-up quad split live studio viewer with instant keyboard angle switching (`1`-`4`) and tally borders, and an intelligent dialogue-driven auto-switching engine with cross-talk wide shot protection and minimum shot duration constraints.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R20.1** | **Audio Waveform Cross-Correlation Multi-Cam Sync.** Compute normalized cross-correlation across audio envelopes to calculate sub-frame temporal delay $\tau^*$ in `RationalTime`; shift clips non-destructively via `SyncClipsCommand`. | `src/engine/multicam/multicamSync.ts`, `src/core/commands/multicam.ts` | Multi-camera audio tracks with artificial temporal shifts align to master anchor clip within 1 frame accuracy; confidence score is reported. |
+| **R20.2** | **4-Up Quad Split Multi-Cam Studio & Live Switching.** Implement `MultiCamViewer.tsx` quad-split monitor mounted in `ProgramMonitor.tsx` via `[ ⊞ Multi-Cam ]` toggle; real-time angle switching via hotkeys `1`-`4` or mouse click; razor-cut and switch angle via `SwitchMultiCamAngleCommand` with single-click undo. | `src/components/MultiCamViewer.tsx`, `src/components/ProgramMonitor.tsx`, `src/core/commands/multicam.ts` | Quad-split display renders all 4 angles; active angle displays green `ON AIR` tally border; switching angle splits timeline clip and updates source angle smoothly. |
+| **R20.3** | **AI Dialogue Turn Auto-Switching & Cross-Talk Handling.** Analyze RMS speech energy per camera angle, detect active speaker turns, trigger wide-angle cuts during simultaneous cross-talk or silence, and enforce minimum shot duration ($\ge 2.0$s) to prevent hyperactive cutting. | `src/engine/multicam/autoSwitch.ts` | Speech alternating between speakers produces corresponding cuts; cross-talk triggers wide camera; all cuts satisfy minimum shot length constraint. |
+
+**Phase exit:** Multi-camera clips synchronize automatically via audio waveform cross-correlation, live angle switching operates in 4-up quad split view with hotkeys, and AI auto-cut generates broadcast-quality dialogue edits.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:
 
 - Generative video expansion (outpainting, diffusion handle-frame synthesis).
-- Zero-shot multi-camera switching.
 - CRDT-based real-time collaborative editing.
 - OBS tutorial automation pipeline end-to-end (cursor-guided zoom, OCR command lower-thirds,
   automated chapter generation). Individual primitives from R6/R7 are prerequisites.

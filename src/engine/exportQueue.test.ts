@@ -97,4 +97,28 @@ describe('ExportQueue R8.3', () => {
     expect(jobs[0].error).toBe('GPU Out of Memory');
     expect(jobs[1].error).toBeUndefined();
   });
+
+  it('allows canceling, retrying, and removing jobs in the queue', async () => {
+    const config1: ExportPresetConfig = { presetName: 'YouTube 4K', width: 3840, height: 2160, fps: 60, bitrateMbps: 50, encoder: 'Software x264', outputPath: '/out1.mp4' };
+    const config2: ExportPresetConfig = { presetName: 'TikTok / Reels', width: 1080, height: 1920, fps: 30, bitrateMbps: 25, encoder: 'Software x264', outputPath: '/out2.mp4' };
+
+    const mockRenderSequence = vi.mocked(exportEngine.renderSequence);
+    mockRenderSequence.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(true), 200)));
+
+    const store = useExportQueueStore.getState();
+    store.addJob(config1);
+    const id2 = store.addJob(config2);
+
+    // Cancel the queued second job
+    store.cancelJob(id2);
+    expect(useExportQueueStore.getState().jobs.find(j => j.id === id2)?.status).toBe('canceled');
+
+    // Retry the second job
+    store.retryJob(id2);
+    expect(useExportQueueStore.getState().jobs.find(j => j.id === id2)?.status).toBe('idle');
+
+    // Remove the second job
+    store.removeJob(id2);
+    expect(useExportQueueStore.getState().jobs.find(j => j.id === id2)).toBeUndefined();
+  });
 });

@@ -60,8 +60,9 @@ describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
     });
 
 
-    it('agentOrchestrator throws NotImplementedError', async () => {
-      await expect(agentOrchestrator.processPrompt('cut silence', () => {})).rejects.toThrow(NotImplementedError);
+    it('agentOrchestrator executes real reasoning loop in live mode', async () => {
+      const commands = await agentOrchestrator.processPrompt('cut silence', () => {});
+      expect(commands.length).toBeGreaterThan(0);
     });
   });
 

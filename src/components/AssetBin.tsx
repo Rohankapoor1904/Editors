@@ -6,7 +6,13 @@ import { useTimelineStore } from '../store/timelineStore';
 import { secondsToRational } from '../types/time';
 import { Clip } from '../types/timeline';
 
-export const AssetBin: React.FC = () => {
+export interface AssetBinProps {
+  width?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filter, setFilter] = useState<'all' | 'video' | 'audio' | 'ai'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -188,7 +194,15 @@ export const AssetBin: React.FC = () => {
   });
 
   return (
-    <div className="w-80 bg-dark-900 border-r border-subtle flex flex-col h-full select-none text-xs">
+    <div
+      style={{
+        width: width ? `${width}px` : undefined,
+        minWidth: width ? `${width}px` : undefined,
+        maxWidth: width ? `${width}px` : undefined,
+        ...style,
+      }}
+      className={`bg-dark-900 border-r border-subtle flex flex-col h-full select-none text-xs shrink-0 ${!width ? 'w-80' : ''} ${className}`}
+    >
 
       {/* Hidden file input for web fallback */}
       <input

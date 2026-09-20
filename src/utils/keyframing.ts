@@ -131,3 +131,59 @@ export function interpolateKeyframeValue(keyframes: Keyframe[], time: RationalTi
 
   return k0.value + easedProgress * (k1.value - k0.value);
 }
+
+/**
+ * Extracts the 4 cubic bezier control coordinates [x1, y1, x2, y2] from an easing string or preset
+ */
+export function parseCubicBezier(easing?: string): [number, number, number, number] {
+  if (!easing || easing === 'linear') {
+    return [0, 0, 1, 1];
+  }
+
+  const preset = EASING_PRESETS[easing.toLowerCase()];
+  if (preset) {
+    return [...preset];
+  }
+
+  const cubicMatch = easing.match(
+    /cubic-bezier\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/i
+  );
+  if (cubicMatch) {
+    const x1 = Math.max(0, Math.min(1, parseFloat(cubicMatch[1]) || 0));
+    const y1 = parseFloat(cubicMatch[2]) || 0;
+    const x2 = Math.max(0, Math.min(1, parseFloat(cubicMatch[3]) || 1));
+    const y2 = parseFloat(cubicMatch[4]) || 1;
+    return [x1, y1, x2, y2];
+  }
+
+  return [0, 0, 1, 1];
+}
+
+/**
+ * Formats 4 cubic bezier control coordinates into a CSS-standard cubic-bezier string
+ */
+export function formatCubicBezier(x1: number, y1: number, x2: number, y2: number): string {
+  const clampX = (v: number) => Math.max(0, Math.min(1, Math.round(v * 1000) / 1000));
+  const roundY = (v: number) => Math.round(v * 1000) / 1000;
+  return `cubic-bezier(${clampX(x1)}, ${roundY(y1)}, ${clampX(x2)}, ${roundY(y2)})`;
+}
+
+/**
+ * Generates an array of sampled { x, y } curve coordinates between 0 and 1 for rendering
+ */
+export function sampleCubicBezierCurve(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  steps = 25
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const progress = i / steps;
+    const y = solveCubicBezier(x1, y1, x2, y2, progress);
+    points.push({ x: progress, y });
+  }
+  return points;
+}
+

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { TimelineState } from '../types/timeline';
-import { Video, Sparkles, Palette, Volume2, Share2, Magnet, Cpu, Zap, Download, ShieldAlert, FlaskConical } from 'lucide-react';
-import { getRuntimeMode, setRuntimeMode, subscribeRuntimeMode, RuntimeMode } from '../services/runtimeConfig';
+import { Video, Sparkles, Palette, Volume2, Share2, Magnet, Zap, Download, Bot } from 'lucide-react';
+import { getRuntimeMode } from '../services/runtimeConfig';
 import { saveProjectNative, openProjectNative } from '../services/projectPersistence';
 import { serializeProject, deserializeProject } from '../core/project/serialize';
 import { useMediaPoolStore } from '../store/mediaPool';
@@ -17,15 +17,8 @@ export const TopBar: React.FC = () => {
     setZoomLevel, zoomLevel, addTrack, toggleClipMute, removeClip
   } = useTimelineStore();
 
-  const [runtimeMode, setMode] = useState<RuntimeMode>(getRuntimeMode());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    return subscribeRuntimeMode((newMode) => {
-      setMode(newMode);
-    });
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -36,10 +29,6 @@ export const TopBar: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const toggleRuntimeMode = () => {
-    setRuntimeMode(runtimeMode === 'live' ? 'demo' : 'live');
-  };
 
   const menus = React.useMemo<Record<string, { label?: string; action?: () => void; divider?: boolean }[]>>(() => ({
     File: [
@@ -247,34 +236,16 @@ export const TopBar: React.FC = () => {
         ))}
       </div>
 
-      {/* Right: Runtime Mode Indicator, GPU Accelerator, Project Info & Export CTA */}
+      {/* Right: Snapping, Project Info & Export CTA */}
       <div className="flex items-center space-x-2 shrink-0">
-        {/* Runtime Mode Selector Pill */}
-        <button
-          onClick={toggleRuntimeMode}
-          className={`flex items-center space-x-1 px-2 py-0.5 rounded-panel border text-[10px] font-mono font-semibold transition-all cursor-pointer select-none shrink-0 ${
-            runtimeMode === 'live'
-              ? 'bg-emerald-950/70 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/80 shadow-sm shadow-emerald-950/50'
-              : 'bg-purple-950/70 border-purple-500/60 text-purple-300 hover:bg-purple-900/80 shadow-sm shadow-purple-950/50'
-          }`}
-          title={`Click to switch runtime mode. Currently in ${runtimeMode.toUpperCase()} mode.`}
-        >
-          {runtimeMode === 'live' ? (
-            <>
-              <ShieldAlert className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span>MODE: LIVE</span>
-            </>
-          ) : (
-            <>
-              <FlaskConical className="w-3 h-3 text-purple-400 shrink-0" />
-              <span>MODE: DEMO</span>
-            </>
-          )}
-        </button>
 
-        <div className="hidden lg:flex items-center space-x-1.5 px-2 py-0.5 rounded-panel bg-dark-900 border border-subtle text-[10px] text-teal-accent font-mono shrink-0">
-          <Cpu className="w-3 h-3 text-teal-accent" />
-          <span>WebGPU Accel</span>
+        <div
+          className="hidden lg:flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono shadow-sm"
+          title="AI Agent Live Control Bridge Active (/api/agent)"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <Bot className="w-3 h-3 text-emerald-400" />
+          <span className="font-semibold tracking-wider">AI BRIDGE</span>
         </div>
 
         <button

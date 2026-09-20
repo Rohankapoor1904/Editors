@@ -10,42 +10,72 @@ export class SemanticSearchService {
   constructor() {}
 
   /**
-   * Performs a semantic search over the given embeddings.
-   *
-   * Honest Limitation: In a full production environment, this would use a local SQLite
-   * with FTS5 and sqlite-vss (vector extensions) deployed via the Tauri Rust backend.
-   * Because the VLM text-to-vector embedding model is not yet integrated, true cosine
-   * similarity from a natural-language string to an image vector is not possible.
-   *
-   * As a real (non-mocked) partial implementation, this performs an FTS-style text
-   * overlap score against the clip labels/IDs. It executes on the real input strings
-   * and produces deterministic scores without inventing mock data.
+   * Computes cosine similarity between two normalized vectors:
+   * sim(u, v) = (u . v) / (||u|| * ||v||)
    */
-  async search(query: string, embeddings: Map<string, VlmEmbedding>): Promise<SemanticSearchResult[]> {
+  cosineSimilarity(u: number[], v: number[]): number {
+    if (u.length === 0 || v.length === 0 || u.length !== v.length) return 0;
+    let dot = 0;
+    let normU = 0;
+    let normV = 0;
+    for (let i = 0; i < u.length; i++) {
+      dot += u[i] * v[i];
+      normU += u[i] * u[i];
+      normV += v[i] * v[i];
+    }
+    const denom = Math.sqrt(normU) * Math.sqrt(normV);
+    if (denom < 1e-9) return 0;
+    return Math.max(0, Math.min(1, dot / denom));
+  }
+
+  /**
+   * Performs semantic search over media clips using text token overlap and visual embeddings.
+   */
+  async search(
+    query: string,
+    embeddings: Map<string, VlmEmbedding>,
+    queryVector?: number[]
+  ): Promise<SemanticSearchResult[]> {
     if (getRuntimeMode() === 'demo') {
       throw new Error('NotImplementedError: Semantic search not implemented in demo mode');
     }
 
     const results: SemanticSearchResult[] = [];
-    const searchTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+    const searchTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
 
-    if (searchTerms.length === 0) {
+    if (searchTerms.length === 0 && !queryVector) {
       return [];
     }
 
-    for (const [clipId, _embedding] of embeddings.entries()) {
-      let score = 0;
+    for (const [clipId, embedding] of embeddings.entries()) {
+      let textScore = 0;
       const targetText = clipId.toLowerCase();
 
       // FTS-style word overlap matching
-      for (const term of searchTerms) {
-        if (targetText.includes(term)) {
-          score += 1.0;
+      if (searchTerms.length > 0) {
+        for (const term of searchTerms) {
+          if (targetText.includes(term)) {
+            textScore += 1.0;
+          }
         }
+        textScore = textScore / searchTerms.length;
       }
 
-      if (score > 0) {
-        results.push({ clipId, score: score / searchTerms.length });
+      // Vector cosine similarity if query vector or vector comparison available
+      let vectorScore = 0;
+      if (queryVector && embedding.vector && embedding.vector.length > 0) {
+        vectorScore = this.cosineSimilarity(queryVector, embedding.vector);
+      }
+
+      // Blended score
+      const finalScore = queryVector && searchTerms.length > 0
+        ? textScore * 0.5 + vectorScore * 0.5
+        : queryVector
+        ? vectorScore
+        : textScore;
+
+      if (finalScore > 0) {
+        results.push({ clipId, score: finalScore });
       }
     }
 

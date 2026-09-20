@@ -177,14 +177,48 @@ export class NativeBridgeService {
   }
 
   /**
-   * Triggers C++/Rust FFmpeg demuxing engine for background proxy generation
+   * Triggers Rust FFmpeg demuxing engine for background proxy generation
    */
-  async generateProxy(mediaPath: string): Promise<string> {
-    console.log(`[Native Bridge]: Generating H.264 low-res proxy for ${mediaPath}...`);
+  async generateProxy(mediaPath: string, targetHeight: number = 720, codec: string = 'h264'): Promise<string> {
+    console.log(`[Native Bridge]: Generating ${codec} proxy for ${mediaPath}...`);
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<string> } }).__TAURI_INTERNALS__.invoke(
+          'generate_proxy_video',
+          { inputPath: mediaPath, targetHeight, codec }
+        );
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Proxy generation invoke failed:', err);
+      throw err;
+    }
+
     if (isLiveMode()) {
       throw new NotImplementedError('Native Proxy Generation');
     }
     return `${mediaPath}.proxy.mp4`;
+  }
+
+  /**
+   * Polls native proxy generation status
+   */
+  async pollProxy(taskId: string): Promise<{ taskId: string; status: string; percent: number; outputPath?: string; error?: string }> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{ taskId: string; status: string; percent: number; outputPath?: string; error?: string }> } }).__TAURI_INTERNALS__.invoke(
+          'poll_proxy_generation',
+          { taskId }
+        );
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Proxy polling invoke failed:', err);
+      throw err;
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Proxy Polling');
+    }
+    return { taskId, status: 'done', percent: 100, outputPath: `${taskId}.proxy.mp4` };
   }
 
   /**
@@ -241,6 +275,82 @@ export class NativeBridgeService {
     }
 
     return [];
+  }
+
+  /**
+   * Invokes native AI stem separation pipeline to split audio into Vocals and Instrumental files
+   */
+  async separateAudioStems(
+    audioPath: string,
+    outputDir?: string
+  ): Promise<{ vocalsPath: string; instrumentalPath: string }> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as {
+          __TAURI_INTERNALS__: {
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{ vocals_path: string; instrumental_path: string }>
+          }
+        }).__TAURI_INTERNALS__.invoke('separate_audio_stems', { audioPath, outputDir })
+          .then(res => ({
+            vocalsPath: res.vocals_path,
+            instrumentalPath: res.instrumental_path,
+          }));
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Stem separation invoke failed:', err);
+      throw err;
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native AI Stem Separation (Desktop host required)');
+    }
+
+    const stem = audioPath.replace(/\.[^/.]+$/, '');
+    return {
+      vocalsPath: `${stem}_vocals.wav`,
+      instrumentalPath: `${stem}_instrumental.wav`,
+    };
+  }
+
+  /**
+   * Invokes native FFmpeg/neural filter to perform voice isolation and AGC dialogue leveling
+   */
+  async denoiseAudioFile(
+    audioPath: string,
+    strength: number = 0.75,
+    levelerEnabled: boolean = true,
+    outputPath?: string
+  ): Promise<{ outputPath: string; snrImprovementDb: number }> {
+    try {
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        return await (window as unknown as {
+          __TAURI_INTERNALS__: {
+            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<{ output_path: string; snr_improvement_db: number }>
+          }
+        }).__TAURI_INTERNALS__.invoke('denoise_audio_file', {
+          audioPath,
+          outputPath,
+          strength,
+          levelerEnabled,
+        }).then(res => ({
+          outputPath: res.output_path,
+          snrImprovementDb: res.snr_improvement_db,
+        }));
+      }
+    } catch (err) {
+      console.warn('[Native Bridge]: Voice denoise invoke failed:', err);
+      throw err;
+    }
+
+    if (isLiveMode()) {
+      throw new NotImplementedError('Native Voice Denoise & Dialogue Leveler (Desktop host required)');
+    }
+
+    const stem = audioPath.replace(/\.[^/.]+$/, '');
+    return {
+      outputPath: `${stem}_isolated.wav`,
+      snrImprovementDb: 14.5,
+    };
   }
 }
 

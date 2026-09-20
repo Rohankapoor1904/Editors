@@ -5,6 +5,7 @@ export interface DuckingConfig {
     duckingGain: number;
     attack: number;
     release: number;
+    enabled?: boolean;
 }
 
 export class AudioBus {
@@ -62,7 +63,36 @@ export class AudioGraph {
     }
 
     addDucking(config: DuckingConfig) {
+        if (config.enabled === undefined) config.enabled = true;
         this.duckingRules.push(config);
+    }
+
+    getDuckingConfig(sourceBus: string, targetBus: string): DuckingConfig | undefined {
+        return this.duckingRules.find(r => r.sourceBus === sourceBus && r.targetBus === targetBus);
+    }
+
+    getAllDuckingConfigs(): DuckingConfig[] {
+        return [...this.duckingRules];
+    }
+
+    updateDucking(sourceBus: string, targetBus: string, updates: Partial<DuckingConfig>) {
+        const rule = this.getDuckingConfig(sourceBus, targetBus);
+        if (rule) {
+            Object.assign(rule, updates);
+            if (updates.enabled === false) {
+                const target = this.buses.get(targetBus);
+                if (target) {
+                    const now = this.ctx.currentTime;
+                    target.sidechainGain.gain.cancelScheduledValues(now);
+                    target.sidechainGain.gain.setTargetAtTime(1.0, now, 0.05);
+                }
+                this.duckingActive.set(`${sourceBus}-${targetBus}`, false);
+            }
+        }
+    }
+
+    isDuckingActive(sourceBus: string, targetBus: string): boolean {
+        return !!this.duckingActive.get(`${sourceBus}-${targetBus}`);
     }
 
     startDuckingProcessor() {
@@ -80,6 +110,8 @@ export class AudioGraph {
 
     processDucking() {
         for (const rule of this.duckingRules) {
+            if (rule.enabled === false) continue;
+
             const source = this.buses.get(rule.sourceBus);
             const target = this.buses.get(rule.targetBus);
 

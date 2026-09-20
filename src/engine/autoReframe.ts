@@ -1,3 +1,6 @@
+import { Point, Transform, Keyframe } from '../types/timeline';
+import { secondsToRational } from '../types/time';
+
 export interface ReframeCropWindow {
   cropX: number;
   cropY: number;
@@ -142,8 +145,6 @@ export class AutoReframeEngine {
     sourceHeight: number,
     targetAspect = 9 / 16
   ): KeyframedCropWindow[] {
-    console.log(`[Auto-Reframe Engine]: Smoothing trajectory across ${subjectTrajectory.length} frames using Kalman filter...`);
-
     const result: KeyframedCropWindow[] = [];
     if (subjectTrajectory.length === 0) return result;
 
@@ -185,6 +186,79 @@ export class AutoReframeEngine {
 
     return result;
   }
+
+  /**
+   * Generates full Transform scale and Position X keyframes for 16:9 -> 9:16 re-aspecting
+   * applying Kalman-filtered trajectory smoothing.
+   */
+  generateAutoReframeKeyframes(
+    sourceWidth: number,
+    sourceHeight: number,
+    durationSeconds: number,
+    targetAspect = 9 / 16,
+    subjectTrajectory?: { frameIndex: number; timestamp: number; subjectCenterX: number }[]
+  ): {
+    scale: Point;
+    positionKeyframes: Keyframe[];
+    initialTransform: Transform;
+  } {
+    const cropWidth = sourceHeight * targetAspect;
+    const scaleFactor = sourceWidth / cropWidth;
+
+    // Use provided trajectory or generate stable center-weighted anchor points
+    let trajectory = subjectTrajectory;
+    if (!trajectory || trajectory.length === 0) {
+      const step = Math.max(0.5, durationSeconds / 10);
+      const points: { frameIndex: number; timestamp: number; subjectCenterX: number }[] = [];
+      let frameIdx = 0;
+      for (let t = 0; t <= durationSeconds; t += step) {
+        points.push({
+          frameIndex: frameIdx++,
+          timestamp: t,
+          subjectCenterX: sourceWidth / 2,
+        });
+      }
+      trajectory = points;
+    }
+
+    const smoothedCrops = this.calculateSmoothReframeTrajectory(
+      trajectory,
+      sourceWidth,
+      sourceHeight,
+      targetAspect
+    );
+
+    const positionKeyframes: Keyframe[] = smoothedCrops.map((crop) => {
+      const cropCenterX = crop.cropX + crop.cropWidth / 2;
+      const normCenterX = cropCenterX / sourceWidth;
+      // When normCenterX is 0.5 (center), position.x is 0.5.
+      // When normCenterX shifts left, position.x shifts right to center the crop in viewer.
+      const positionX = 0.5 + (0.5 - normCenterX) * (scaleFactor - 1.0);
+
+      return {
+        time: secondsToRational(crop.timestamp),
+        value: positionX,
+        easing: 'easeInOut',
+      };
+    });
+
+    const initialX = positionKeyframes.length > 0 ? positionKeyframes[0].value : 0.5;
+
+    const initialTransform: Transform = {
+      position: { x: initialX, y: 0.5 },
+      scale: { x: scaleFactor, y: scaleFactor },
+      rotation: 0,
+      opacity: 1,
+      anchorPoint: { x: 0.5, y: 0.5 },
+    };
+
+    return {
+      scale: { x: scaleFactor, y: scaleFactor },
+      positionKeyframes,
+      initialTransform,
+    };
+  }
 }
 
 export const autoReframeEngine = new AutoReframeEngine();
+

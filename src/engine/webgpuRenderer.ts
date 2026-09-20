@@ -524,38 +524,15 @@ export class WebGPURendererEngine {
 
     ctx.restore();
 
-    // Render Captions
+    // Render Kinetic Captions
     if (options.captionData && options.captionData.words.length > 0) {
-      const activeIdx = captionEngine.getActiveWordIndex(options.captionData.words, options.timecode);
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = 'bold 48px sans-serif';
-
-      const x = options.width / 2;
-      const y = options.height * 0.8; // Bottom 20%
-
-      let currentWord = "";
-      if (activeIdx >= 0 && activeIdx < options.captionData.words.length) {
-        currentWord = options.captionData.words[activeIdx].word;
-      }
-
-      if (currentWord) {
-        // Draw highlight background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        const textMetrics = ctx.measureText(currentWord);
-        const padding = 10;
-        ctx.fillRect(
-          x - textMetrics.width / 2 - padding,
-          y - 24 - padding,
-          textMetrics.width + padding * 2,
-          48 + padding * 2
-        );
-
-        // Draw text
-        ctx.fillStyle = 'white';
-        ctx.fillText(currentWord, x, y);
-      }
+      captionEngine.renderKineticCaptionsToCanvas(
+        ctx,
+        options.width,
+        options.height,
+        options.captionData.words,
+        options.timecode
+      );
     }
   }
 }

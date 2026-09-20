@@ -20,6 +20,8 @@ pub struct ExportTaskConfig {
     pub bitrate_mbps: u32,
     pub encoder: String, // e.g., "NVENC (NVIDIA)" or "VideoToolbox (Apple)"
     pub output_path: String,
+    pub target_lufs: Option<f64>,
+    pub color_space: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,12 +76,42 @@ impl HardwareExportNative {
                 args.push("-global_quality".to_string());
                 args.push("20".to_string());
             }
+            "AMF (AMD)" => {
+                args.push("-c:v".to_string());
+                args.push("h264_amf".to_string());
+                args.push("-quality".to_string());
+                args.push("speed".to_string());
+            }
             _ => {
                 args.push("-c:v".to_string());
                 args.push("libx264".to_string());
                 args.push("-preset".to_string());
                 args.push("ultrafast".to_string()); // use ultrafast for testsrc
             }
+        }
+
+        // Colorimetry metadata tagging
+        let cs = config.color_space.as_deref().unwrap_or("bt709");
+        if cs == "bt2020" {
+            args.push("-colorspace".to_string());
+            args.push("bt2020nc".to_string());
+            args.push("-color_primaries".to_string());
+            args.push("bt2020".to_string());
+            args.push("-color_trc".to_string());
+            args.push("smpte2084".to_string());
+        } else {
+            args.push("-colorspace".to_string());
+            args.push("bt709".to_string());
+            args.push("-color_primaries".to_string());
+            args.push("bt709".to_string());
+            args.push("-color_trc".to_string());
+            args.push("bt709".to_string());
+        }
+
+        // Audio normalization (Roadmap R18.2)
+        if let Some(target_lufs) = config.target_lufs {
+            args.push("-af".to_string());
+            args.push(format!("loudnorm=I={:.1}:TP=-1.5:LRA=11", target_lufs));
         }
 
         args.push("-c:a".to_string());
@@ -117,6 +149,9 @@ impl HardwareExportNative {
         }
         if output_str.contains("h264_qsv") {
             encoders.push("QuickSync (Intel)".to_string());
+        }
+        if output_str.contains("h264_amf") {
+            encoders.push("AMF (AMD)".to_string());
         }
 
         encoders

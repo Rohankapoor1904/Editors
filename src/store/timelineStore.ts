@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { TimelineState, Track, Clip, Transform } from '../types/timeline';
-import { secondsToRational, compareRational, RationalTime } from '../types/time';
+import { TimelineState, Track, Clip, Transform, Keyframe } from '../types/timeline';
+import { secondsToRational, rationalToSeconds, compareRational, RationalTime } from '../types/time';
 import { Command } from '../core/commands';
 import { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand } from '../core/commands/storeCommands';
 import { ToggleClipMuteCommand } from '../core/commands/edits';
@@ -10,11 +10,21 @@ import {
   RippleDeleteCommand,
   MoveCommand,
   OverwriteCommand,
+  InsertCommand,
   SlipCommand,
   SlideCommand,
+  SplitTrimCommand,
+  RealignSyncCommand,
   UpdateTransformCommand,
-  UpdateClipEffectCommand
+  UpdateClipEffectCommand,
+  SetKeyframeCommand,
+  RemoveKeyframeCommand,
+  ApplySpeedRampCommand,
+  ApplyAutoReframeCommand
 } from '../core/commands/edits';
+import { SpeedRampConfig } from '../types/timeline';
+import { autoReframeEngine } from '../engine/autoReframe';
+import { nativeBridge } from '../services/nativeBridge';
 
 interface UndoState {
   past: Command[];
@@ -26,6 +36,7 @@ interface TimelineStoreActions {
   undo: () => void;
   redo: () => void;
   setPlayheadPosition: (time: RationalTime) => void;
+  setTargetTrack: (trackId: string | null) => void;
   setWorkspace: (workspace: TimelineState['activeWorkspace']) => void;
   toggleMagneticSnapping: () => void;
   setZoomLevel: (zoom: number) => void;
@@ -37,13 +48,26 @@ interface TimelineStoreActions {
   rippleDelete: (startTime: RationalTime, duration: RationalTime) => void;
   splitClip: (clipId: string, splitTime: RationalTime) => void;
   trimClip: (clipId: string, edge: 'in' | 'out', delta: RationalTime) => void;
+  splitTrimClip: (clipId: string, edge: 'in' | 'out', delta: RationalTime) => void;
   moveClip: (clipId: string, newStartOffset: RationalTime, newTrackId?: string) => void;
-  slipClip: (clipId: string, delta: RationalTime) => void;
+  slipClip: (clipId: string, delta: RationalTime, maxSourceDuration?: RationalTime) => void;
   slideClip: (clipId: string, delta: RationalTime) => void;
   overwriteClip: (trackId: string, clip: Clip) => void;
+  insertClip: (trackId: string, clip: Clip, rippleAllTracks?: boolean) => void;
+  realignSync: (clipId: string) => void;
   toggleClipMute: (clipId: string) => void;
   updateClipTransform: (clipId: string, transform: Transform) => void;
   updateClipEffect: (clipId: string, effectId: string, effectType: string, params: Record<string, unknown>) => void;
+  setClipKeyframe: (clipId: string, property: string, keyframe: Keyframe) => void;
+  removeClipKeyframe: (clipId: string, property: string, time: RationalTime) => void;
+  applySpeedRamp: (clipId: string, speedConfig: SpeedRampConfig) => void;
+  autoReframeClipToAspect: (
+    clipId: string,
+    targetAspect?: number,
+    subjectTrajectory?: { frameIndex: number; timestamp: number; subjectCenterX: number }[]
+  ) => void;
+  separateClipStems: (clipId: string) => Promise<{ vocalClipId: string; instrumentalClipId: string } | null>;
+  applyNoiseIsolation: (clipId: string, strength?: number, enableLeveler?: boolean) => Promise<{ outputPath: string; snrImprovementDb: number } | null>;
 }
 
 export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
@@ -51,6 +75,7 @@ export type TimelineStore = TimelineState & UndoState & TimelineStoreActions;
 const initialTimelineState: TimelineState & UndoState = {
   past: [],
   future: [],
+  targetTrackId: null,
   version: '1.0.0',
   projectId: '',
   metadata: {
@@ -217,16 +242,24 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     get().executeCommand(new SplitCommand(clipId, splitTime));
   },
 
+  setTargetTrack: (trackId) => {
+    set({ targetTrackId: trackId });
+  },
+
   trimClip: (clipId, edge, delta) => {
     get().executeCommand(new TrimCommand(clipId, edge, delta));
+  },
+
+  splitTrimClip: (clipId, edge, delta) => {
+    get().executeCommand(new SplitTrimCommand(clipId, edge, delta));
   },
 
   moveClip: (clipId, newStartOffset, newTrackId) => {
     get().executeCommand(new MoveCommand(clipId, newStartOffset, newTrackId));
   },
 
-  slipClip: (clipId, delta) => {
-    get().executeCommand(new SlipCommand(clipId, delta));
+  slipClip: (clipId, delta, maxSourceDuration) => {
+    get().executeCommand(new SlipCommand(clipId, delta, maxSourceDuration));
   },
 
   slideClip: (clipId, delta) => {
@@ -236,6 +269,14 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   overwriteClip: (trackId, clip) => {
     get().executeCommand(new OverwriteCommand(trackId, clip));
   },
+
+  insertClip: (trackId, clip, rippleAllTracks) => {
+    get().executeCommand(new InsertCommand(trackId, clip, rippleAllTracks));
+  },
+
+  realignSync: (clipId) => {
+    get().executeCommand(new RealignSyncCommand(clipId));
+  },
   toggleClipMute: (clipId) => {
     get().executeCommand(new ToggleClipMuteCommand(clipId));
   },
@@ -244,5 +285,113 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   },
   updateClipEffect: (clipId, effectId, effectType, params) => {
     get().executeCommand(new UpdateClipEffectCommand(clipId, effectId, effectType, params));
+  },
+  setClipKeyframe: (clipId, property, keyframe) => {
+    get().executeCommand(new SetKeyframeCommand(clipId, property, keyframe));
+  },
+  removeClipKeyframe: (clipId, property, time) => {
+    get().executeCommand(new RemoveKeyframeCommand(clipId, property, time));
+  },
+  applySpeedRamp: (clipId, speedConfig) => {
+    get().executeCommand(new ApplySpeedRampCommand(clipId, speedConfig));
+  },
+  autoReframeClipToAspect: (clipId, targetAspect = 9 / 16, subjectTrajectory) => {
+    const state = get();
+    const clip = state.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
+    if (!clip) return;
+
+    const sourceWidth = state.metadata.width || 1920;
+    const sourceHeight = state.metadata.height || 1080;
+    const durationSec = rationalToSeconds(clip.duration);
+
+    const reframeData = autoReframeEngine.generateAutoReframeKeyframes(
+      sourceWidth,
+      sourceHeight,
+      durationSec,
+      targetAspect,
+      subjectTrajectory
+    );
+
+    get().executeCommand(
+      new ApplyAutoReframeCommand(clipId, reframeData.initialTransform, {
+        'position.x': reframeData.positionKeyframes,
+      })
+    );
+  },
+  separateClipStems: async (clipId: string) => {
+    const state = get();
+    const clip = state.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
+    if (!clip) return null;
+
+    const sourcePath = clip.assetId || clip.name;
+    const { vocalsPath, instrumentalPath } = await nativeBridge.separateAudioStems(sourcePath);
+
+    // Find or create vocals track (dialogue) and instrumental track (music)
+    let vocalTrack = get().tracks.find(
+      (t) => t.type === 'audio' && (t.name.toLowerCase().includes('dialogue') || t.name.toLowerCase().includes('vocal'))
+    );
+    let instTrack = get().tracks.find(
+      (t) => t.type === 'audio' && (t.name.toLowerCase().includes('music') || t.name.toLowerCase().includes('instrumental'))
+    );
+
+    if (!vocalTrack) {
+      get().addTrack('audio', 'A - Vocals');
+      vocalTrack = get().tracks[get().tracks.length - 1];
+    }
+    if (!instTrack) {
+      get().addTrack('audio', 'A - Instrumental');
+      instTrack = get().tracks[get().tracks.length - 1];
+    }
+
+    const vocalClipId = `clip_vocal_${Date.now()}`;
+    const instrumentalClipId = `clip_inst_${Date.now()}`;
+
+    const vocalClip: Clip = {
+      id: vocalClipId,
+      assetId: vocalsPath,
+      name: `${clip.name} (Vocals)`,
+      startOffset: { ...clip.startOffset },
+      sourceIn: { ...clip.sourceIn },
+      sourceOut: { ...clip.sourceOut },
+      duration: { ...clip.duration },
+      volume: 0,
+      muted: false,
+      pan: 0,
+    };
+
+    const instClip: Clip = {
+      id: instrumentalClipId,
+      assetId: instrumentalPath,
+      name: `${clip.name} (Instrumental)`,
+      startOffset: { ...clip.startOffset },
+      sourceIn: { ...clip.sourceIn },
+      sourceOut: { ...clip.sourceOut },
+      duration: { ...clip.duration },
+      volume: 0,
+      muted: false,
+      pan: 0,
+    };
+
+    get().addClipToTrack(vocalTrack.id, vocalClip);
+    get().addClipToTrack(instTrack.id, instClip);
+
+    return { vocalClipId, instrumentalClipId };
+  },
+  applyNoiseIsolation: async (clipId: string, strength = 0.75, enableLeveler = true) => {
+    const state = get();
+    const clip = state.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
+    if (!clip) return null;
+
+    const sourcePath = clip.assetId || clip.name;
+    const result = await nativeBridge.denoiseAudioFile(sourcePath, strength, enableLeveler);
+
+    get().updateClipEffect(clipId, 'fx_voice_isolation', 'voice_isolation', {
+      strength,
+      enableLeveler,
+      isolatedPath: result.outputPath,
+      snrImprovementDb: result.snrImprovementDb,
+    });
+
+    return result;
   },
 }));

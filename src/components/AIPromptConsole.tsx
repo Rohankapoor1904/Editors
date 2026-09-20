@@ -20,7 +20,13 @@ export interface ActionDiff {
   command?: Command;
 }
 
-export const AIPromptConsole: React.FC = () => {
+export interface AIPromptConsoleProps {
+  width?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, className = '', style }) => {
   const [activeTab, setActiveTab] = useState<'copilot' | 'inspector'>('copilot');
   const [prompt, setPrompt] = useState('');
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -166,7 +172,15 @@ export const AIPromptConsole: React.FC = () => {
   };
 
   return (
-    <div className="w-96 bg-dark-900 border-l border-subtle flex flex-col h-full select-none text-xs mesh-glow">
+    <div
+      style={{
+        width: width ? `${width}px` : undefined,
+        minWidth: width ? `${width}px` : undefined,
+        maxWidth: width ? `${width}px` : undefined,
+        ...style,
+      }}
+      className={`bg-dark-900 border-l border-subtle flex flex-col h-full select-none text-xs mesh-glow shrink-0 ${!width ? 'w-96' : ''} ${className}`}
+    >
       {/* Header Tabs */}
       <div className="flex items-center justify-between border-b border-subtle px-3 py-2.5 bg-dark-950/60">
         <div className="flex space-x-1 bg-dark-950 p-1 rounded-panel border border-subtle w-full">

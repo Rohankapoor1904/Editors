@@ -3,7 +3,7 @@ import { SemanticSearchService } from './semanticSearch';
 import { setRuntimeMode } from './runtimeConfig';
 import { VlmEmbedding } from '../engine/perception/vlm';
 
-describe('SemanticSearchService (R7.5)', () => {
+describe('SemanticSearchService (R7.5 / R19.3)', () => {
   beforeEach(() => {
     setRuntimeMode('live');
   });
@@ -38,5 +38,28 @@ describe('SemanticSearchService (R7.5)', () => {
 
     const results = await service.search('bird', embeddings);
     expect(results).toHaveLength(0);
+  });
+
+  it('performs vector cosine similarity ranking given query embeddings', async () => {
+    const service = new SemanticSearchService();
+    const embeddings = new Map<string, VlmEmbedding>();
+
+    // Vectors normalized to unit length
+    embeddings.set('sunset_clip', {
+      vector: [0.8, 0.6, 0.0],
+      model: 'cinecraft-vlm-v1',
+    });
+    embeddings.set('ocean_clip', {
+      vector: [0.0, 0.6, 0.8],
+      model: 'cinecraft-vlm-v1',
+    });
+
+    // Query vector close to sunset [0.707, 0.707, 0.0]
+    const queryVector = [0.7071, 0.7071, 0.0];
+    const results = await service.search('', embeddings, queryVector);
+
+    expect(results.length).toBe(2);
+    expect(results[0].clipId).toBe('sunset_clip');
+    expect(results[0].score).toBeGreaterThan(results[1].score);
   });
 });

@@ -5,31 +5,41 @@ export interface SnapResult {
   snappedTime: number;
   isSnapped: boolean;
   targetTime: number | null;
+  snapType?: 'clip' | 'playhead' | 'beat';
 }
 
 /**
- * Proximity detection snapping algorithm for timeline dragging
+ * Proximity detection snapping algorithm for timeline dragging,
+ * supporting clips, playhead, and musical beat markers.
  */
 export function calculateMagneticSnap(
   dragTime: number,
   clips: Clip[],
   playheadTime: number,
   zoomLevel: number,
-  thresholdPixels = 10
+  thresholdPixels = 10,
+  beatMarkers: number[] = []
 ): SnapResult {
   const thresholdSeconds = thresholdPixels / zoomLevel;
-  const snapTargets: number[] = [playheadTime, 0];
+  const snapTargets: { time: number; type: 'clip' | 'playhead' | 'beat' }[] = [
+    { time: playheadTime, type: 'playhead' },
+    { time: 0, type: 'clip' },
+  ];
 
   clips.forEach((clip) => {
-    snapTargets.push(rationalToSeconds(clip.startOffset));
-    snapTargets.push(rationalToSeconds(addRational(clip.startOffset, clip.duration)));
+    snapTargets.push({ time: rationalToSeconds(clip.startOffset), type: 'clip' });
+    snapTargets.push({ time: rationalToSeconds(addRational(clip.startOffset, clip.duration)), type: 'clip' });
   });
 
-  let closestTarget: number | null = null;
+  beatMarkers.forEach((beatTime) => {
+    snapTargets.push({ time: beatTime, type: 'beat' });
+  });
+
+  let closestTarget: { time: number; type: 'clip' | 'playhead' | 'beat' } | null = null;
   let minDiff = Infinity;
 
   for (const target of snapTargets) {
-    const diff = Math.abs(dragTime - target);
+    const diff = Math.abs(dragTime - target.time);
     if (diff <= thresholdSeconds && diff < minDiff) {
       minDiff = diff;
       closestTarget = target;
@@ -38,9 +48,10 @@ export function calculateMagneticSnap(
 
   if (closestTarget !== null) {
     return {
-      snappedTime: closestTarget,
+      snappedTime: closestTarget.time,
       isSnapped: true,
-      targetTime: closestTarget,
+      targetTime: closestTarget.time,
+      snapType: closestTarget.type,
     };
   }
 
@@ -50,3 +61,4 @@ export function calculateMagneticSnap(
     targetTime: null,
   };
 }
+

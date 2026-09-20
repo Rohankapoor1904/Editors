@@ -1,6 +1,7 @@
 import { Command } from './index';
-import { TimelineState, Track, Clip, Transform } from '../../types/timeline';
+import { TimelineState, Track, Clip, Transform, Keyframe, SpeedRampConfig } from '../../types/timeline';
 import { RationalTime, addRational, subRational, compareRational, createRational } from '../../types/time';
+import { calculateDurationForSpeed, calculateTimelineDurationForEnvelope } from '../../engine/speedRamp';
 
 export class SplitCommand implements Command {
   private previousState: TimelineState | null = null;
@@ -83,7 +84,8 @@ export class SlipCommand implements Command {
 
   constructor(
     private readonly clipId: string,
-    private readonly delta: RationalTime
+    private readonly delta: RationalTime,
+    private readonly maxSourceDuration?: RationalTime
   ) {}
 
   apply(state: TimelineState): TimelineState {
@@ -105,13 +107,28 @@ export class SlipCommand implements Command {
       throw new Error(`Clip with id ${this.clipId} not found`);
     }
 
-    const newSourceIn = addRational(targetClip.sourceIn, this.delta);
-    const newSourceOut = addRational(targetClip.sourceOut, this.delta);
+    if (targetTrack.locked) {
+      throw new Error(`Track ${targetTrack.id} is locked`);
+    }
 
-    // In a real system, we'd check if newSourceIn < 0 or if newSourceOut > asset duration.
-    // For now, we allow it (or we could enforce newSourceIn >= 0).
+    let actualDelta = this.delta;
+    let newSourceIn = addRational(targetClip.sourceIn, actualDelta);
+    let newSourceOut = addRational(targetClip.sourceOut, actualDelta);
+
+    // Boundary check 1: sourceIn cannot be negative
     if (compareRational(newSourceIn, createRational(0, 1)) < 0) {
-      throw new Error(`Slip results in negative sourceIn`);
+      actualDelta = subRational(createRational(0, 1), targetClip.sourceIn);
+      newSourceIn = createRational(0, 1);
+      newSourceOut = addRational(newSourceIn, targetClip.duration);
+    }
+
+    // Boundary check 2: sourceOut cannot exceed maxSourceDuration (if supplied)
+    if (this.maxSourceDuration && compareRational(newSourceOut, this.maxSourceDuration) > 0) {
+      newSourceOut = this.maxSourceDuration;
+      newSourceIn = subRational(newSourceOut, targetClip.duration);
+      if (compareRational(newSourceIn, createRational(0, 1)) < 0) {
+        newSourceIn = createRational(0, 1);
+      }
     }
 
     const updatedClip: Clip = {
@@ -165,22 +182,84 @@ export class SlideCommand implements Command {
       throw new Error(`Clip with id ${this.clipId} not found`);
     }
 
+    if (targetTrack.locked) {
+      throw new Error(`Track ${targetTrack.id} is locked`);
+    }
+
     const newStartOffset = addRational(targetClip.startOffset, this.delta);
 
     if (compareRational(newStartOffset, createRational(0, 1)) < 0) {
       throw new Error(`Slide results in negative startOffset`);
     }
 
-    const updatedClip: Clip = {
+    // Sort clips on the track by startOffset to locate immediate neighbors
+    const sortedClips = [...targetTrack.clips].sort((a, b) =>
+      compareRational(a.startOffset, b.startOffset)
+    );
+    const clipIndex = sortedClips.findIndex(c => c.id === this.clipId);
+
+    const prevClip = clipIndex > 0 ? sortedClips[clipIndex - 1] : undefined;
+    const nextClip = clipIndex < sortedClips.length - 1 ? sortedClips[clipIndex + 1] : undefined;
+
+    // Target clip moves by delta; its duration and source offsets remain constant
+    const updatedTargetClip: Clip = {
       ...targetClip,
       startOffset: newStartOffset
     };
+
+    let updatedPrevClip: Clip | undefined;
+    let updatedNextClip: Clip | undefined;
+
+    // Adjust abutting preceding clip (tail trim/extend)
+    if (prevClip) {
+      const prevEnd = addRational(prevClip.startOffset, prevClip.duration);
+      if (compareRational(prevEnd, targetClip.startOffset) === 0) {
+        const newPrevDuration = addRational(prevClip.duration, this.delta);
+        if (compareRational(newPrevDuration, createRational(0, 1)) <= 0) {
+          throw new Error(`Slide would collapse preceding clip`);
+        }
+        updatedPrevClip = {
+          ...prevClip,
+          duration: newPrevDuration,
+          sourceOut: addRational(prevClip.sourceOut, this.delta)
+        };
+      }
+    }
+
+    // Adjust abutting following clip (head trim/extend)
+    if (nextClip) {
+      const targetEnd = addRational(targetClip.startOffset, targetClip.duration);
+      if (compareRational(nextClip.startOffset, targetEnd) === 0) {
+        const newNextStart = addRational(nextClip.startOffset, this.delta);
+        const newNextDuration = subRational(nextClip.duration, this.delta);
+        const newNextSourceIn = addRational(nextClip.sourceIn, this.delta);
+
+        if (compareRational(newNextDuration, createRational(0, 1)) <= 0) {
+          throw new Error(`Slide would collapse following clip`);
+        }
+        if (compareRational(newNextSourceIn, createRational(0, 1)) < 0) {
+          throw new Error(`Slide would make following clip sourceIn negative`);
+        }
+
+        updatedNextClip = {
+          ...nextClip,
+          startOffset: newNextStart,
+          duration: newNextDuration,
+          sourceIn: newNextSourceIn
+        };
+      }
+    }
 
     return {
       ...state,
       tracks: state.tracks.map(track => {
         if (track.id !== targetTrack!.id) return track;
-        const newClips = track.clips.map(c => c.id === this.clipId ? updatedClip : c);
+        const newClips = track.clips.map(c => {
+          if (c.id === this.clipId) return updatedTargetClip;
+          if (updatedPrevClip && c.id === updatedPrevClip.id) return updatedPrevClip;
+          if (updatedNextClip && c.id === updatedNextClip.id) return updatedNextClip;
+          return c;
+        });
         return { ...track, clips: newClips };
       }),
     };
@@ -348,7 +427,335 @@ export class OverwriteCommand implements Command {
 
     return {
       ...state,
+      playheadPosition: overwriteEnd,
       tracks: state.tracks.map(t => t.id === this.trackId ? { ...t, clips: newClips } : t)
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) {
+      return state;
+    }
+    return this.previousState;
+  }
+}
+
+export class InsertCommand implements Command {
+  private previousState: TimelineState | null = null;
+  private generatedIds: Record<string, string> = {};
+
+  constructor(
+    private readonly trackId: string,
+    private readonly clip: Clip,
+    private readonly rippleAllTracks: boolean = false
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    const targetTrack = state.tracks.find(t => t.id === this.trackId);
+
+    if (!targetTrack) {
+      throw new Error(`Track ${this.trackId} not found`);
+    }
+
+    if (targetTrack.locked) {
+      throw new Error(`Track ${this.trackId} is locked`);
+    }
+
+    const insertTime = this.clip.startOffset;
+    const insertDuration = this.clip.duration;
+    const insertEnd = addRational(insertTime, insertDuration);
+
+    const updatedTracks = state.tracks.map((track) => {
+      // If not rippling all tracks, only modify the target track
+      if (!this.rippleAllTracks && track.id !== this.trackId) {
+        return track;
+      }
+      if (track.locked) {
+        return track;
+      }
+
+      const newClips: Clip[] = [];
+
+      for (const c of track.clips) {
+        const clipStart = c.startOffset;
+        const clipEnd = addRational(clipStart, c.duration);
+
+        if (compareRational(clipEnd, insertTime) <= 0) {
+          // Entirely before insert point -> untouched
+          newClips.push(c);
+        } else if (compareRational(clipStart, insertTime) >= 0) {
+          // Entirely at or after insert point -> push downstream by insertDuration
+          newClips.push({
+            ...c,
+            startOffset: addRational(clipStart, insertDuration)
+          });
+        } else {
+          // Straddles insert point -> split into two parts
+          const duration1 = subRational(insertTime, clipStart);
+          const duration2 = subRational(clipEnd, insertTime);
+
+          // Part 1: before insert point
+          newClips.push({
+            ...c,
+            duration: duration1,
+            sourceOut: addRational(c.sourceIn, duration1)
+          });
+
+          // Part 2: after inserted clip
+          if (!this.generatedIds[c.id]) {
+            this.generatedIds[c.id] = `${c.id}_split_${Date.now()}`;
+          }
+          newClips.push({
+            ...c,
+            id: this.generatedIds[c.id],
+            startOffset: insertEnd,
+            sourceIn: addRational(c.sourceIn, duration1),
+            duration: duration2
+          });
+        }
+      }
+
+      // Add the inserted clip if this is the target track
+      if (track.id === this.trackId) {
+        newClips.push(this.clip);
+      }
+
+      // Sort clips by startOffset for determinism
+      newClips.sort((a, b) => compareRational(a.startOffset, b.startOffset));
+
+      return { ...track, clips: newClips };
+    });
+
+    return {
+      ...state,
+      playheadPosition: insertEnd,
+      tracks: updatedTracks
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) {
+      return state;
+    }
+    return this.previousState;
+  }
+}
+
+export class SplitTrimCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly edge: 'in' | 'out',
+    private readonly delta: RationalTime
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+
+    let targetTrack: Track | undefined;
+    let targetClip: Clip | undefined;
+
+    for (const track of state.tracks) {
+      const clip = track.clips.find(c => c.id === this.clipId);
+      if (clip) {
+        targetTrack = track;
+        targetClip = clip;
+        break;
+      }
+    }
+
+    if (!targetTrack || !targetClip) {
+      throw new Error(`Clip with id ${this.clipId} not found`);
+    }
+
+    if (targetTrack.locked) {
+      throw new Error(`Track ${targetTrack.id} is locked`);
+    }
+
+    let newDuration: RationalTime;
+    let newSourceIn = targetClip.sourceIn;
+    let newSourceOut = targetClip.sourceOut;
+    let newStartOffset = targetClip.startOffset;
+
+    if (this.edge === 'in') {
+      newDuration = subRational(targetClip.duration, this.delta);
+      newSourceIn = addRational(targetClip.sourceIn, this.delta);
+      newStartOffset = addRational(targetClip.startOffset, this.delta);
+    } else {
+      newDuration = addRational(targetClip.duration, this.delta);
+      newSourceOut = addRational(targetClip.sourceOut, this.delta);
+    }
+
+    if (compareRational(newDuration, createRational(0, 1)) <= 0) {
+      throw new Error(`Split trim results in zero or negative length clip`);
+    }
+
+    // Find companion clip if linked
+    let companionClip: Clip | undefined;
+    let companionTrack: Track | undefined;
+    if (targetClip.linkedClipId) {
+      for (const t of state.tracks) {
+        const c = t.clips.find(item => item.id === targetClip!.linkedClipId);
+        if (c) {
+          companionClip = c;
+          companionTrack = t;
+          break;
+        }
+      }
+    }
+
+    let syncOffset: RationalTime | undefined;
+    let splitTrimType: 'j-cut' | 'l-cut' | 'none' = 'none';
+
+    if (companionClip) {
+      const isAudio = targetTrack.type === 'audio';
+      const audioStart = isAudio ? newStartOffset : companionClip.startOffset;
+      const videoStart = isAudio ? companionClip.startOffset : newStartOffset;
+
+      const diff = subRational(audioStart, videoStart);
+      syncOffset = diff;
+
+      // J-Cut: audio leads video (audio starts before video)
+      if (compareRational(audioStart, videoStart) < 0) {
+        splitTrimType = 'j-cut';
+      } else if (compareRational(audioStart, videoStart) > 0) {
+        splitTrimType = 'l-cut';
+      } else {
+        const audioEnd = addRational(audioStart, isAudio ? newDuration : companionClip.duration);
+        const videoEnd = addRational(videoStart, isAudio ? companionClip.duration : newDuration);
+        if (compareRational(audioEnd, videoEnd) > 0) {
+          splitTrimType = 'l-cut';
+        } else if (compareRational(videoEnd, audioEnd) > 0) {
+          splitTrimType = 'j-cut';
+        }
+      }
+    }
+
+    const updatedTargetClip: Clip = {
+      ...targetClip,
+      duration: newDuration,
+      sourceIn: newSourceIn,
+      sourceOut: newSourceOut,
+      startOffset: newStartOffset,
+      syncOffset,
+      splitTrimType
+    };
+
+    const updatedCompanionClip: Clip | undefined = companionClip
+      ? {
+          ...companionClip,
+          syncOffset,
+          splitTrimType
+        }
+      : undefined;
+
+    return {
+      ...state,
+      tracks: state.tracks.map(track => {
+        if (track.id === targetTrack!.id) {
+          return {
+            ...track,
+            clips: track.clips.map(c => c.id === this.clipId ? updatedTargetClip : c)
+          };
+        }
+        if (companionTrack && track.id === companionTrack.id && updatedCompanionClip) {
+          return {
+            ...track,
+            clips: track.clips.map(c => c.id === updatedCompanionClip.id ? updatedCompanionClip : c)
+          };
+        }
+        return track;
+      }),
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) {
+      return state;
+    }
+    return this.previousState;
+  }
+}
+
+export class RealignSyncCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(private readonly clipId: string) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+
+    let targetTrack: Track | undefined;
+    let targetClip: Clip | undefined;
+
+    for (const track of state.tracks) {
+      const clip = track.clips.find(c => c.id === this.clipId);
+      if (clip) {
+        targetTrack = track;
+        targetClip = clip;
+        break;
+      }
+    }
+
+    if (!targetTrack || !targetClip || !targetClip.linkedClipId) {
+      return state;
+    }
+
+    let companionClip: Clip | undefined;
+    let companionTrack: Track | undefined;
+
+    for (const t of state.tracks) {
+      const c = t.clips.find(item => item.id === targetClip!.linkedClipId);
+      if (c) {
+        companionClip = c;
+        companionTrack = t;
+        break;
+      }
+    }
+
+    if (!companionClip || !companionTrack) {
+      return state;
+    }
+
+    // Anchor video, re-align audio to match video startOffset and duration
+    const videoClip = targetTrack.type === 'video' ? targetClip : companionClip;
+    const audioClip = targetTrack.type === 'audio' ? targetClip : companionClip;
+
+    const realignedAudio: Clip = {
+      ...audioClip,
+      startOffset: videoClip.startOffset,
+      sourceIn: videoClip.sourceIn,
+      sourceOut: videoClip.sourceOut,
+      duration: videoClip.duration,
+      syncOffset: undefined,
+      splitTrimType: 'none'
+    };
+
+    const realignedVideo: Clip = {
+      ...videoClip,
+      syncOffset: undefined,
+      splitTrimType: 'none'
+    };
+
+    return {
+      ...state,
+      tracks: state.tracks.map(t => {
+        if (t.clips.some(c => c.id === realignedVideo.id)) {
+          return {
+            ...t,
+            clips: t.clips.map(c => c.id === realignedVideo.id ? realignedVideo : c)
+          };
+        }
+        if (t.clips.some(c => c.id === realignedAudio.id)) {
+          return {
+            ...t,
+            clips: t.clips.map(c => c.id === realignedAudio.id ? realignedAudio : c)
+          };
+        }
+        return t;
+      })
     };
   }
 
@@ -689,3 +1096,214 @@ export class UpdateClipEffectCommand implements Command {
     return this.previousState;
   }
 }
+
+export class SetKeyframeCommand implements Command {
+  private previousState: TimelineState | null = null;
+  readonly coalesceKey?: string;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly property: string,
+    private readonly keyframe: Keyframe
+  ) {
+    this.coalesceKey = `SetKeyframeCommand_${clipId}_${property}_${keyframe.time.value}_${keyframe.time.rate}`;
+  }
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let foundClip = false;
+
+    const newTracks = state.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) => {
+        if (clip.id === this.clipId) {
+          foundClip = true;
+          const currentKeyframes = clip.keyframes?.[this.property] ? [...clip.keyframes[this.property]] : [];
+          const existingIndex = currentKeyframes.findIndex((k) => compareRational(k.time, this.keyframe.time) === 0);
+
+          if (existingIndex >= 0) {
+            currentKeyframes[existingIndex] = this.keyframe;
+          } else {
+            currentKeyframes.push(this.keyframe);
+          }
+
+          currentKeyframes.sort((a, b) => compareRational(a.time, b.time));
+
+          return {
+            ...clip,
+            keyframes: {
+              ...(clip.keyframes || {}),
+              [this.property]: currentKeyframes,
+            },
+          };
+        }
+        return clip;
+      }),
+    }));
+
+    if (!foundClip) {
+      throw new Error(`Clip with id ${this.clipId} not found for keyframe update`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks,
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) return state;
+    return this.previousState;
+  }
+}
+
+export class RemoveKeyframeCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly property: string,
+    private readonly time: RationalTime
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let foundClip = false;
+
+    const newTracks = state.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) => {
+        if (clip.id === this.clipId) {
+          foundClip = true;
+          const currentKeyframes = clip.keyframes?.[this.property] ? [...clip.keyframes[this.property]] : [];
+          const filtered = currentKeyframes.filter((k) => compareRational(k.time, this.time) !== 0);
+
+          return {
+            ...clip,
+            keyframes: {
+              ...(clip.keyframes || {}),
+              [this.property]: filtered,
+            },
+          };
+        }
+        return clip;
+      }),
+    }));
+
+    if (!foundClip) {
+      throw new Error(`Clip with id ${this.clipId} not found for keyframe removal`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks,
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) return state;
+    return this.previousState;
+  }
+}
+
+export class ApplySpeedRampCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly speedConfig: SpeedRampConfig
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let foundClip = false;
+
+    const newTracks = state.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) => {
+        if (clip.id === this.clipId) {
+          foundClip = true;
+          const sourceDuration = subRational(clip.sourceOut, clip.sourceIn);
+
+          let newDuration: RationalTime;
+          if (this.speedConfig.envelope && this.speedConfig.envelope.length > 0) {
+            newDuration = calculateTimelineDurationForEnvelope(sourceDuration, this.speedConfig.envelope);
+          } else if (this.speedConfig.constantSpeed !== undefined) {
+            newDuration = calculateDurationForSpeed(sourceDuration, this.speedConfig.constantSpeed);
+          } else {
+            newDuration = sourceDuration;
+          }
+
+          return {
+            ...clip,
+            duration: newDuration,
+            speed: this.speedConfig.constantSpeed ?? 1.0,
+            speedRamp: this.speedConfig,
+            reverse: !!this.speedConfig.reverse,
+          };
+        }
+        return clip;
+      }),
+    }));
+
+    if (!foundClip) {
+      throw new Error(`Clip with id ${this.clipId} not found for speed ramp application`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks,
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) return state;
+    return this.previousState;
+  }
+}
+
+export class ApplyAutoReframeCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly transform: Transform,
+    private readonly keyframes: Record<string, Keyframe[]>
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let foundClip = false;
+
+    const newTracks = state.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) => {
+        if (clip.id === this.clipId) {
+          foundClip = true;
+          return {
+            ...clip,
+            transform: { ...clip.transform, ...this.transform },
+            keyframes: { ...clip.keyframes, ...this.keyframes },
+          };
+        }
+        return clip;
+      }),
+    }));
+
+    if (!foundClip) {
+      throw new Error(`Clip with id ${this.clipId} not found for auto-reframe application`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks,
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) return state;
+    return this.previousState;
+  }
+}
+
+

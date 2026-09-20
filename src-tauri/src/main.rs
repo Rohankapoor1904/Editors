@@ -5,11 +5,17 @@ pub mod ffmpeg_demuxer;
 pub mod whisper_onnx;
 pub mod silero_vad;
 pub mod export_native;
+pub mod proxy_engine;
+pub mod audio_separation;
+pub mod voice_denoise;
 
 use ffmpeg_demuxer::{FFmpegDemuxerEngine, MediaProbeInfo};
-use whisper_onnx::{WhisperOnnxEngine, WhisperTranscriptNative};
-use silero_vad::{SileroVadEngine, SilenceSegmentNative};
-use export_native::{HardwareExportNative, ExportTaskConfig, FFmpegCommandSpec, ExportProgress};
+use whisper_onnx::{WhisperTranscriptNative, WhisperOnnxEngine};
+use silero_vad::{SilenceSegmentNative, SileroVadEngine};
+use export_native::{ExportProgress, ExportTaskConfig, FFmpegCommandSpec, HardwareExportNative};
+use proxy_engine::{ProxyEngine, ProxyProgressNative, ProxyTaskConfig};
+use audio_separation::{AudioSeparationConfig, AudioSeparationEngine, SeparationResultNative};
+use voice_denoise::{DenoiseResultNative, VoiceDenoiseConfig, VoiceDenoiseEngine};
 
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
@@ -78,6 +84,44 @@ fn get_available_encoders() -> Result<Vec<String>, String> {
     Ok(HardwareExportNative::get_available_encoders())
 }
 
+#[tauri::command]
+fn generate_proxy_video(input_path: String, target_height: Option<u32>, codec: Option<String>) -> Result<String, String> {
+    ProxyEngine::start_proxy_task(ProxyTaskConfig {
+        input_path,
+        output_path: None,
+        target_height,
+        codec,
+    })
+}
+
+#[tauri::command]
+fn poll_proxy_generation(task_id: String) -> Result<ProxyProgressNative, String> {
+    ProxyEngine::poll_proxy_task(&task_id)
+}
+
+#[tauri::command]
+async fn separate_audio_stems(audio_path: String, output_dir: Option<String>) -> Result<SeparationResultNative, String> {
+    AudioSeparationEngine::separate_stems(AudioSeparationConfig {
+        audio_path,
+        output_dir,
+    }).await
+}
+
+#[tauri::command]
+async fn denoise_audio_file(
+    audio_path: String,
+    output_path: Option<String>,
+    strength: Option<f32>,
+    leveler_enabled: Option<bool>,
+) -> Result<DenoiseResultNative, String> {
+    VoiceDenoiseEngine::denoise_audio(VoiceDenoiseConfig {
+        audio_path,
+        output_path,
+        strength,
+        leveler_enabled,
+    }).await
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -92,7 +136,11 @@ fn main() {
             poll_export_task,
             get_available_encoders,
             get_file_fingerprint,
-            check_file_exists
+            check_file_exists,
+            generate_proxy_video,
+            poll_proxy_generation,
+            separate_audio_stems,
+            denoise_audio_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running CineCraft AI Tauri application");

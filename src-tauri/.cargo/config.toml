@@ -1,0 +1,17 @@
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+rustflags = [
+    "-C", "link-arg=/FORCE:MULTIPLE",
+    "-C", "link-arg=/NODEFAULTLIB:libucrt.lib",
+    "-L", "native=C:/Users/rohan/AppData/Local/cargo-xwin/xwin/combined_libs",
+    "-l", "ucrt",
+    "-l", "msvcprt",
+    "-l", "libcpmt_patched",
+    "-l", "libvcruntime",
+    "-l", "libcmt",
+    "-l", "vcruntime140_1",
+    "-l", "c++",
+    "-l", "c++abi",
+    "-l", "unwind",
+    "-l", "mingwex",
+]

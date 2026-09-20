@@ -1,7 +1,7 @@
 import { Clip } from '../types/timeline';
 import { useTimelineStore } from '../store/timelineStore';
 import { addRational, compareRational, subRational, RationalTime } from '../types/time';
-import { AudioGraph } from './audioGraph';
+import { AudioGraph, DuckingConfig } from './audioGraph';
 import { parametricEqEngine } from './parametricEq';
 import { limiterEngine } from './limiter';
 
@@ -38,13 +38,15 @@ export class WebAudioEngineManager {
       this.graph.createBus('music');
       this.graph.createBus('sfx');
 
+      // Roadmap R17.2: Speech > -30dB attenuates music by -12dB with 50ms attack, 300ms release
       this.graph.addDucking({
         sourceBus: 'dialogue',
         targetBus: 'music',
-        threshold: 0.05,
-        duckingGain: 0.25,
-        attack: 0.05,
-        release: 0.5
+        threshold: Math.pow(10, -30 / 20), // -30 dBFS (~0.03162)
+        duckingGain: Math.pow(10, -12 / 20), // -12 dB (~0.25119)
+        attack: 0.05,                       // 50 ms
+        release: 0.30,                      // 300 ms
+        enabled: true,
       });
       this.graph.startDuckingProcessor();
 
@@ -199,6 +201,18 @@ export class WebAudioEngineManager {
 
     const linearGain = Math.pow(10, volumeDb / 20);
     gainNode.gain.setValueAtTime(linearGain, this.ctx.currentTime);
+  }
+
+  getDuckingConfig(sourceBus = 'dialogue', targetBus = 'music'): DuckingConfig | undefined {
+    return this.graph?.getDuckingConfig(sourceBus, targetBus);
+  }
+
+  updateDuckingConfig(updates: Partial<DuckingConfig>, sourceBus = 'dialogue', targetBus = 'music'): void {
+    this.graph?.updateDucking(sourceBus, targetBus, updates);
+  }
+
+  isDuckingActive(sourceBus = 'dialogue', targetBus = 'music'): boolean {
+    return this.graph?.isDuckingActive(sourceBus, targetBus) ?? false;
   }
 
   // Resolves timeline time to context time given the current playback state and base offsets

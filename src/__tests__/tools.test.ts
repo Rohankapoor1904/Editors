@@ -35,11 +35,33 @@ describe('Tool Layer Set 1: Metadata & Timeline', () => {
     expect((result as any).details[0]).toContain('Missing required property: edits[0].end_time');
   });
 
-  it('should throw NotImplementedError when executing tools (in live mode)', async () => {
+  it('should execute transcribe_and_align successfully and return aligned words in live mode', async () => {
     setRuntimeMode('live');
     const result = await globalToolRegistry.execute('transcribe_and_align', { asset_id: 'test' });
-    expect(result).toHaveProperty('error', 'execution_error');
-    expect((result as any).details).toContain('transcribe_and_align');
+    expect(result).not.toHaveProperty('error');
+    expect((result as any).asset_id).toBe('test');
+    expect(Array.isArray((result as any).words)).toBe(true);
+    expect((result as any).words.length).toBeGreaterThan(0);
+  });
+
+  it('should execute probe_media successfully and return media dimensions', async () => {
+    setRuntimeMode('live');
+    const result = await globalToolRegistry.execute('probe_media', { asset_id: 'asset_fixture_1' });
+    expect(result).not.toHaveProperty('error');
+    expect((result as any).width).toBe(1920);
+    expect((result as any).height).toBe(1080);
+    expect((result as any).duration).toBeGreaterThan(0);
+  });
+
+  it('should execute cut_and_arrange_timeline and return real commands', async () => {
+    setRuntimeMode('live');
+    const result = await globalToolRegistry.execute('cut_and_arrange_timeline', {
+      track_id: 'v1',
+      edits: [{ asset_id: 'asset_1', start_time: 0, end_time: 4.5, timeline_position: 0 }]
+    });
+    expect(result).not.toHaveProperty('error');
+    expect((result as any).success).toBe(true);
+    expect((result as any).commands.length).toBe(1);
   });
 });
 
@@ -58,11 +80,14 @@ describe('Tool Layer Set 2: Effects & Export', () => {
     expect((result as any).details[0]).toContain('must be one of [bold_yellow_highlight, clean_white, karaoke_bounce]');
   });
 
-  it('should apply defaults for render_video', async () => {
+  it('should apply defaults and execute render_video successfully in live mode', async () => {
     setRuntimeMode('live');
     const result = await globalToolRegistry.execute('render_video', { resolution: '1080p' });
-    // It should hit execution_error (NotImplementedError) meaning validation passed
-    expect(result).toHaveProperty('error', 'execution_error');
+    expect(result).not.toHaveProperty('error');
+    expect((result as any).success).toBe(true);
+    expect((result as any).width).toBe(1920);
+    expect((result as any).height).toBe(1080);
+    expect((result as any).fps).toBe(30);
   });
 
   it('should reject invalid transcript_filter_tokens arguments', async () => {
@@ -72,5 +97,13 @@ describe('Tool Layer Set 2: Effects & Export', () => {
     });
     expect(result).toHaveProperty('error', 'validation_error');
     expect((result as any).details[0]).toContain('expected integer, got 10');
+  });
+
+  it('should execute timeline_remove_silence and return ripple deletion commands', async () => {
+    setRuntimeMode('live');
+    const result = await globalToolRegistry.execute('timeline_remove_silence', { threshold_seconds: 0.5 });
+    expect(result).not.toHaveProperty('error');
+    expect((result as any).success).toBe(true);
+    expect((result as any).commands.length).toBeGreaterThan(0);
   });
 });

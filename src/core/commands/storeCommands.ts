@@ -179,3 +179,31 @@ export class ToggleTrackStateCommand implements Command {
     };
   }
 }
+
+export class SetMetadataCommand implements Command {
+  private previousMetadata: TimelineState['metadata'] | null = null;
+
+  constructor(private readonly newMetadata: Partial<TimelineState['metadata']>) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousMetadata = { ...state.metadata };
+    return {
+      ...state,
+      metadata: {
+        ...state.metadata,
+        ...this.newMetadata,
+      },
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousMetadata) {
+      return state;
+    }
+    return {
+      ...state,
+      metadata: this.previousMetadata,
+    };
+  }
+}
+

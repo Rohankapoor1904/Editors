@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "verify:invariants": "node scripts/verify-invariants.mjs",
     "test": "node scripts/verify-invariants.mjs && vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tauri": "tauri",
+    "dev:desktop": "tauri dev",
+    "build:desktop": "tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
@@ -24,6 +27,7 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.5",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^20.19.43",

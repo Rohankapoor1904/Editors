@@ -51,6 +51,30 @@ export function handleKeyboardShortcuts(e: KeyboardEvent, store: TimelineStore) 
       e.preventDefault();
       window.dispatchEvent(new CustomEvent('set-active-tool', { detail: 'select' }));
       break;
+    case 'y': // Slip tool
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('set-active-tool', { detail: 'slip' }));
+      break;
+    case 'u': // Slide tool
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('set-active-tool', { detail: 'slide' }));
+      break;
+    case ',': // Insert edit (3-point)
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('timeline-insert-edit'));
+      break;
+    case '.': // Overwrite edit (3-point)
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('timeline-overwrite-edit'));
+      break;
+    case 'i': // Mark In
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('timeline-mark-in'));
+      break;
+    case 'o': // Mark Out
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('timeline-mark-out'));
+      break;
     case 's': // Snapping toggle
       e.preventDefault();
       toggleMagneticSnapping();

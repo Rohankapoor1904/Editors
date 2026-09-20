@@ -9,11 +9,15 @@ import { TranscriptEditor } from './components/TranscriptEditor';
 import { ExportModal } from './components/ExportModal';
 import { AudioWorkspace } from './components/AudioWorkspace';
 import { ColorWorkspace } from './components/ColorWorkspace';
+import { ResizableSplitter } from './components/layout/ResizableSplitter';
+import { useLayoutStore } from './store/layoutStore';
+import { FolderOpen, Sparkles } from 'lucide-react';
 import { useTimelineStore } from './store/timelineStore';
 import { useMediaPoolStore } from './store/mediaPool';
 import { deserializeProject } from './core/project/serialize';
 import { handleKeyboardShortcuts } from './utils/keyboardShortcuts';
 import { saveAutosave, loadAutosave } from './services/projectPersistence';
+import { agentBridge } from './services/agentBridge';
 
 export const App: React.FC = () => {
   const store = useTimelineStore();
@@ -21,8 +25,28 @@ export const App: React.FC = () => {
   const { addAsset } = useMediaPoolStore();
   const assets = useMediaPoolStore(s => s.assets);
 
+  const {
+    leftPanelWidth,
+    leftPanelCollapsed,
+    rightPanelWidth,
+    rightPanelCollapsed,
+    timelineHeight,
+    timelineCollapsed,
+    monitorViewMode,
+    sourceMonitorRatio,
+    resizeLeftPanel,
+    toggleLeftPanel,
+    resizeRightPanel,
+    toggleRightPanel,
+    resizeTimeline,
+    toggleTimeline,
+    resizeMonitorRatio,
+  } = useLayoutStore();
+
   React.useEffect(() => {
     loadAutosave();
+    agentBridge.start();
+    return () => agentBridge.stop();
   }, []);
 
   React.useEffect(() => {
@@ -93,16 +117,38 @@ export const App: React.FC = () => {
       {/* Top Application Navbar */}
       <TopBar />
 
-      {/* Main Workspace Area */}
-      <div className="flex-1 flex min-h-0">
+      {/* Main Workspace Area (Top/Middle) */}
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
         {/* Left: Media & Asset Bin */}
-        <AssetBin />
+        {!leftPanelCollapsed && (
+          <AssetBin width={leftPanelWidth} />
+        )}
+
+        {/* Floating expand button when left panel is collapsed */}
+        {leftPanelCollapsed && (
+          <button
+            onClick={toggleLeftPanel}
+            className="absolute left-0 top-12 z-30 p-1.5 bg-dark-900/90 border border-neutral-800 border-l-0 rounded-r-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors shadow-lg"
+            title="Expand Project Bin"
+          >
+            <FolderOpen className="w-4 h-4 text-indigo-400" />
+          </button>
+        )}
+
+        {/* Left Resizable Splitter */}
+        <ResizableSplitter
+          direction="horizontal"
+          onResize={resizeLeftPanel}
+          onCollapseToggle={toggleLeftPanel}
+          isCollapsed={leftPanelCollapsed}
+          collapsePosition="start"
+        />
 
         {/* Center Panel View depending on active Workspace Mode */}
         {activeWorkspace === 'ai' ? (
-          <div className="flex-1 flex p-2 space-x-2 bg-neutral-950 min-h-0">
+          <div className="flex-1 flex p-2 space-x-2 bg-neutral-950 min-h-0 overflow-hidden">
             <ProgramMonitor />
-            <div className="w-96">
+            <div className="w-96 shrink-0">
               <TranscriptEditor />
             </div>
           </div>
@@ -115,18 +161,83 @@ export const App: React.FC = () => {
         ) : activeWorkspace === 'audio' ? (
           <AudioWorkspace />
         ) : (
-          <div className="flex-1 flex space-x-2 bg-neutral-950 min-h-0">
-            <SourceMonitor />
-            <ProgramMonitor />
+          <div className="flex-1 flex bg-neutral-950 min-h-0 overflow-hidden relative">
+            {monitorViewMode === 'dual' ? (
+              <>
+                {/* Source Monitor */}
+                <div
+                  style={{ width: `${Math.round(sourceMonitorRatio * 100)}%` }}
+                  className="h-full min-w-[240px] overflow-hidden flex flex-col min-h-0"
+                >
+                  <SourceMonitor />
+                </div>
+
+                {/* Splitter between Source and Program Monitor */}
+                <ResizableSplitter
+                  direction="horizontal"
+                  onResize={(delta) => {
+                    const centerWidth = window.innerWidth - (leftPanelCollapsed ? 0 : leftPanelWidth) - (rightPanelCollapsed ? 0 : rightPanelWidth);
+                    if (centerWidth > 100) {
+                      resizeMonitorRatio(delta / centerWidth);
+                    }
+                  }}
+                />
+
+                {/* Program Monitor */}
+                <div
+                  style={{ width: `${Math.round((1 - sourceMonitorRatio) * 100)}%` }}
+                  className="h-full min-w-[240px] overflow-hidden flex flex-col min-h-0"
+                >
+                  <ProgramMonitor />
+                </div>
+              </>
+            ) : (
+              /* Single Monitor View: Program Monitor takes 100% full width */
+              <div className="flex-1 h-full w-full overflow-hidden flex flex-col min-h-0 min-w-0">
+                <ProgramMonitor />
+              </div>
+            )}
           </div>
         )}
 
+        {/* Right Resizable Splitter */}
+        <ResizableSplitter
+          direction="horizontal"
+          onResize={resizeRightPanel}
+          onCollapseToggle={toggleRightPanel}
+          isCollapsed={rightPanelCollapsed}
+          collapsePosition="end"
+        />
+
+        {/* Floating expand button when right panel is collapsed */}
+        {rightPanelCollapsed && (
+          <button
+            onClick={toggleRightPanel}
+            className="absolute right-0 top-12 z-30 p-1.5 bg-dark-900/90 border border-neutral-800 border-r-0 rounded-l-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors shadow-lg"
+            title="Expand AI Copilot & Inspector"
+          >
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+          </button>
+        )}
+
         {/* Right: AI Copilot Console */}
-        <AIPromptConsole />
+        {!rightPanelCollapsed && (
+          <AIPromptConsole width={rightPanelWidth} />
+        )}
       </div>
 
+      {/* Horizontal Timeline Resizable Splitter */}
+      <ResizableSplitter
+        direction="vertical"
+        onResize={resizeTimeline}
+        onCollapseToggle={toggleTimeline}
+        isCollapsed={timelineCollapsed}
+      />
+
       {/* Bottom: Multi-Track Timeline Editor */}
-      <TimelineTrackEditor />
+      {!timelineCollapsed && (
+        <TimelineTrackEditor height={timelineHeight} />
+      )}
     </div>
   );
 };
