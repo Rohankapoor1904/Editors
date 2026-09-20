@@ -12,11 +12,24 @@ import { useTimelineStore } from './store/timelineStore';
 import { useMediaPoolStore } from './store/mediaPool';
 import { deserializeProject } from './core/project/serialize';
 import { handleKeyboardShortcuts } from './utils/keyboardShortcuts';
+import { saveAutosave, loadAutosave } from './services/projectPersistence';
 
 export const App: React.FC = () => {
   const store = useTimelineStore();
   const { activeWorkspace, undo, redo } = store;
   const { addAsset } = useMediaPoolStore();
+  const assets = useMediaPoolStore(s => s.assets);
+
+  React.useEffect(() => {
+    loadAutosave();
+  }, []);
+
+  React.useEffect(() => {
+    const saveTimeout = setTimeout(() => {
+      saveAutosave(store, assets);
+    }, 2000);
+    return () => clearTimeout(saveTimeout);
+  }, [store, assets]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
