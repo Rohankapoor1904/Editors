@@ -12,7 +12,9 @@ const dbToPercent = (db: number) => {
 };
 
 const TrackStrip: React.FC<{ track: Track }> = ({ track }) => {
-  const toggleTrackState = useTimelineStore(state => state.toggleTrackState);
+  const toggleTrackState = useTimelineStore((state) => state.toggleTrackState);
+  const setTrackVolume = useTimelineStore((state) => state.setTrackVolume);
+  const setTrackPan = useTimelineStore((state) => state.setTrackPan);
 
   // Track visual levels
   const [levels, setLevels] = useState<[number, number]>([-60, -60]);
@@ -31,24 +33,17 @@ const TrackStrip: React.FC<{ track: Track }> = ({ track }) => {
     };
   }, [track.id]);
 
-  // Read volume from clip state or default to 0
-  // For a track mixer, ideally the track itself has a volume property.
-  // The current timeline store doesn't have track.volume, but it expects us to set track volume via audioEngine.
-  // We'll manage local UI state for the fader here if there's no track volume in the store.
-  // We can also initialize it to 0.
-  const [volume, setVolume] = useState(0);
-  const [pan, setPan] = useState(0);
+  const volume = track.volume ?? 0;
+  const pan = track.pan ?? 0;
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVol = parseFloat(e.target.value);
-    setVolume(newVol);
-    audioEngine.setTrackVolume(track.id, newVol);
+    setTrackVolume(track.id, newVol);
   };
 
   const handlePanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPan = parseFloat(e.target.value);
-    setPan(newPan);
-    audioEngine.setTrackPan(track.id, newPan);
+    setTrackPan(track.id, newPan);
   };
 
   return (

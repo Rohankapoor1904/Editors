@@ -68,6 +68,8 @@ export interface Track {
   solo: boolean;
   height: number;
   clips: Clip[];
+  volume?: number; // In dB, default 0
+  pan?: number;    // -1.0 to 1.0, default 0
 }
 
 export interface TimelineProjectMetadata {

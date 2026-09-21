@@ -4,6 +4,7 @@ export interface MediaAsset {
   id: string;
   name: string;
   path: string;
+  thumbnailUrl?: string;
   proxyPath?: string;
   proxyStatus?: 'none' | 'generating' | 'ready' | 'failed';
   type: 'video' | 'audio' | 'subtitle' | 'ai';

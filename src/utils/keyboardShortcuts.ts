@@ -15,6 +15,7 @@ export function handleKeyboardShortcuts(e: KeyboardEvent, store: TimelineStore) 
   const {
     setPlayheadPosition,
     selectedClipIds,
+    removeClip,
     rippleDelete,
     toggleMagneticSnapping,
     tracks,
@@ -80,27 +81,24 @@ export function handleKeyboardShortcuts(e: KeyboardEvent, store: TimelineStore) 
       toggleMagneticSnapping();
       break;
     case 'delete':
-    case 'backspace': // Ripple delete selected clip
+    case 'backspace':
       e.preventDefault();
       if (selectedClipIds.length > 0) {
-        // Group by track to correctly handle ripple delete per clip?
-        // Store rippleDelete requires startTime and duration.
-        // It's meant to delete a time range across tracks if we use the RippleDeleteCommand,
-        // Wait, RippleDeleteCommand takes startTime and duration and ripples all tracks by that duration.
-        // We probably want to just remove the clip and shift following clips on that track, or remove clip and ripple everything.
-        // The store currently has rippleDelete(startTime, duration) which creates RippleDeleteCommand.
-
-        // Let's just find the first selected clip, and ripple delete its range.
-        const allClips = tracks.flatMap(t => t.clips);
-        const selectedClips = allClips.filter(c => selectedClipIds.includes(c.id));
-        if (selectedClips.length > 0) {
-            // we should issue store.removeClip or rippleDelete.
-            // Ripple delete requires start time and duration.
-            // A true ripple delete of a selected clip:
-            // "Ripple delete selected clip"
-            // For now, let's use the clip's startOffset and duration.
+        if (e.shiftKey) {
+          // Ripple delete: ripples time across sequence
+          const allClips = tracks.flatMap(t => t.clips);
+          const selectedClips = allClips.filter(c => selectedClipIds.includes(c.id));
+          if (selectedClips.length > 0) {
             const clip = selectedClips[0];
             rippleDelete(clip.startOffset, clip.duration);
+          }
+        } else {
+          // Clean Lift delete: removes selected clips without truncating other tracks
+          for (const clipId of [...selectedClipIds]) {
+            if (typeof removeClip === 'function') {
+              removeClip(clipId);
+            }
+          }
         }
       }
       break;

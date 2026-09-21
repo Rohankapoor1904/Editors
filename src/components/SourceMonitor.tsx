@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMediaPoolStore } from '../store/mediaPool';
 import { useTimelineStore } from '../store/timelineStore';
 import { RationalTime, secondsToRational, compareRational, subRational, rationalToSeconds } from '../types/time';
 import { Clip } from '../types/timeline';
-import { ChevronLeft, ChevronRight, ArrowDownToLine, FileSymlink, Crosshair } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowDownToLine, FileSymlink, Crosshair, Play, Pause, Volume2 } from 'lucide-react';
+import { nativeBridge } from '../services/nativeBridge';
 
 export const SourceMonitor: React.FC = () => {
   const { assets, selectedAssetId } = useMediaPoolStore();
@@ -12,6 +13,8 @@ export const SourceMonitor: React.FC = () => {
   const [inPoint, setInPoint] = useState<RationalTime | null>(null);
   const [outPoint, setOutPoint] = useState<RationalTime | null>(null);
   const [sourcePlayhead, setSourcePlayhead] = useState<RationalTime>(secondsToRational(0));
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
 
@@ -115,7 +118,45 @@ export const SourceMonitor: React.FC = () => {
     setInPoint(null);
     setOutPoint(null);
     setSourcePlayhead(secondsToRational(0));
+    setIsPlaying(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
   }, [selectedAssetId]);
+
+  // Sync video time when user scrubs playhead externally
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (Math.abs(video.currentTime - currentSec) > 0.15) {
+      video.currentTime = currentSec;
+    }
+  }, [currentSec]);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPlaying) {
+      video.pause();
+      setIsPlaying(false);
+    } else {
+      video.play().then(() => setIsPlaying(true)).catch((err) => {
+        console.warn('[SourceMonitor] Playback failed:', err);
+        setIsPlaying(false);
+      });
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video || !isPlaying) return;
+    setSourcePlayhead(secondsToRational(video.currentTime));
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+  };
 
   if (!selectedAsset) {
     return (
@@ -145,11 +186,37 @@ export const SourceMonitor: React.FC = () => {
 
       <div className="flex-1 w-full flex items-center justify-center relative min-h-0 py-1">
         <div className="w-full h-full bg-neutral-900 border border-neutral-800/90 rounded-xl shadow-2xl flex flex-col items-center justify-center relative overflow-hidden aspect-[16/9]">
-           {/* Raw Video Canvas */}
-           <div className="flex flex-col items-center space-y-2">
-             <span className="text-neutral-600 font-mono text-sm">[Raw Video Canvas]</span>
-             <span className="text-xs text-neutral-500 font-mono">{formatTimecode(currentSec)}</span>
-           </div>
+          {selectedAsset.type === 'video' ? (
+            <video
+              ref={videoRef}
+              data-testid="source-video"
+              src={nativeBridge.getAssetUrl(selectedAsset.path)}
+              className="w-full h-full object-contain bg-black"
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleEnded}
+              poster={selectedAsset.thumbnailUrl}
+              playsInline
+            />
+          ) : selectedAsset.type === 'audio' ? (
+            <div className="flex flex-col items-center justify-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-teal-950/60 border border-teal-800/50 flex items-center justify-center">
+                <Volume2 className="w-7 h-7 text-teal-400" />
+              </div>
+              <span className="text-xs font-medium text-neutral-300 truncate max-w-[240px]">{selectedAsset.name}</span>
+              <span className="text-[11px] font-mono text-teal-400/80">{formatTimecode(currentSec)} / {formatTimecode(fullDurationSec)}</span>
+              <audio
+                ref={videoRef as unknown as React.RefObject<HTMLAudioElement>}
+                src={nativeBridge.getAssetUrl(selectedAsset.path)}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleEnded}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center space-y-2">
+              <span className="text-neutral-500 font-mono text-sm">{selectedAsset.name}</span>
+              <span className="text-xs text-neutral-500 font-mono">{formatTimecode(currentSec)}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -204,6 +271,13 @@ export const SourceMonitor: React.FC = () => {
                }`}
              >
                <ChevronLeft className="w-4 h-4" />
+             </button>
+             <button
+               title={isPlaying ? "Pause [Space]" : "Play [Space]"}
+               onClick={togglePlay}
+               className="p-1.5 rounded transition-colors hover:bg-neutral-800 text-neutral-300 hover:text-white"
+             >
+               {isPlaying ? <Pause className="w-4 h-4 text-amber-400" /> : <Play className="w-4 h-4 text-emerald-400" />}
              </button>
              <button
                title="Mark Out [O]"

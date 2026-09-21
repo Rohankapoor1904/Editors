@@ -1,6 +1,7 @@
 import { useTimelineStore } from '../store/timelineStore';
 import { secondsToRational, createRational, addRational, subRational, compareRational, RationalTime } from '../types/time';
 import { audioEngine } from './audioEngine';
+import { audioPlaybackManager } from './audioPlayback';
 
 export type TransportStateListener = (isPlaying: boolean) => void;
 
@@ -51,6 +52,7 @@ export class TransportEngine {
 
     this.playbackStartTimeSec = audioEngine.getCurrentTime();
     this.applyAudioCrossfades();
+    audioPlaybackManager.play();
 
     this.requestRef = requestAnimationFrame(() => this.loop());
     this.notifyListeners();
@@ -63,6 +65,8 @@ export class TransportEngine {
       cancelAnimationFrame(this.requestRef);
       this.requestRef = null;
     }
+
+    audioPlaybackManager.pause();
 
     // Perform final sync to store
     this.updatePlayheadPosition(audioEngine.getCurrentTime());
@@ -99,6 +103,7 @@ export class TransportEngine {
 
     const targetPos = compareRational(newPos, zero) < 0 ? zero : newPos;
     store.setPlayheadPosition(targetPos);
+    audioPlaybackManager.sync(targetPos);
 
     // If playing, we need to reset the anchor time so playback continues correctly from new pos
     if (this.isPlaying) {
@@ -156,6 +161,7 @@ export class TransportEngine {
           // Pause at end
           newPos = duration;
           store.setPlayheadPosition(newPos);
+          audioPlaybackManager.sync(newPos);
           this.pause();
           return;
         }
@@ -163,6 +169,7 @@ export class TransportEngine {
     }
 
     store.setPlayheadPosition(newPos);
+    audioPlaybackManager.sync(newPos);
   }
 
 

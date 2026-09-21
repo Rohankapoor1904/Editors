@@ -87,6 +87,7 @@ export function agentBridgePlugin(): Plugin {
           try {
             const body = await parseJsonBody(req);
             const prompt = body.prompt;
+            const model = body.model;
             if (!prompt) {
               return sendJson(res, 400, { error: 'Missing "prompt" parameter' });
             }
@@ -98,8 +99,8 @@ export function agentBridgePlugin(): Plugin {
                 reject(new Error('Agent prompt execution timed out after 20 seconds.'));
               }, 20000);
 
-              pendingRequests.set(id, { id, type: 'prompt', payload: { prompt }, resolve, reject, timer });
-              queue.push({ id, type: 'prompt', payload: { prompt } });
+              pendingRequests.set(id, { id, type: 'prompt', payload: { prompt, model }, resolve, reject, timer });
+              queue.push({ id, type: 'prompt', payload: { prompt, model } });
             });
 
             const result = await promise;
@@ -113,7 +114,7 @@ export function agentBridgePlugin(): Plugin {
         if (pathname === '/api/agent/tool' && req.method === 'POST') {
           try {
             const body = await parseJsonBody(req);
-            const { tool, args } = body;
+            const { tool, args, model } = body;
             if (!tool) {
               return sendJson(res, 400, { error: 'Missing "tool" parameter' });
             }
@@ -125,8 +126,8 @@ export function agentBridgePlugin(): Plugin {
                 reject(new Error(`Tool ${tool} execution timed out.`));
               }, 20000);
 
-              pendingRequests.set(id, { id, type: 'tool', payload: { tool, args: args || {} }, resolve, reject, timer });
-              queue.push({ id, type: 'tool', payload: { tool, args: args || {} } });
+              pendingRequests.set(id, { id, type: 'tool', payload: { tool, args: args || {}, model }, resolve, reject, timer });
+              queue.push({ id, type: 'tool', payload: { tool, args: args || {}, model } });
             });
 
             const result = await promise;
@@ -157,6 +158,25 @@ export function agentBridgePlugin(): Plugin {
 
             const result = await promise;
             return sendJson(res, 200, { success: true, id, result });
+          } catch (err: any) {
+            return sendJson(res, 500, { error: err.message || String(err) });
+          }
+        }
+
+        // 5.1 POST /api/agent/connect
+        if (pathname === '/api/agent/connect' && req.method === 'POST') {
+          try {
+            const body = await parseJsonBody(req);
+            const model = body.model || body.agent || 'External Connected Agent';
+            const id = `req-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+            queue.push({ id, type: 'connect', payload: { model, agent: body.agent } });
+            lastHeartbeat = Date.now();
+            return sendJson(res, 200, {
+              success: true,
+              connected: true,
+              model,
+              message: `Agent/Model ${model} registered and connected to CineCraft Studio.`
+            });
           } catch (err: any) {
             return sendJson(res, 500, { error: err.message || String(err) });
           }

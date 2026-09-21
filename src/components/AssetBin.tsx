@@ -45,25 +45,31 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
 
   const handleImportMedia = async () => {
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-      const meta = await nativeBridge.importMediaFile('');
-      if (meta) {
-        const fingerprint = await nativeBridge.getFileFingerprint(meta.path);
-        const isOffline = !(await nativeBridge.checkFileExists(meta.path));
+      try {
+        const meta = await nativeBridge.importMediaFile('');
+        if (meta) {
+          const fingerprint = await nativeBridge.getFileFingerprint(meta.path);
+          const isOffline = !(await nativeBridge.checkFileExists(meta.path));
 
-        const newAsset: MediaAsset = {
-          id: `asset_${Date.now()}`,
-          name: meta.filename,
-          path: meta.path,
-          type: meta.hasAudio && !meta.width ? 'audio' : 'video',
-          duration: `00:00:${Math.floor(meta.durationSeconds).toString().padStart(2, '0')}`,
-          badge: meta.codec,
-          fps: meta.fps ? String(meta.fps) : undefined,
-          resolution: meta.width ? `${meta.width}x${meta.height}` : undefined,
-          fingerprint,
-          isOffline,
-        };
+          const newAsset: MediaAsset = {
+            id: `asset_${Date.now()}`,
+            name: meta.filename,
+            path: meta.path,
+            type: meta.hasAudio && !meta.width ? 'audio' : 'video',
+            duration: `00:00:${Math.floor(meta.durationSeconds).toString().padStart(2, '0')}`,
+            badge: meta.codec,
+            fps: meta.fps ? String(meta.fps) : undefined,
+            resolution: meta.width ? `${meta.width}x${meta.height}` : undefined,
+            fingerprint,
+            isOffline,
+            thumbnailUrl: meta.thumbnailDataUrl,
+          };
 
-        addAsset(newAsset);
+          addAsset(newAsset);
+          selectAsset(newAsset.id);
+        }
+      } catch (err) {
+        console.error('Failed to import media file:', err);
       }
     } else {
       // Web fallback
@@ -325,6 +331,12 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
                               {(scrubPct * 0.6).toFixed(1)}s
                             </span>
                           </div>
+                        ) : asset.thumbnailUrl ? (
+                          <img
+                            src={asset.thumbnailUrl}
+                            alt={asset.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
                         ) : (
                           <Film className="w-6 h-6 text-indigo-accent group-hover:scale-110 transition-transform" />
                         )}
@@ -400,7 +412,13 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
                 className={`flex items-center justify-between p-2 rounded-panel bg-dark-900 border hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all ${asset.isOffline ? 'border-red-900/30' : asset.id === selectedAssetId ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-subtle'}`}
               >
                 <div className="flex items-center space-x-2.5 truncate">
-                  {asset.type === 'video' || asset.type === 'ai' ? (
+                  {asset.thumbnailUrl ? (
+                    <img
+                      src={asset.thumbnailUrl}
+                      alt={asset.name}
+                      className="w-6 h-6 rounded object-cover shrink-0 border border-subtle"
+                    />
+                  ) : asset.type === 'video' || asset.type === 'ai' ? (
                     <Film className="w-4 h-4 text-indigo-accent shrink-0" />
                   ) : asset.type === 'audio' ? (
                     <Music className="w-4 h-4 text-teal-accent shrink-0" />

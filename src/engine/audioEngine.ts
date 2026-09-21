@@ -14,6 +14,10 @@ export class WebAudioEngineManager {
   public isInitialized = false;
   public graph: AudioGraph | null = null;
 
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
   init(sampleRate = 48000) {
     if (typeof window === 'undefined') return;
 

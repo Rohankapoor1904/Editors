@@ -18,7 +18,7 @@ export const TransformGizmo: React.FC<TransformGizmoProps> = ({
   onUpdateTransform,
 }) => {
   const initialTransform: Transform = clip.transform || {
-    position: { x: 0, y: 0 },
+    position: { x: 0.5, y: 0.5 },
     scale: { x: 1, y: 1 },
     rotation: 0,
     opacity: 1,
@@ -80,11 +80,13 @@ export const TransformGizmo: React.FC<TransformGizmoProps> = ({
     const dy = e.clientY - startY;
 
     if (mode === 'move') {
+      const deltaNormX = containerWidth > 0 ? dx / containerWidth : 0;
+      const deltaNormY = containerHeight > 0 ? dy / containerHeight : 0;
       const next: Transform = {
         ...startTransform,
         position: {
-          x: Math.round(startTransform.position.x + dx),
-          y: Math.round(startTransform.position.y + dy),
+          x: Number((startTransform.position.x + deltaNormX).toFixed(4)),
+          y: Number((startTransform.position.y + deltaNormY).toFixed(4)),
         },
       };
       liveTransformRef.current = next;
@@ -137,7 +139,7 @@ export const TransformGizmo: React.FC<TransformGizmoProps> = ({
       liveTransformRef.current = next;
       setLiveTransform(next);
     }
-  }, [baseW, baseH]);
+  }, [baseW, baseH, containerWidth, containerHeight]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current) return;
@@ -163,8 +165,8 @@ export const TransformGizmo: React.FC<TransformGizmoProps> = ({
         style={{
           width: `${boxW}px`,
           height: `${boxH}px`,
-          left: `calc(50% + ${liveTransform.position.x}px)`,
-          top: `calc(50% + ${liveTransform.position.y}px)`,
+          left: `${liveTransform.position.x * 100}%`,
+          top: `${liveTransform.position.y * 100}%`,
           transform: `translate(-50%, -50%) rotate(${liveTransform.rotation}deg)`,
         }}
         className="absolute border-2 border-indigo-400 bg-indigo-500/10 pointer-events-auto cursor-move select-none shadow-xl shadow-indigo-950/40 rounded-sm"
@@ -209,7 +211,7 @@ export const TransformGizmo: React.FC<TransformGizmoProps> = ({
 
         {/* Status Coordinate Tag */}
         <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-neutral-950/90 text-indigo-300 font-mono text-[9px] px-1.5 py-0.5 rounded border border-neutral-800 whitespace-nowrap shadow pointer-events-none">
-          X: {liveTransform.position.x} Y: {liveTransform.position.y} | {Math.round(liveTransform.scale.x * 100)}% | {liveTransform.rotation}°
+          X: {Math.round((liveTransform.position.x - 0.5) * 100)}% Y: {Math.round((liveTransform.position.y - 0.5) * 100)}% | {Math.round(liveTransform.scale.x * 100)}% | {liveTransform.rotation}°
         </div>
       </div>
     </div>

@@ -5,22 +5,32 @@
   "identifier": "com.cinecraft.ai",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "CineCraft AI Studio",
-        "width": 1440,
-        "height": 900,
+        "url": "index.html",
+        "width": 1280,
+        "height": 760,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "center": true,
+        "maximized": true,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {

@@ -1,5 +1,5 @@
-// Prevents additional console window on Windows in release
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Prevents additional console window on Windows in both debug and release
+#![windows_subsystem = "windows"]
 
 pub mod ffmpeg_demuxer;
 pub mod whisper_onnx;
@@ -8,6 +8,8 @@ pub mod export_native;
 pub mod proxy_engine;
 pub mod audio_separation;
 pub mod voice_denoise;
+pub mod process_utils;
+pub mod audio_conformance;
 
 use ffmpeg_demuxer::{FFmpegDemuxerEngine, MediaProbeInfo};
 use whisper_onnx::{WhisperTranscriptNative, WhisperOnnxEngine};
@@ -17,25 +19,41 @@ use proxy_engine::{ProxyEngine, ProxyProgressNative, ProxyTaskConfig};
 use audio_separation::{AudioSeparationConfig, AudioSeparationEngine, SeparationResultNative};
 use voice_denoise::{DenoiseResultNative, VoiceDenoiseConfig, VoiceDenoiseEngine};
 
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
 use sha2::{Sha256, Digest};
 
 #[tauri::command]
 async fn get_file_fingerprint(file_path: String) -> Result<String, String> {
-    let mut file = File::open(&file_path).await.map_err(|e| format!("Failed to open file: {}", e))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0; 8192];
+    tokio::task::spawn_blocking(move || {
+        use std::fs::File;
+        use std::io::{Read, Seek, SeekFrom};
+        let mut file = File::open(&file_path).map_err(|e| format!("Failed to open file: {}", e))?;
+        let metadata = file.metadata().map_err(|e| format!("Failed to read metadata: {}", e))?;
+        let len = metadata.len();
+        let modified = metadata.modified()
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis())
+            .unwrap_or(0);
 
-    loop {
-        let count = file.read(&mut buffer).await.map_err(|e| format!("Failed to read file: {}", e))?;
-        if count == 0 {
-            break;
+        let mut hasher = Sha256::new();
+        hasher.update(len.to_le_bytes());
+        hasher.update(modified.to_le_bytes());
+
+        let mut header = vec![0u8; 65536.min(len as usize)];
+        if let Ok(n) = file.read(&mut header) {
+            hasher.update(&header[..n]);
         }
-        hasher.update(&buffer[..count]);
-    }
 
-    Ok(hex::encode(hasher.finalize()))
+        if len > 65536 {
+            let tail_len = (len - 65536).min(65536) as usize;
+            let mut tail = vec![0u8; tail_len];
+            if file.seek(SeekFrom::End(-(tail_len as i64))).is_ok() {
+                if let Ok(n) = file.read(&mut tail) {
+                    hasher.update(&tail[..n]);
+                }
+            }
+        }
+
+        Ok(hex::encode(hasher.finalize()))
+    }).await.map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -44,13 +62,17 @@ fn check_file_exists(file_path: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn probe_media_file(file_path: String) -> Result<MediaProbeInfo, String> {
-    FFmpegDemuxerEngine::probe_file(&file_path)
+async fn probe_media_file(file_path: String) -> Result<MediaProbeInfo, String> {
+    tokio::task::spawn_blocking(move || {
+        FFmpegDemuxerEngine::probe_file(&file_path)
+    }).await.map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
-fn demux_video_frames(file_path: String, start_time: f64, frame_count: u32) -> Result<tauri::ipc::Response, String> {
-    let raw_bytes = FFmpegDemuxerEngine::extract_frames_bytes(&file_path, start_time, frame_count)?;
+async fn demux_video_frames(file_path: String, start_time: f64, frame_count: u32) -> Result<tauri::ipc::Response, String> {
+    let raw_bytes = tokio::task::spawn_blocking(move || {
+        FFmpegDemuxerEngine::extract_frames_bytes(&file_path, start_time, frame_count)
+    }).await.map_err(|e| format!("Task failed: {}", e))??;
     Ok(tauri::ipc::Response::new(raw_bytes))
 }
 
@@ -123,9 +145,51 @@ async fn denoise_audio_file(
 }
 
 fn main() {
-    tauri::Builder::default()
+    std::panic::set_hook(Box::new(|panic_info| {
+        let location = panic_info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column())).unwrap_or_else(|| "unknown".to_string());
+        let payload = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic payload".to_string()
+        };
+        let err_msg = format!("CineCraft AI Fatal Crash!\nLocation: {}\nError: {}\n", location, payload);
+        let _ = std::fs::write("D:\\editors\\crash.log", &err_msg);
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let app_dir = std::path::PathBuf::from(local_app_data).join("com.cinecraft.ai");
+            let _ = std::fs::create_dir_all(&app_dir);
+            let _ = std::fs::write(app_dir.join("crash.log"), &err_msg);
+        }
+    }));
+
+    #[cfg(windows)]
+    {
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let ffmpeg_bin = std::path::PathBuf::from(local_app_data)
+                .join("Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Essentials_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-essentials_build\\bin");
+            if ffmpeg_bin.exists() {
+                if let Ok(current_path) = std::env::var("PATH") {
+                    if !current_path.contains("ffmpeg") {
+                        std::env::set_var("PATH", format!("{};{}", ffmpeg_bin.display(), current_path));
+                    }
+                }
+            }
+        }
+    }
+
+    if let Err(err) = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            use tauri::Manager;
+            for (_label, win) in app.webview_windows() {
+                let _ = win.show();
+                let _ = win.set_focus();
+                let _ = win.maximize();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             probe_media_file,
             demux_video_frames,
@@ -143,7 +207,11 @@ fn main() {
             denoise_audio_file
         ])
         .run(tauri::generate_context!())
-        .expect("error while running CineCraft AI Tauri application");
+    {
+        let err_msg = format!("Fatal Tauri Runtime Error: {:?}\n", err);
+        let _ = std::fs::write("D:\\editors\\crash.log", &err_msg);
+        eprintln!("{}", err_msg);
+    }
 }
 
 #[cfg(test)]

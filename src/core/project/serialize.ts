@@ -47,9 +47,7 @@ export function serializeProject(
   if (!timelineState.metadata.width || !timelineState.metadata.height) {
     throw new Error("Project metadata is missing canvas dimensions");
   }
-  if (!timelineState.projectId) {
-    throw new Error("Project state is missing projectId");
-  }
+  const projectId = timelineState.projectId || 'proj_default';
 
   let timeBaseValue = 1;
   let timeBaseRate = Math.round(timelineState.metadata.fps);
@@ -80,7 +78,7 @@ export function serializeProject(
 
   const projectDoc: ProjectDocumentSchema = {
     $schema: "https://editor.standard/v1/project.schema.json",
-    project_id: timelineState.projectId,
+    project_id: projectId,
     schema_version: "1.4.0",
     metadata: {
       title: timelineState.metadata.name,

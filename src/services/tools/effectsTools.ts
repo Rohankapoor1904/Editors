@@ -1,9 +1,10 @@
 import { useTimelineStore } from '../../store/timelineStore';
 import { Command } from '../../core/commands';
 import { AddTrackCommand, AddClipCommand, RippleDeleteCommand, SetMetadataCommand } from '../../core/commands/storeCommands';
-import { ApplyAutoReframeCommand } from '../../core/commands/edits';
+import { ApplyAutoReframeCommand, UpdateClipEffectCommand } from '../../core/commands/edits';
 import { secondsToRational } from '../../types/time';
 import { Clip } from '../../types/timeline';
+import { getCaptionWordsForClip } from '../../engine/captions/clipCaptions';
 
 export const add_subtitles_def = {
   name: 'add_subtitles',
@@ -141,12 +142,30 @@ export async function add_subtitles_executor(args: {
     karaoke_bounce: 'karaoke',
   };
 
+  const preset = stylePresetMap[args.style] || 'hormozi';
+  const store = useTimelineStore.getState();
+  const commands: Command[] = [];
+
+  const targetClip = store.tracks.flatMap((t) => t.clips)[0];
+  if (targetClip) {
+    const words = getCaptionWordsForClip(targetClip);
+    commands.push(
+      new UpdateClipEffectCommand(targetClip.id, 'caption_overlay', 'caption', {
+        preset,
+        fontSize: args.font_size ?? 54,
+        maxWordsPerLine: args.max_words_per_line ?? 4,
+        words,
+      })
+    );
+  }
+
   return {
     success: true,
     style: args.style,
-    style_preset: stylePresetMap[args.style] || 'hormozi',
+    style_preset: preset,
     font_size: args.font_size ?? 24,
     max_words_per_line: args.max_words_per_line ?? 3,
+    commands,
   };
 }
 
@@ -267,11 +286,30 @@ export async function captions_generate_karaoke_executor(args: {
   style_preset: string;
   max_words_per_line?: number;
 }) {
+  const store = useTimelineStore.getState();
+  const commands: Command[] = [];
+
+  const targetClip = store.tracks
+    .flatMap((t) => t.clips)
+    .find((c) => c.assetId === args.asset_id) || store.tracks.flatMap((t) => t.clips)[0];
+
+  if (targetClip) {
+    const words = getCaptionWordsForClip(targetClip);
+    commands.push(
+      new UpdateClipEffectCommand(targetClip.id, 'caption_overlay', 'caption', {
+        preset: args.style_preset || 'karaoke',
+        maxWordsPerLine: args.max_words_per_line ?? 4,
+        words,
+      })
+    );
+  }
+
   return {
     success: true,
     asset_id: args.asset_id,
     style_preset: args.style_preset,
     max_words_per_line: args.max_words_per_line ?? 3,
+    commands,
   };
 }
 

@@ -7,6 +7,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use uuid::Uuid;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 lazy_static::lazy_static! {
     static ref PROXY_TASKS: Mutex<HashMap<String, ProxyProgressNative>> = Mutex::new(HashMap::new());
 }
@@ -117,11 +120,19 @@ impl ProxyEngine {
         tokio::spawn(async move {
             let args = Self::build_proxy_args(&input_clone, &output_clone, target_height, &codec);
 
-            let mut child = match Command::new("ffmpeg")
-                .args(&args)
-                .stderr(Stdio::piped())
-                .stdout(Stdio::null())
-                .spawn()
+            let mut child = match {
+                let mut cmd = Command::new("ffmpeg");
+                cmd.args(&args)
+                   .stderr(Stdio::piped())
+                   .stdout(Stdio::null());
+                #[cfg(target_os = "windows")]
+                {
+                    #[allow(unused_imports)]
+                    use std::os::windows::process::CommandExt;
+                    cmd.creation_flags(CREATE_NO_WINDOW);
+                }
+                cmd.spawn()
+            }
             {
                 Ok(child) => child,
                 Err(e) => {

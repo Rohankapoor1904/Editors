@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { AIPromptConsole } from '../AIPromptConsole';
 import { useTimelineStore } from '../../store/timelineStore';
 import { secondsToRational } from '../../types/time';
 import { RippleDeleteCommand } from '../../core/commands/edits';
 import { agentOrchestrator } from '../../services/agentOrchestrator';
+
+import { useAgentStore } from '../../store/agentStore';
 
 vi.mock('../../services/runtimeConfig', () => ({
   isLiveMode: () => false,
@@ -18,8 +20,20 @@ vi.mock('../../services/agentOrchestrator', () => ({
 }));
 
 describe('AIPromptConsole R9.7 Features', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    useAgentStore.setState({
+      isConnected: false,
+      activeModel: 'CineCraft ReAct Copilot (Whisper ONNX + WebGPU)',
+      currentTask: null,
+      taskHistory: [],
+      actionDiffs: [],
+      isProcessing: false,
+    });
     useTimelineStore.setState({
       tracks: [
         {
@@ -125,6 +139,65 @@ describe('AIPromptConsole R9.7 Features', () => {
     await waitFor(() => {
       track = useTimelineStore.getState().tracks[0];
       expect(track.clips[0].duration.value / track.clips[0].duration.rate).toBe(15);
+    });
+  });
+
+  it('shows honest idle state without fake green checkmarks by default', () => {
+    render(<AIPromptConsole />);
+
+    // In idle mode, should show readiness message
+    expect(screen.getByText('Agentic Pipeline Ready')).toBeInTheDocument();
+    expect(screen.getByText(/Connect any external model or agent/i)).toBeInTheDocument();
+
+    // Steppers should show step numbers 1, 2, 3, 4 rather than completed checkmarks
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
+
+    // Stepper labels present
+    expect(screen.getByText('Analyzing')).toBeInTheDocument();
+    expect(screen.getByText('Transcribing')).toBeInTheDocument();
+    expect(screen.getByText('Slicing')).toBeInTheDocument();
+    expect(screen.getByText('Arranging')).toBeInTheDocument();
+  });
+
+  it('updates stepper and displays thought logs when external agent executes a task via bridge', async () => {
+    render(<AIPromptConsole />);
+
+    let taskId = '';
+    act(() => {
+      useAgentStore.getState().setActiveModel('Claude 3.7 Sonnet (via Agent Bridge)');
+      useAgentStore.getState().setConnected(true);
+
+      taskId = useAgentStore.getState().startTask({
+        source: 'bridge',
+        prompt: 'Remove dead air pauses > 0.5s',
+      });
+
+      useAgentStore.getState().updateTaskStep(taskId, 1, 'Transcribing dialogue audio...');
+      useAgentStore.getState().addTaskLog(taskId, {
+        type: 'thought',
+        message: 'Inspecting dialogue track for silence windows exceeding 500ms',
+      });
+    });
+
+    // Task prompt, log, step label, and processing badge should be visible
+    await waitFor(() => {
+      expect(screen.getAllByText(/Remove dead air pauses > 0.5s/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText(/Inspecting dialogue track for silence windows/i)).toBeInTheDocument();
+      expect(screen.getByText('Transcribing dialogue audio...')).toBeInTheDocument();
+      expect(screen.getByText('Processing...')).toBeInTheDocument();
+    });
+
+    // Now complete the task
+    act(() => {
+      useAgentStore.getState().completeTask(taskId, 3);
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/completed/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Bridge Connected')).toBeInTheDocument();
     });
   });
 });

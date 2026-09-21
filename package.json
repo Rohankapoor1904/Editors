@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "tauri": "tauri",
     "dev:desktop": "tauri dev",
-    "build:desktop": "tauri build"
+    "build:desktop": "tauri build",
+    "build:native": "npm run build && cd src-tauri && cargo build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

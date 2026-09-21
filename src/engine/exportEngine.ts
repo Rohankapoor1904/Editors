@@ -1,3 +1,11 @@
+export interface TimelineClipExport {
+  assetPath: string;
+  sourceIn: number;
+  duration: number;
+  startOffset: number;
+  isAudio: boolean;
+}
+
 export interface ExportConfig {
   presetName: string;
   width: number;
@@ -9,6 +17,7 @@ export interface ExportConfig {
   targetLufs?: number;
   colorSpace?: 'bt709' | 'bt2020' | string;
   aspectRatio?: '16:9' | '9:16' | '1:1' | string;
+  clips?: TimelineClipExport[];
 }
 
 export type ExportPresetConfig = ExportConfig;
@@ -25,6 +34,9 @@ export interface ExportProgress {
 }
 
 import { isLiveMode, NotImplementedError } from '../services/runtimeConfig';
+import { useTimelineStore } from '../store/timelineStore';
+import { useMediaPoolStore } from '../store/mediaPool';
+import { rationalToSeconds } from '../types/time';
 
 export class HardwareExportEngine {
   /**
@@ -94,6 +106,36 @@ export class HardwareExportEngine {
           };
         }).__TAURI_INTERNALS__.invoke;
 
+        let clipsToExport = config.clips;
+        if (!clipsToExport || clipsToExport.length === 0) {
+          try {
+            const tracks = useTimelineStore.getState().tracks;
+            const assets = useMediaPoolStore.getState().assets;
+            const extracted: TimelineClipExport[] = [];
+
+            for (const track of tracks) {
+              if (track.muted) continue;
+              for (const clip of track.clips) {
+                const asset = assets.find((a) => a.id === clip.assetId);
+                if (asset && asset.path) {
+                  extracted.push({
+                    assetPath: asset.path,
+                    sourceIn: rationalToSeconds(clip.sourceIn),
+                    duration: rationalToSeconds(clip.duration),
+                    startOffset: rationalToSeconds(clip.startOffset),
+                    isAudio: track.type === 'audio',
+                  });
+                }
+              }
+            }
+            if (extracted.length > 0) {
+              clipsToExport = extracted;
+            }
+          } catch (err) {
+            console.warn('[Export Engine]: Could not resolve timeline clips:', err);
+          }
+        }
+
         const taskId = await invoke('start_export_task', { config: {
             preset_name: config.presetName,
             width: config.width,
@@ -104,6 +146,13 @@ export class HardwareExportEngine {
             output_path: config.outputPath,
             target_lufs: config.targetLufs ?? -14.0,
             color_space: config.colorSpace ?? 'bt709',
+            clips: clipsToExport?.map((c) => ({
+              asset_path: c.assetPath,
+              source_in: c.sourceIn,
+              duration: c.duration,
+              start_offset: c.startOffset,
+              is_audio: c.isAudio,
+            })),
           }
         });
 

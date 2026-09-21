@@ -79,4 +79,78 @@ describe('Social Platform & Broadcast Export Presets (Task R18.2)', () => {
     const amfCmd = exportEngine.buildFFmpegCommand(amfConfig);
     expect(amfCmd.args).toContain('h264_amf');
   });
+
+  it('extracts timeline tracks and clips when calling exportTimeline in desktop environment', async () => {
+    const { useTimelineStore } = await import('../../store/timelineStore');
+    const { useMediaPoolStore } = await import('../../store/mediaPool');
+
+    const invokedArgs: any[] = [];
+    (window as any).__TAURI_INTERNALS__ = {
+      invoke: async (cmd: string, args: any) => {
+        invokedArgs.push({ cmd, args });
+        if (cmd === 'start_export_task') return 'task-123';
+        if (cmd === 'poll_export_task') return { status: 'done', percent: 100 };
+        return null;
+      },
+    };
+
+    useMediaPoolStore.setState({
+      assets: [
+        {
+          id: 'asset_1',
+          name: 'clip1.mp4',
+          path: '/path/to/clip1.mp4',
+          duration: '00:00:10',
+          type: 'video',
+          fingerprint: 'fp1',
+          isOffline: false,
+        },
+      ],
+    });
+
+    useTimelineStore.setState({
+      tracks: [
+        {
+          id: 'track_v1',
+          name: 'V1',
+          type: 'video',
+          index: 0,
+          muted: false,
+          locked: false,
+          solo: false,
+          height: 64,
+          clips: [
+            {
+              id: 'clip_1',
+              assetId: 'asset_1',
+              name: 'clip1.mp4',
+              startOffset: { value: 0, rate: 30 },
+              sourceIn: { value: 15, rate: 30 }, // 0.5s
+              sourceOut: { value: 150, rate: 30 },
+              duration: { value: 150, rate: 30 }, // 5s
+            },
+          ],
+        },
+      ],
+    });
+
+    const yt = getPresetById('youtube_4k')!;
+    const exportConfig = createExportConfigFromPreset(yt, 'NVENC (NVIDIA)');
+    let progressVal = 0;
+    const res = await exportEngine.exportTimeline(exportConfig, (p) => {
+      progressVal = p;
+    });
+
+    expect(res).toBe(true);
+    expect(progressVal).toBe(100);
+    const startCall = invokedArgs.find((a) => a.cmd === 'start_export_task');
+    expect(startCall).toBeDefined();
+    expect(startCall.args.config.clips).toBeDefined();
+    expect(startCall.args.config.clips.length).toBe(1);
+    expect(startCall.args.config.clips[0].asset_path).toBe('/path/to/clip1.mp4');
+    expect(startCall.args.config.clips[0].source_in).toBe(0.5);
+    expect(startCall.args.config.clips[0].duration).toBe(5);
+
+    delete (window as any).__TAURI_INTERNALS__;
+  });
 });

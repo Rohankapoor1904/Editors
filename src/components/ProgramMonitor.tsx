@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { rationalToSeconds, secondsToRational } from '../types/time';
 import { addRational, compareRational, subRational } from '../types/time';
-import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square, SplitSquareHorizontal, Zap, Subtitles, Sparkles, LayoutGrid } from 'lucide-react';
+import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square, SplitSquareHorizontal, Zap, Subtitles, Sparkles, LayoutGrid, Mic, Loader2 } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
 import { WordTimestamp, whisperService } from '../services/whisperTranscriber';
 import { transportEngine } from '../engine/transport';
@@ -13,6 +13,9 @@ import { useLayoutStore } from '../store/layoutStore';
 import { TransformGizmo } from './TransformGizmo';
 import { captionEngine, CaptionPreset } from '../engine/captions/captionEngine';
 import { MultiCamViewer } from './MultiCamViewer';
+import { nativeBridge } from '../services/nativeBridge';
+import { mapTimelineToSourceTime, getInstantaneousPlaybackRate } from '../engine/speedRamp';
+import { SpeedRampConfig } from '../types/timeline';
 
 export const ProgramMonitor: React.FC = () => {
   const {
@@ -27,7 +30,17 @@ export const ProgramMonitor: React.FC = () => {
   const { assets, proxyModeEnabled, toggleProxyMode } = useMediaPoolStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isWebGPUActive, setIsWebGPUActive] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('1:1');
+
+  useEffect(() => {
+    if (metadata.width === metadata.height) {
+      setAspectRatio('1:1');
+    } else if (metadata.height > metadata.width) {
+      setAspectRatio('9:16');
+    } else {
+      setAspectRatio('16:9');
+    }
+  }, [metadata.width, metadata.height]);
   const [previewQuality, setPreviewQuality] = useState<'Full' | '1/2' | '1/4'>('Full');
   const [captionPreset, setCaptionPreset] = useState<CaptionPreset | 'off'>('hormozi');
   const [isLooping, setIsLooping] = useState(transportEngine.isLooping);
@@ -36,7 +49,10 @@ export const ProgramMonitor: React.FC = () => {
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const captionCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [transcriptWords, setTranscriptWords] = useState<WordTimestamp[]>([]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const [webgpuError, setWebgpuError] = useState<string | null>(null);
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [volume, setVolume] = useState<number>(0);
@@ -145,10 +161,8 @@ export const ProgramMonitor: React.FC = () => {
   }, [canvasWidth, canvasHeight]);
 
 
-  useEffect(() => {
-    let newActiveClipId = null;
-
-    // Find the topmost video clip at playheadPosition
+  // Find topmost video clip at playhead
+  const activeClip = React.useMemo(() => {
     const videoTracks = tracks.filter(t => t.type === 'video').sort((a, b) => a.index - b.index);
     for (const track of videoTracks) {
       if (track.muted || track.locked) continue;
@@ -156,144 +170,234 @@ export const ProgramMonitor: React.FC = () => {
         compareRational(playheadPosition, c.startOffset) >= 0 &&
         compareRational(playheadPosition, addRational(c.startOffset, c.duration)) < 0
       );
-      if (clip) {
-        newActiveClipId = clip.id;
-        break; // Stop at topmost clip
+      if (clip) return clip;
+    }
+    return null;
+  }, [tracks, playheadPosition]);
+
+  const activeAsset = React.useMemo(() => {
+    if (!activeClip) return null;
+    return assets.find(a => a.id === activeClip.assetId) ?? null;
+  }, [activeClip, assets]);
+
+  const activeAssetPath = activeAsset?.path ?? null;
+
+  const currentClipSec = React.useMemo(() => {
+    if (!activeClip) return 0;
+    const offsetInClip = subRational(playheadPosition, activeClip.startOffset);
+    const sourceDuration = subRational(activeClip.sourceOut, activeClip.sourceIn);
+    const config: SpeedRampConfig = {
+      ...(activeClip.speedRamp ?? {}),
+      constantSpeed: activeClip.speedRamp?.constantSpeed ?? activeClip.speed ?? 1.0,
+      reverse: activeClip.reverse ?? activeClip.speedRamp?.reverse ?? false,
+    };
+    const sourceTime = mapTimelineToSourceTime(offsetInClip, activeClip.sourceIn, sourceDuration, config);
+    return rationalToSeconds(sourceTime);
+  }, [activeClip, playheadPosition]);
+
+  const hasActiveColorGrade = React.useMemo(() => {
+    return !!activeClip?.effects?.some(e => e.type === 'colorGrade' && e.enabled);
+  }, [activeClip]);
+
+  const isTrackMuted = React.useMemo(() => {
+    if (!activeClip) return false;
+    const track = tracks.find(t => t.clips.some(c => c.id === activeClip.id));
+    return !!track?.muted;
+  }, [tracks, activeClip]);
+
+  // Sync volume and mute status to video element
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = isTrackMuted;
+    const linear = volume <= -59 ? 0 : Math.pow(10, volume / 20);
+    video.volume = Math.max(0, Math.min(1, linear));
+  }, [isTrackMuted, volume]);
+
+  // Sync playback rate to video element
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !activeClip) return;
+    const offsetInClip = subRational(playheadPosition, activeClip.startOffset);
+    const config: SpeedRampConfig = {
+      ...(activeClip.speedRamp ?? {}),
+      constantSpeed: activeClip.speedRamp?.constantSpeed ?? activeClip.speed ?? 1.0,
+      reverse: activeClip.reverse ?? activeClip.speedRamp?.reverse ?? false,
+    };
+    const rate = getInstantaneousPlaybackRate(offsetInClip, config);
+    if (rate > 0) {
+      const clampedRate = Math.max(0.1, Math.min(16.0, rate));
+      if (video.playbackRate !== clampedRate) {
+        video.playbackRate = clampedRate;
       }
     }
+  }, [activeClip, playheadPosition]);
 
-    if (newActiveClipId !== activeClipId) {
-       setActiveClipId(newActiveClipId);
+  useEffect(() => {
+    const newId = activeClip?.id ?? null;
+    if (newId !== activeClipId) {
+      setActiveClipId(newId);
     }
-  }, [playheadPosition, tracks]);
+  }, [activeClip, activeClipId]);
+
+  // Sync video time when scrubbing or when clip changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !activeClip) return;
+
+    const diff = Math.abs(video.currentTime - currentClipSec);
+    if (!isPlaying || diff > 0.25) {
+      video.currentTime = currentClipSec;
+    }
+  }, [currentClipSec, isPlaying, activeClip]);
+
+  // Sync play/pause with transportEngine
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !activeClip) return;
+
+    if (isPlaying) {
+      if (video.paused) {
+        video.play().catch((err) => {
+          console.warn('[ProgramMonitor] Playback failed:', err);
+        });
+      }
+    } else {
+      if (!video.paused) {
+        video.pause();
+      }
+    }
+  }, [isPlaying, activeClip]);
+
+  const handleGenerateCaptions = async () => {
+    if (!activeClipId || isTranscribing) return;
+    const clip = tracks.flatMap(t => t.clips).find(c => c.id === activeClipId);
+    if (!clip) return;
+    const asset = assets.find(a => a.id === clip.assetId);
+    if (!asset) return;
+
+    setIsTranscribing(true);
+    setTranscribeError(null);
+    try {
+      const res = await whisperService.transcribeAudio(asset.path);
+      const clipStartSec = rationalToSeconds(clip.startOffset);
+      const sourceInSec = rationalToSeconds(clip.sourceIn);
+      const offsetWords = res.words.map(w => {
+        const wordOffsetSec = w.startTime - sourceInSec;
+        const newStartTime = clipStartSec + wordOffsetSec;
+        const newEndTime = newStartTime + (w.endTime - w.startTime);
+        return { ...w, startTime: newStartTime, endTime: newEndTime };
+      }).filter(w => w.endTime >= clipStartSec && w.startTime <= clipStartSec + rationalToSeconds(clip.duration));
+      setTranscriptWords(offsetWords);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setTranscribeError(msg);
+      console.error('[ProgramMonitor] Whisper transcription failed:', err);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
 
   useEffect(() => {
     if (!activeClipId) {
+      // Check if any subtitle tracks have words even without an active video clip
+      const subtitleTracks = tracks.filter(t => t.type === 'subtitle' && !t.muted);
+      for (const sTrack of subtitleTracks) {
+        for (const sClip of sTrack.clips) {
+          const captionEff = sClip.effects?.find(e => (e.type === 'caption' || e.type === 'subtitle') && e.enabled);
+          if (captionEff?.params && Array.isArray(captionEff.params.words) && captionEff.params.words.length > 0) {
+            if (captionEff.params.preset && typeof captionEff.params.preset === 'string') {
+              setCaptionPreset(captionEff.params.preset as CaptionPreset);
+            }
+            setTranscriptWords(captionEff.params.words as WordTimestamp[]);
+            return;
+          }
+        }
+      }
       setTranscriptWords([]);
       return;
     }
 
-    let isMounted = true;
-
     const activeClip = tracks.flatMap(t => t.clips).find(c => c.id === activeClipId);
     if (!activeClip) return;
 
-    const asset = assets.find(a => a.id === activeClip.assetId);
-    if (!asset) return;
-
-    whisperService.transcribeAudio(asset.path).then(res => {
-      if (isMounted) {
-         const clipStartSec = rationalToSeconds(activeClip.startOffset);
-         const sourceInSec = rationalToSeconds(activeClip.sourceIn);
-
-         const offsetWords = res.words.map(w => {
-            const wordOffsetSec = w.startTime - sourceInSec;
-            const newStartTime = clipStartSec + wordOffsetSec;
-            const newEndTime = newStartTime + (w.endTime - w.startTime);
-            return {
-              ...w,
-              startTime: newStartTime,
-              endTime: newEndTime
-            }
-         }).filter(w => w.endTime >= clipStartSec && w.startTime <= clipStartSec + rationalToSeconds(activeClip.duration));
-
-         setTranscriptWords(offsetWords);
+    // 1. Direct check: Does activeClip have an enabled caption/subtitle effect with words?
+    const captionEffect = activeClip.effects?.find(e => (e.type === 'caption' || e.type === 'subtitle') && e.enabled);
+    if (captionEffect?.params && Array.isArray(captionEffect.params.words) && captionEffect.params.words.length > 0) {
+      if (captionEffect.params.preset && typeof captionEffect.params.preset === 'string') {
+        setCaptionPreset(captionEffect.params.preset as CaptionPreset);
       }
-    }).catch(err => {
-      console.warn("Failed to fetch captions", err);
-      if (isMounted) setTranscriptWords([]);
-    });
+      setTranscriptWords(captionEffect.params.words as WordTimestamp[]);
+      return;
+    }
 
-    return () => { isMounted = false; };
+    // 2. Subtitle track check: Any clips on subtitle tracks with words?
+    const subtitleTracks = tracks.filter(t => t.type === 'subtitle' && !t.muted);
+    for (const sTrack of subtitleTracks) {
+      for (const sClip of sTrack.clips) {
+        const captionEff = sClip.effects?.find(e => (e.type === 'caption' || e.type === 'subtitle') && e.enabled);
+        if (captionEff?.params && Array.isArray(captionEff.params.words) && captionEff.params.words.length > 0) {
+          if (captionEff.params.preset && typeof captionEff.params.preset === 'string') {
+            setCaptionPreset(captionEff.params.preset as CaptionPreset);
+          }
+          setTranscriptWords(captionEff.params.words as WordTimestamp[]);
+          return;
+        }
+      }
+    }
+
+    // 3. No stored captions: clear transcript words.
+    // Whisper transcription is now user-initiated via "Generate Captions" button
+    // to prevent crashes from the C++ ABI boundary when importing media.
+    setTranscriptWords([]);
   }, [activeClipId, tracks, assets]);
 
   useEffect(() => {
-    if (!isWebGPUActive || !canvasRef.current) return;
+    if (!isWebGPUActive || !canvasRef.current || !hasActiveColorGrade) return;
 
-    let activeClip = null;
+    if (activeClip && activeAsset) {
+      const offsetInClip = subRational(playheadPosition, activeClip.startOffset);
+      const sourceTime = addRational(activeClip.sourceIn, offsetInClip);
 
-    // Find the topmost video clip at playheadPosition
-    const videoTracks = tracks.filter(t => t.type === 'video').sort((a, b) => a.index - b.index);
-    for (const track of videoTracks) {
-      if (track.muted || track.locked) continue;
-      const clip = track.clips.find(c =>
-        compareRational(playheadPosition, c.startOffset) >= 0 &&
-        compareRational(playheadPosition, addRational(c.startOffset, c.duration)) < 0
-      );
-      if (clip) {
-        activeClip = clip;
-        break; // Stop at topmost clip
-      }
-    }
+      frameCache.getOrFetchFrame(activeAsset.path, sourceTime).then((frameBuffer) => {
+        if (!frameBuffer) return;
 
-    if (activeClip) {
-      const asset = assets.find(a => a.id === activeClip.assetId);
-      if (asset) {
-        // timeWithinClip = playheadPosition - clip.startOffset + clip.sourceIn
-        const offsetInClip = subRational(playheadPosition, activeClip.startOffset);
-        const sourceTime = addRational(activeClip.sourceIn, offsetInClip);
+        const width = frameBuffer.width;
+        const height = frameBuffer.height;
+        const uvSize = (width / 2) * (height / 2);
 
-        frameCache.getOrFetchFrame(asset.path, sourceTime).then((frameBuffer) => {
-          if (!frameBuffer) return;
+        const yData = frameBuffer.data.subarray(0, width * height);
+        const uData = frameBuffer.data.subarray(width * height, width * height + uvSize);
+        const vData = frameBuffer.data.subarray(width * height + uvSize, width * height + uvSize * 2);
 
-          const width = frameBuffer.width;
-          const height = frameBuffer.height;
-          const uvSize = (width / 2) * (height / 2);
+        const colorGradeEffect = activeClip.effects?.find(e => e.type === 'colorGrade' && e.enabled);
 
-          const yData = frameBuffer.data.subarray(0, width * height);
-          const uData = frameBuffer.data.subarray(width * height, width * height + uvSize);
-          const vData = frameBuffer.data.subarray(width * height + uvSize, width * height + uvSize * 2);
-
-          const colorGradeEffect = activeClip.effects?.find(e => e.type === 'colorGrade' && e.enabled);
-
-          webgpuEngine.renderFrame({
-            width: width,
-            height: height,
-            timecode: rationalToSeconds(playheadPosition),
-            transform: activeClip.transform, // Pass transform if present
-            colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
-            captionData: {
-              words: transcriptWords
-            },
-            yuvData: {
-              y: yData,
-              u: uData,
-              v: vData
-            }
-          });
-
-          // Free WebGPU buffers if needed, or release frame
-          try {
-            frameBuffer.release();
-          } catch (e) {
-            // ignore
+        webgpuEngine.renderFrame({
+          width: width,
+          height: height,
+          timecode: rationalToSeconds(playheadPosition),
+          transform: activeClip.transform,
+          colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
+          captionData: {
+            words: transcriptWords
+          },
+          yuvData: {
+            y: yData,
+            u: uData,
+            v: vData
           }
-        }).catch(err => {
-          console.warn("Error fetching frame for preview", err);
-          const colorGradeEffect = activeClip.effects?.find(e => e.type === 'colorGrade' && e.enabled);
-          webgpuEngine.renderFrame({
-             width: canvasWidth,
-             height: canvasHeight,
-             timecode: rationalToSeconds(playheadPosition),
-             colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
-             captionData: { words: transcriptWords }
-          });
         });
-        return;
-      }
+
+        try {
+          frameBuffer.release();
+        } catch (e) {
+          // ignore
+        }
+      }).catch(err => {
+        console.warn("Error fetching frame for preview", err);
+      });
     }
-
-    // Fallback if no video clip is active
-    webgpuEngine.renderFrame({
-      width: canvasWidth,
-      height: canvasHeight,
-      timecode: rationalToSeconds(playheadPosition),
-      captionData: {
-        words: transcriptWords
-      },
-    });
-
-  }, [playheadPosition, isWebGPUActive, canvasWidth, canvasHeight, tracks, assets, transcriptWords]);
+  }, [playheadPosition, isWebGPUActive, canvasWidth, canvasHeight, activeClip, activeAsset, transcriptWords, hasActiveColorGrade]);
 
   useEffect(() => {
     const canvas = captionCanvasRef.current;
@@ -341,13 +445,14 @@ export const ProgramMonitor: React.FC = () => {
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
+    if (videoRef.current) {
+      const linear = val <= -59 ? 0 : Math.pow(10, val / 20);
+      videoRef.current.volume = Math.max(0, Math.min(1, linear));
+    }
     if (audioEngine.isInitialized) {
-       // A bit of a hack: no explicit "setMasterVolume" so we just scale everything using a master bus if possible,
-       // or we'll assume there is no direct exposed `setMasterVolume` in `audioEngine.ts` and set a track volume?
-       // Let's set an internal property or map over tracks. Wait, let's use track volume for all tracks.
-       tracks.filter(t => t.type === 'audio').forEach(t => {
-           audioEngine.setTrackVolume(t.id, val);
-       });
+      tracks.filter(t => t.type === 'audio').forEach(t => {
+        audioEngine.setTrackVolume(t.id, val);
+      });
     }
   };
 
@@ -505,11 +610,35 @@ export const ProgramMonitor: React.FC = () => {
             className="bg-neutral-900 border border-neutral-800/90 rounded-xl shadow-2xl flex flex-col items-center justify-center relative overflow-hidden group transition-all duration-150 shrink-0"
           >
             {/* WebGPU / Canvas2D Surface */}
+            {/* HTML5 Video Surface — hardware-accelerated playback */}
+            {activeAssetPath ? (
+              <video
+                ref={videoRef}
+                key={activeAssetPath}
+                data-testid="program-video"
+                src={nativeBridge.getAssetUrl(activeAssetPath)}
+                className="w-full h-full object-contain bg-black"
+                playsInline
+                preload="auto"
+                style={{
+                  display: hasActiveColorGrade && isWebGPUActive ? 'none' : 'block',
+                  transform: activeClip?.transform ? `translate(${(activeClip.transform.position.x - 0.5) * 100}%, ${(activeClip.transform.position.y - 0.5) * 100}%) scale(${activeClip.transform.scale.x}, ${activeClip.transform.scale.y}) rotate(${activeClip.transform.rotation}deg)` : undefined,
+                  opacity: activeClip?.transform?.opacity ?? 1,
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-neutral-950">
+                <span className="text-neutral-600 text-sm font-mono">No clip at playhead</span>
+              </div>
+            )}
+
+            {/* WebGPU / Canvas2D Surface (active when color grading is applied) */}
             <canvas
               ref={canvasRef}
               width={canvasWidth}
               height={canvasHeight}
               className="w-full h-full object-contain"
+              style={{ display: hasActiveColorGrade && isWebGPUActive ? 'block' : 'none' }}
             />
 
             {/* Real-Time Kinetic Captions Overlay */}
@@ -642,6 +771,26 @@ export const ProgramMonitor: React.FC = () => {
               />
             </div>
           </div>
+          <button
+             onClick={handleGenerateCaptions}
+             disabled={!activeClipId || isTranscribing}
+             className={`p-1 rounded flex items-center space-x-1 text-[10px] font-medium transition-colors ${
+               isTranscribing
+                 ? 'bg-indigo-900/60 text-indigo-300 cursor-wait'
+                 : transcribeError
+                 ? 'bg-red-900/60 text-red-300 hover:bg-red-800'
+                 : activeClipId
+                 ? 'hover:bg-neutral-800 text-neutral-400 hover:text-white'
+                 : 'text-neutral-700 cursor-not-allowed'
+             }`}
+             title={transcribeError ? `Caption error: ${transcribeError}` : 'Generate Captions (AI)'}
+          >
+            {isTranscribing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Mic className="w-3.5 h-3.5" />
+            )}
+          </button>
           <button
              onClick={handleFullscreen}
              className="p-1 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white"

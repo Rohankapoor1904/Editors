@@ -20,6 +20,7 @@ describe('Keyboard Shortcuts', () => {
       playheadPosition: secondsToRational(0),
       setPlayheadPosition: vi.fn(),
       selectedClipIds: ['clip_1'],
+      removeClip: vi.fn(),
       rippleDelete: vi.fn(),
       toggleMagneticSnapping: vi.fn(),
       metadata: { fps: 30 },
@@ -122,14 +123,28 @@ describe('Keyboard Shortcuts', () => {
     expect(mockStore.toggleMagneticSnapping).toHaveBeenCalled();
   });
 
-  it('ripple deletes on Delete', () => {
+  it('removes selected clip on Delete (Lift delete)', () => {
     const e = new KeyboardEvent('keydown', { key: 'Delete' });
+    handleKeyboardShortcuts(e, mockStore as any);
+    expect(mockStore.removeClip).toHaveBeenCalledWith('clip_1');
+    expect(mockStore.rippleDelete).not.toHaveBeenCalled();
+  });
+
+  it('removes selected clip on Backspace (Lift delete)', () => {
+    const e = new KeyboardEvent('keydown', { key: 'Backspace' });
+    handleKeyboardShortcuts(e, mockStore as any);
+    expect(mockStore.removeClip).toHaveBeenCalledWith('clip_1');
+    expect(mockStore.rippleDelete).not.toHaveBeenCalled();
+  });
+
+  it('ripple deletes on Shift+Delete', () => {
+    const e = new KeyboardEvent('keydown', { key: 'Delete', shiftKey: true });
     handleKeyboardShortcuts(e, mockStore as any);
     expect(mockStore.rippleDelete).toHaveBeenCalledWith(secondsToRational(0), secondsToRational(5));
   });
 
-  it('ripple deletes on Backspace', () => {
-    const e = new KeyboardEvent('keydown', { key: 'Backspace' });
+  it('ripple deletes on Shift+Backspace', () => {
+    const e = new KeyboardEvent('keydown', { key: 'Backspace', shiftKey: true });
     handleKeyboardShortcuts(e, mockStore as any);
     expect(mockStore.rippleDelete).toHaveBeenCalledWith(secondsToRational(0), secondsToRational(5));
   });

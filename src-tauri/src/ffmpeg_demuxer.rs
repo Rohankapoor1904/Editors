@@ -1,8 +1,34 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use serde_json::Value;
+use crate::process_utils::silent_command;
+
+fn to_base64(data: &[u8]) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as usize;
+        let b1 = if chunk.len() > 1 { chunk[1] as usize } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as usize } else { 0 };
+
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(CHARSET[(n >> 18) & 63] as char);
+        out.push(CHARSET[(n >> 12) & 63] as char);
+        if chunk.len() > 1 {
+            out.push(CHARSET[(n >> 6) & 63] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(CHARSET[n & 63] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct MediaProbeInfo {
     pub path: String,
     pub filename: String,
@@ -13,11 +39,55 @@ pub struct MediaProbeInfo {
     pub codec: String,
     pub has_audio: bool,
     pub sample_rate: Option<u32>,
+    pub thumbnail_data_url: Option<String>,
 }
 
 pub struct FFmpegDemuxerEngine;
 
 impl FFmpegDemuxerEngine {
+    /// Extract a quick JPEG thumbnail as bytes (scaled to 320px width)
+    pub fn extract_thumbnail_bytes(file_path: &str) -> Result<Vec<u8>, String> {
+        let output = silent_command("ffmpeg")
+            .args(&[
+                "-v", "error",
+                "-ss", "0.5",
+                "-i", file_path,
+                "-vframes", "1",
+                "-vf", "scale=320:-1",
+                "-f", "image2",
+                "-c:v", "mjpeg",
+                "-",
+            ])
+            .output();
+
+        if let Ok(out) = output {
+            if out.status.success() && !out.stdout.is_empty() {
+                return Ok(out.stdout);
+            }
+        }
+
+        // Fallback at start timestamp 0
+        let fallback = silent_command("ffmpeg")
+            .args(&[
+                "-v", "error",
+                "-ss", "0",
+                "-i", file_path,
+                "-vframes", "1",
+                "-vf", "scale=320:-1",
+                "-f", "image2",
+                "-c:v", "mjpeg",
+                "-",
+            ])
+            .output()
+            .map_err(|e| format!("Failed to generate thumbnail: {}", e))?;
+
+        if fallback.status.success() && !fallback.stdout.is_empty() {
+            Ok(fallback.stdout)
+        } else {
+            Err("Empty thumbnail from ffmpeg".to_string())
+        }
+    }
+
     /// Probe media metadata using actual ffprobe binary
     pub fn probe_file(file_path: &str) -> Result<MediaProbeInfo, String> {
         if file_path.is_empty() {
@@ -29,7 +99,7 @@ impl FFmpegDemuxerEngine {
             return Err(format!("Media file not found on disk: {}", file_path));
         }
 
-        let output = Command::new("ffprobe")
+        let output = silent_command("ffprobe")
             .args(&[
                 "-v", "error",
                 "-print_format", "json",
@@ -102,6 +172,15 @@ impl FFmpegDemuxerEngine {
             .unwrap_or("")
             .to_string();
 
+        let thumbnail_data_url = if video_stream.is_some() {
+            Self::extract_thumbnail_bytes(file_path)
+                .ok()
+                .filter(|b| !b.is_empty())
+                .map(|bytes| format!("data:image/jpeg;base64,{}", to_base64(&bytes)))
+        } else {
+            None
+        };
+
         Ok(MediaProbeInfo {
             path: file_path.to_string(),
             filename,
@@ -112,6 +191,7 @@ impl FFmpegDemuxerEngine {
             codec,
             has_audio,
             sample_rate,
+            thumbnail_data_url,
         })
     }
 
@@ -127,7 +207,7 @@ impl FFmpegDemuxerEngine {
             return Err(format!("Media file not found on disk: {}", file_path));
         }
 
-        let output = Command::new("ffmpeg")
+        let output = silent_command("ffmpeg")
             .args(&[
                 "-v", "error",
                 "-ss", &start_time_sec.to_string(),
@@ -161,7 +241,7 @@ mod tests {
         let temp_file = NamedTempFile::new().expect("failed to create temp file");
         let path = temp_file.path().to_str().unwrap().to_string();
 
-        let output = Command::new("ffmpeg")
+        let output = silent_command("ffmpeg")
             .args(&[
                 "-y", // overwrite
                 "-f", "lavfi",
@@ -199,7 +279,7 @@ mod tests {
         let path = temp_file.path().to_str().unwrap().to_string();
 
         // Create a 1s 320x240 10fps test file using ffmpeg
-        let output = Command::new("ffmpeg")
+        let output = silent_command("ffmpeg")
             .args(&[
                 "-y", // overwrite
                 "-f", "lavfi",

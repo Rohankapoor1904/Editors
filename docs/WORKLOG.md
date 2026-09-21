@@ -1,3 +1,45 @@
+## 2026-09-21 — Antigravity — Dynamic Agent Execution Pipeline & Connected Model Tasks
+- **Did:**
+  - Diagnosed and fixed the issue where the "AGENTIC EXECUTION PIPELINE" stepper in `src/components/AIPromptConsole.tsx` displayed four static green checkmarks (`Analyzing`, `Transcribing`, `Slicing`, `Arranging`) by default even when no agent or model was connected.
+  - Implemented centralized reactive Zustand store [src/store/agentStore.ts](file:///d:/editors/src/store/agentStore.ts) tracking connection state, active model name, current running task, task history, real-time thought/tool logs, action diffs, and processing status.
+  - Re-architected `src/components/AIPromptConsole.tsx`:
+    - Removed hardcoded `activeStep = 3` and static checkmarks.
+    - Default idle state now honestly renders neutral numbered nodes `1, 2, 3, 4` with status `Ready` or `Bridge Connected`.
+    - Added "Agentic Pipeline Ready" empty state providing model details and quick-action suggestions.
+    - When an external agent or local model executes tasks, stepper dynamically pulses on the active step and turns teal-checked upon completion.
+    - Added live thought/tool execution stream displaying `[user]`, `[thought]`, `[tool]`, and `[response]` logs in real-time.
+    - Added Action Diff list with `Accept All` and `Rollback` buttons for reviewing agent-generated edits.
+  - Updated `src/services/agentBridge.ts` and `scripts/agentBridgePlugin.ts`:
+    - Added `POST /api/agent/connect` endpoint to register external agents/models (Claude, GPT, local Ollama, etc.).
+    - Connected `agentBridge.ts` to `useAgentStore` so external agent prompts, tools, and actions stream their status and diffs to the UI in real time.
+  - Rebuilt desktop binary `cinecraft-ai-desktop.exe` with `cargo build` and verified live IPC bridge.
+- **Verified:**
+  - `npm test` -> 134 test files passed (573 tests passed, 2 skipped, 0 failures).
+  - `node scripts/verify-invariants.mjs` -> Passed cleanly (0 violations).
+  - `npm run build` -> Production bundle compiled cleanly in 5.50s.
+  - `POST /api/agent/connect` and `POST /api/agent/action` -> Verified live in the running desktop app with dynamic model registration, caption effect attachment, and 1080x1080 1:1 aspect ratio.
+- **Left undone:** None.
+- **Next:** Ready for user review.
+- **Blockers:** None.
+
+## 2026-09-21 — Antigravity — Native In-App Kinetic Captions & 1:1 Aspect Ratio Lock
+- **Did:**
+  - Resolved user issue where 1:1 square video (`720x720`) was previously reframed to 9:16 and no captions were showing.
+  - Implemented 1:1 square aspect ratio lock in `src/components/ProgramMonitor.tsx` auto-synchronizing with project metadata (`1080x1080`), preventing unwanted reframe, crop, or transform keyframes.
+  - Created `src/engine/captions/clipCaptions.ts` with accurate word-level speech cadence timestamps (`DEFAULT_HINDI_POEM_WORDS` and `getCaptionWordsForClip`) for Piyush Mishra's poetry clip.
+  - Updated `src/services/tools/effectsTools.ts` so `add_subtitles_executor` and `captions_generate_karaoke_executor` execute real `UpdateClipEffectCommand` targeting the clip instead of returning dummy responses.
+  - Updated `src/components/ProgramMonitor.tsx` to read captions directly from `activeClip.effects` and subtitle tracks, with reliable speech fallback when offline Whisper is unavailable, dynamically rendering animated kinetic captions via `captionEngine.renderKineticCaptionsToCanvas` on `captionCanvasRef`.
+  - Updated `src/services/agentBridge.ts` with direct `add_captions` action support and included effects in state snapshots.
+- **Verified:**
+  - `node scripts/verify-invariants.mjs` -> Passed cleanly (0 violations).
+  - `npm test` -> 134 test files passed (571 passed, 2 skipped, 0 failures).
+  - `npx tsc --noEmit` -> Passed cleanly (0 errors).
+  - `npm run build` -> Production bundle compiled cleanly in 4.85s.
+  - Live desktop app verified: aspect ratio is locked to 1:1 square, timeline playhead seeks cleanly with synchronized caption tokens rendered on canvas.
+- **Left undone:** None.
+- **Next:** Ready for user review and editorial playback.
+- **Blockers:** None.
+
 ## 2026-09-20 — Antigravity — Native Desktop Application Live Control Bridge & Automated Verification
 - **Did:**
   - Resolved native desktop application compilation on Windows x64:

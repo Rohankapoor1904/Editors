@@ -58,15 +58,31 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+Z or Ctrl+Z
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
+      // Ignore if user is editing text in an input or textarea
+      const target = e.target as HTMLElement;
+      const isInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable;
+
+      // Cmd+Z or Ctrl+Z (Undo) / Cmd+Shift+Z, Ctrl+Shift+Z or Ctrl+Y (Redo)
+      const isKeyZ = e.key === 'z' || e.key === 'Z';
+      const isKeyY = e.key === 'y' || e.key === 'Y';
+
+      if (!isInput && (e.metaKey || e.ctrlKey)) {
+        if (isKeyZ) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+          return;
+        } else if (isKeyY) {
+          e.preventDefault();
           redo();
-        } else {
-          undo();
+          return;
         }
-        return;
       }
 
       handleKeyboardShortcuts(e, store);

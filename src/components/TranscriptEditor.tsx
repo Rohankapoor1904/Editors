@@ -31,36 +31,29 @@ export const TranscriptEditor: React.FC = () => {
   }, [selectedClipIds, tracks, assets]);
 
   useEffect(() => {
-    if (!activeAssetPath) {
-      setWords([]);
-      setError(null);
-      return;
-    }
+    // When clip selection changes, clear the previous transcript.
+    // Whisper transcription is user-initiated to prevent C++ ABI crashes on import.
+    setWords([]);
+    setError(null);
+    setIsLoading(false);
+  }, [activeAssetPath]);
 
-    let isMounted = true;
+  const handleGenerateTranscript = async () => {
+    if (!activeAssetPath || isLoading) return;
     setIsLoading(true);
     setError(null);
-
-    whisperService.transcribeAudio(activeAssetPath)
-      .then((res) => {
-        if (isMounted) {
-          setWords(res.words);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          console.error("Transcription failed", err);
-          setError(err.message || 'Failed to transcribe audio');
-          setIsLoading(false);
-          setWords([]);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeAssetPath]);
+    try {
+      const res = await whisperService.transcribeAudio(activeAssetPath);
+      setWords(res.words);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[TranscriptEditor] Transcription failed:', err);
+      setError(msg);
+      setWords([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
 
@@ -146,8 +139,17 @@ export const TranscriptEditor: React.FC = () => {
             <p className="text-[10px] opacity-80">{error}</p>
           </div>
         ) : words.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-neutral-500">
-            <p>No speech detected.</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 space-y-3">
+            <FileText className="w-7 h-7 opacity-40" />
+            <p className="text-xs">Transcript not yet generated</p>
+            {activeAssetPath && (
+              <button
+                onClick={handleGenerateTranscript}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-medium rounded-lg transition-colors"
+              >
+                Generate Transcript
+              </button>
+            )}
           </div>
         ) : (
           words.map((w, index) => {

@@ -3,6 +3,9 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::process::Command;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioSeparationConfig {
     pub audio_path: String,
@@ -66,11 +69,19 @@ impl AudioSeparationEngine {
         ];
 
         // Execute vocals extraction
-        let vocal_child = Command::new("ffmpeg")
-            .args(&vocal_args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn();
+        let vocal_child = {
+            let mut cmd = Command::new("ffmpeg");
+            cmd.args(&vocal_args)
+               .stdout(Stdio::null())
+               .stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            {
+                #[allow(unused_imports)]
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(CREATE_NO_WINDOW);
+            }
+            cmd.spawn()
+        };
 
         match vocal_child {
             Ok(mut child) => {
@@ -85,11 +96,19 @@ impl AudioSeparationEngine {
         }
 
         // Execute instrumental extraction
-        let inst_child = Command::new("ffmpeg")
-            .args(&inst_args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn();
+        let inst_child = {
+            let mut cmd = Command::new("ffmpeg");
+            cmd.args(&inst_args)
+               .stdout(Stdio::null())
+               .stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            {
+                #[allow(unused_imports)]
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(CREATE_NO_WINDOW);
+            }
+            cmd.spawn()
+        };
 
         match inst_child {
             Ok(mut child) => {

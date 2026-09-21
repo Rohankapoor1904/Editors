@@ -50,7 +50,8 @@ impl SileroVadEngine {
             .commit_from_file(actual_model_path)
             .map_err(|e| format!("Failed to load ORT session from file: {}", e))?;
 
-        let mut reader = WavReader::open(audio_path).map_err(|e| format!("Failed to open wav: {}", e))?;
+        let conformed_audio = crate::audio_conformance::ensure_16k_mono_wav(audio_path)?;
+        let mut reader = WavReader::open(&conformed_audio.path).map_err(|e| format!("Failed to open wav: {}", e))?;
         let spec = reader.spec();
 
         if spec.channels != 1 || spec.sample_rate != 16000 {

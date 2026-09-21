@@ -3,6 +3,9 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::process::Command;
 
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceDenoiseConfig {
     pub audio_path: String,
@@ -68,11 +71,19 @@ impl VoiceDenoiseEngine {
             output_path.clone(),
         ];
 
-        let child = Command::new("ffmpeg")
-            .args(&args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn();
+        let child = {
+            let mut cmd = Command::new("ffmpeg");
+            cmd.args(&args)
+               .stdout(Stdio::null())
+               .stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            {
+                #[allow(unused_imports)]
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(CREATE_NO_WINDOW);
+            }
+            cmd.spawn()
+        };
 
         match child {
             Ok(mut c) => {

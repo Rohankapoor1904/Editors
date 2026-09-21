@@ -25,6 +25,8 @@ import {
 import { SpeedRampConfig } from '../types/timeline';
 import { autoReframeEngine } from '../engine/autoReframe';
 import { nativeBridge } from '../services/nativeBridge';
+import { audioEngine } from '../engine/audioEngine';
+import { useMediaPoolStore } from './mediaPool';
 
 interface UndoState {
   past: Command[];
@@ -42,6 +44,8 @@ interface TimelineStoreActions {
   setZoomLevel: (zoom: number) => void;
   selectClip: (clipId: string, multiSelect?: boolean) => void;
   toggleTrackState: (trackId: string, property: 'muted' | 'locked' | 'solo') => void;
+  setTrackVolume: (trackId: string, volumeDb: number) => void;
+  setTrackPan: (trackId: string, pan: number) => void;
   addTrack: (type: Track['type'], name?: string) => void;
   addClipToTrack: (trackId: string, clip: Clip) => void;
   removeClip: (clipId: string) => void;
@@ -77,7 +81,7 @@ const initialTimelineState: TimelineState & UndoState = {
   future: [],
   targetTrackId: null,
   version: '1.0.0',
-  projectId: '',
+  projectId: 'proj_default',
   metadata: {
     name: 'New Project',
     fps: 59.94,
@@ -103,6 +107,8 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 64,
+      volume: 0,
+      pan: 0,
       clips: [],
     },
     {
@@ -114,6 +120,8 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 72,
+      volume: 0,
+      pan: 0,
       clips: [],
     },
     {
@@ -125,6 +133,8 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 56,
+      volume: 0,
+      pan: 0,
       clips: [],
     },
     {
@@ -136,6 +146,8 @@ const initialTimelineState: TimelineState & UndoState = {
       locked: false,
       solo: false,
       height: 56,
+      volume: 0,
+      pan: 0,
       clips: [],
     }
   ],
@@ -219,6 +231,20 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
 
   toggleTrackState: (trackId, property) => {
     get().executeCommand(new ToggleTrackStateCommand(trackId, property));
+  },
+
+  setTrackVolume: (trackId, volumeDb) => {
+    set((state) => ({
+      tracks: state.tracks.map((t) => (t.id === trackId ? { ...t, volume: volumeDb } : t)),
+    }));
+    audioEngine.setTrackVolume(trackId, volumeDb);
+  },
+
+  setTrackPan: (trackId, pan) => {
+    set((state) => ({
+      tracks: state.tracks.map((t) => (t.id === trackId ? { ...t, pan } : t)),
+    }));
+    audioEngine.setTrackPan(trackId, pan);
   },
 
   addTrack: (type, name) => {
@@ -323,8 +349,34 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     const clip = state.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
     if (!clip) return null;
 
-    const sourcePath = clip.assetId || clip.name;
+    const mediaPool = useMediaPoolStore.getState();
+    const sourceAsset = mediaPool.assets.find((a) => a.id === clip.assetId);
+    const sourcePath = sourceAsset?.path || clip.assetId || clip.name;
     const { vocalsPath, instrumentalPath } = await nativeBridge.separateAudioStems(sourcePath);
+
+    // Register separated stems into media pool if not present
+    if (!mediaPool.assets.some((a) => a.id === vocalsPath || a.path === vocalsPath)) {
+      mediaPool.addAsset({
+        id: vocalsPath,
+        name: `${clip.name} (Vocals)`,
+        path: vocalsPath,
+        type: 'audio',
+        duration: sourceAsset?.duration || '00:00:10',
+        fingerprint: `fp_${Date.now()}_vocal`,
+        isOffline: false,
+      });
+    }
+    if (!mediaPool.assets.some((a) => a.id === instrumentalPath || a.path === instrumentalPath)) {
+      mediaPool.addAsset({
+        id: instrumentalPath,
+        name: `${clip.name} (Instrumental)`,
+        path: instrumentalPath,
+        type: 'audio',
+        duration: sourceAsset?.duration || '00:00:10',
+        fingerprint: `fp_${Date.now()}_inst`,
+        isOffline: false,
+      });
+    }
 
     // Find or create vocals track (dialogue) and instrumental track (music)
     let vocalTrack = get().tracks.find(
@@ -382,7 +434,9 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     const clip = state.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
     if (!clip) return null;
 
-    const sourcePath = clip.assetId || clip.name;
+    const mediaPool = useMediaPoolStore.getState();
+    const sourceAsset = mediaPool.assets.find((a) => a.id === clip.assetId);
+    const sourcePath = sourceAsset?.path || clip.assetId || clip.name;
     const result = await nativeBridge.denoiseAudioFile(sourcePath, strength, enableLeveler);
 
     get().updateClipEffect(clipId, 'fx_voice_isolation', 'voice_isolation', {

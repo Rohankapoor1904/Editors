@@ -4,16 +4,20 @@ import { AudioMixer } from '../AudioMixer';
 import { audioEngine } from '../../engine/audioEngine';
 
 const mockToggleTrackState = vi.fn();
+const mockSetTrackVolume = vi.fn((id: string, vol: number) => audioEngine.setTrackVolume(id, vol));
+const mockSetTrackPan = vi.fn((id: string, pan: number) => audioEngine.setTrackPan(id, pan));
 
 vi.mock('../../store/timelineStore', () => {
   return {
     useTimelineStore: (selector: any) => {
       const state = {
         tracks: [
-          { id: 'track_a1', type: 'audio', name: 'A1 - Dialogue Track', muted: false, solo: false },
-          { id: 'track_v1', type: 'video', name: 'V1 - Main Video', muted: false, solo: false }
+          { id: 'track_a1', type: 'audio', name: 'A1 - Dialogue Track', muted: false, solo: false, volume: 0, pan: 0 },
+          { id: 'track_v1', type: 'video', name: 'V1 - Main Video', muted: false, solo: false, volume: 0, pan: 0 }
         ],
         toggleTrackState: mockToggleTrackState,
+        setTrackVolume: mockSetTrackVolume,
+        setTrackPan: mockSetTrackPan,
       };
       if (typeof selector === 'function') {
         return selector(state);

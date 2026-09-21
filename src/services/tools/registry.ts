@@ -4,9 +4,6 @@ export class ToolRegistry {
   private tools: Map<string, RegisteredTool> = new Map();
 
   register<T = any, R = any>(definition: ToolDefinition, executor: ToolExecutor<T, R>): void {
-    if (this.tools.has(definition.name)) {
-      throw new Error(`Tool ${definition.name} is already registered`);
-    }
     this.tools.set(definition.name, { definition, executor });
   }
 

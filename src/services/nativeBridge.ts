@@ -12,6 +12,7 @@ export interface MediaProbeMetadata {
   codec: string;
   hasAudio: boolean;
   sampleRate?: number;
+  thumbnailDataUrl?: string;
 }
 
 export interface DemuxedFrameInfo {
@@ -58,15 +59,16 @@ export class FrameBuffer {
 }
 
 export class NativeBridgeService {
-  /**
-   * Separates file picking from file probing.
-   * If file_path is empty, prompts user with a file dialog.
-   * Then probes the file to get metadata.
-   */
-  async importMediaFile(file_path: string): Promise<MediaProbeMetadata | null> {
-    let pathToProbe = file_path;
+  private probeCache = new Map<string, MediaProbeMetadata>();
 
-    // 1. Pick file
+  /**
+   * Probes a media file for resolution, duration, FPS, and codec.
+   * If selectedPath is not provided, opens the OS file picker.
+   */
+  async importMediaFile(selectedPath?: string): Promise<MediaProbeMetadata | null> {
+    let pathToProbe = selectedPath;
+
+    // 1. File Dialog if path not provided
     if (!pathToProbe) {
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
         try {
@@ -74,7 +76,7 @@ export class NativeBridgeService {
             multiple: false,
             filters: [{ name: 'Media', extensions: ['mp4', 'mkv', 'avi', 'mov', 'mp3', 'wav'] }]
           });
-          if (!selected) return null; // User canceled
+          if (!selected) return null;
           pathToProbe = selected as string;
         } catch (err) {
           console.error('Failed to open file dialog:', err);
@@ -88,10 +90,17 @@ export class NativeBridgeService {
       }
     }
 
+    if (pathToProbe && this.probeCache.has(pathToProbe)) {
+      return this.probeCache.get(pathToProbe)!;
+    }
+
     // 2. Probe file
     try {
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
         const response = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<MediaProbeMetadata> } }).__TAURI_INTERNALS__.invoke('probe_media_file', { filePath: pathToProbe });
+        if (response && pathToProbe) {
+          this.probeCache.set(pathToProbe, response);
+        }
         return response;
       }
     } catch (err) {
@@ -107,7 +116,7 @@ export class NativeBridgeService {
     }
 
     // Fallback web probe generator for local development preview (demo mode only)
-    return {
+    const fallbackMeta: MediaProbeMetadata = {
       path: pathToProbe,
       filename: pathToProbe.split('/').pop() || 'sample_interview_4k.mp4',
       durationSeconds: 42.8,
@@ -118,6 +127,10 @@ export class NativeBridgeService {
       hasAudio: true,
       sampleRate: 48000,
     };
+    if (pathToProbe) {
+      this.probeCache.set(pathToProbe, fallbackMeta);
+    }
+    return fallbackMeta;
   }
 
   /**
@@ -132,11 +145,13 @@ export class NativeBridgeService {
         if (!probe) throw new Error("Could not probe file for demuxing");
 
         // Invoke Tauri 2 binary payload return (returns ArrayBuffer/Uint8Array)
-        const rawBytes = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<Uint8Array> } }).__TAURI_INTERNALS__.invoke('demux_video_frames', {
+        const rawPayload = await (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<Uint8Array | ArrayBuffer> } }).__TAURI_INTERNALS__.invoke('demux_video_frames', {
           filePath: mediaPath,
           startTime: rationalToSeconds(startTime),
           frameCount,
         });
+
+        const rawBytes = rawPayload instanceof Uint8Array ? rawPayload : new Uint8Array(rawPayload);
 
         const width = probe.width;
         const height = probe.height;
@@ -351,6 +366,30 @@ export class NativeBridgeService {
       outputPath: `${stem}_isolated.wav`,
       snrImprovementDb: 14.5,
     };
+  }
+
+  /**
+   * Converts a local disk path to a streaming asset URL via Tauri 2 convertFileSrc
+   * or returns the web path/object URL directly.
+   */
+  getAssetUrl(filePath: string): string {
+    if (!filePath) return '';
+    if (
+      filePath.startsWith('http://') ||
+      filePath.startsWith('https://') ||
+      filePath.startsWith('blob:') ||
+      filePath.startsWith('data:')
+    ) {
+      return filePath;
+    }
+    if (typeof window !== 'undefined' && (window as unknown as { __TAURI_INTERNALS__?: { convertFileSrc?: (path: string) => string } }).__TAURI_INTERNALS__?.convertFileSrc) {
+      try {
+        return (window as unknown as { __TAURI_INTERNALS__: { convertFileSrc: (path: string) => string } }).__TAURI_INTERNALS__.convertFileSrc(filePath);
+      } catch (err) {
+        console.warn('[Native Bridge]: convertFileSrc failed:', err);
+      }
+    }
+    return filePath;
   }
 }
 

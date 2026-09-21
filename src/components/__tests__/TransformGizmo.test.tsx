@@ -14,7 +14,7 @@ describe('TransformGizmo On-Screen Canvas Controls (Task R13.2)', () => {
     sourceOut: secondsToRational(5),
     duration: secondsToRational(5),
     transform: {
-      position: { x: 10, y: -20 },
+      position: { x: 0.6, y: 0.4 },
       scale: { x: 1.2, y: 1.2 },
       rotation: 15,
       opacity: 1,
@@ -34,7 +34,7 @@ describe('TransformGizmo On-Screen Canvas Controls (Task R13.2)', () => {
     );
 
     // Verify coordinate tag
-    expect(screen.getByText(/X: 10 Y: -20 \| 120% \| 15°/)).toBeDefined();
+    expect(screen.getByText(/X: 10% Y: -10% \| 120% \| 15°/)).toBeDefined();
 
     // Verify rotation button
     const rotateBtn = screen.getByTitle('Rotate Clip');
@@ -58,13 +58,15 @@ describe('TransformGizmo On-Screen Canvas Controls (Task R13.2)', () => {
 
     if (box) {
       fireEvent.pointerDown(box, { clientX: 100, clientY: 100, pointerId: 1 });
-      fireEvent.pointerMove(box, { clientX: 150, clientY: 120, pointerId: 1 });
+      fireEvent.pointerMove(box, { clientX: 160, clientY: 140, pointerId: 1 }); // dx = 60, dy = 40
       fireEvent.pointerUp(box, { pointerId: 1 });
 
       expect(onUpdate).toHaveBeenCalledTimes(1);
       const updated = onUpdate.mock.calls[0][0];
-      expect(updated.position.x).toBe(10 + 50); // 10 + dx (50)
-      expect(updated.position.y).toBe(-20 + 20); // -20 + dy (20)
+      // containerWidth = 600, dx = 60 -> +0.1000
+      // containerHeight = 400, dy = 40 -> +0.1000
+      expect(updated.position.x).toBeCloseTo(0.6 + 0.1, 3);
+      expect(updated.position.y).toBeCloseTo(0.4 + 0.1, 3);
     }
   });
 });
