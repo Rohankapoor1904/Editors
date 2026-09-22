@@ -70,5 +70,8 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      - name: Ensure dist exists for tauri macro
+        run: mkdir -p ../dist
+
       - name: Cargo check
         run: cargo check
