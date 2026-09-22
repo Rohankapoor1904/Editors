@@ -209,10 +209,16 @@ fn main() {
                     return Err(Box::new(e) as Box<dyn std::error::Error>);
                 }
             };
+            let info = bridge_state.info();
             println!(
                 "[bridge] sidecar listening on 127.0.0.1:{}",
-                bridge_state.info().port
+                info.port
             );
+            if let Ok(info_json) = serde_json::to_string_pretty(&info) {
+                let _ = std::fs::write("target/bridge_info.json", &info_json);
+                let temp_path = std::env::temp_dir().join("cinecraft_bridge_info.json");
+                let _ = std::fs::write(temp_path, &info_json);
+            }
             app.manage(bridge_state.clone());
             let router = bridge_state.router();
             tauri::async_runtime::spawn(async move {

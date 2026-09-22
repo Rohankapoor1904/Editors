@@ -152,7 +152,7 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R23.2** | Bridge Rust | Axum scaffold + /status + /timeline + get_bridge_info | `real` | `done` | Antigravity | Code written: `bridge_server.rs` (state, Bearer gate, CORS, /status /timeline /heartbeat, 5 unit tests) + `get_bridge_info` registered + sidecar spawn in `setup()` + `axum 0.7.9` locked. Merged in PR #92. Verified on host: `cargo check` passed cleanly; `cargo test` passed 12/12 unit tests (5/5 bridge_server tests passed). Deps: R23.1 |
 | **R23.3** | Bridge Rust | Task routes /prompt /tool /action /connect /pending /result /heartbeat | `real` | `done` | opencode / Antigravity | Code written: 7 routes mirroring dev-plugin semantics (Bearer on POSTs, 400s, 20/20/15s timeouts, oneshot handshake, waiter cleanup); +3 unit tests (`split_outcome`, id shape). Toolchain unblocked via LLVM-MinGW / xwin combined_libs. Verified on host: `cargo check` passed (1.78s); `cargo test` passed 14/14 tests (all 7 `bridge_server` tests passed); full `npm test` (78 files / 345 passed / 1 skipped) and `verify-invariants` clean. Deps: R23.2 |
 | **R23.4** | Bridge UI | Sidecar port/token/status panel | `real` | `done` | opencode | Impl: `BridgePanel` (kind badge, URL, sidecar port + masked token, copy-connect-JSON, live `/status` probe, unavailable guidance) mounted in Copilot tab. Test: `BridgePanel` 4/4 (copy JSON asserted, probe ok/fail); regressions 14/14; `tsc`/`eslint` clean; build 4.81s. Merged in PR #92. Deps: R23.1 |
-| **R23.5** | Bridge e2e | Desktop end-to-end verification on Tauri host | `missing` | `in_progress` | Antigravity (2026-09-22) | Claimed for Tauri host end-to-end verification. Deps: R23.3, R23.4 |
+| **R23.5** | Bridge e2e | Desktop end-to-end verification on Tauri host | `real` | `done` | Antigravity | Impl: `cinecraft-ai-desktop.exe` binds loopback HTTP sidecar on OS-assigned port + dynamic token discovery. Verified live on host via `scripts/verify-desktop-e2e.ps1`: external HTTP client discovers port/token, connects via POST /connect, executes editorial prompt ("Change sequence aspect ratio to 9:16 vertical shorts") via POST /prompt, mutates timeline to 1080x1920, and executes direct tool `sequence_set_aspect_ratio` to Cinema 4K (3840x2160); all verified with live process. Full `cargo check`, `cargo test` (14/14), `npm test` (78 files / 345 passed), and `verify-invariants` clean. Deps: R23.3, R23.4 |
 
 ---
 
@@ -170,11 +170,11 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 - **R20 exit:** Complete. Multi-Camera Audio Cross-Correlation Alignment, 4-Up Quad Split Studio Monitor with Live Angle Switching (Keys 1-4 & green ON AIR tally), and AI Dialogue Turn Auto-Switching with cross-talk wide protection verified.
 - **R21 exit:** Complete. R21.1–R21.4 verified real and merged in PR #92. External agent bridge configurable with token/URL, real tool schemas, honest AI tool outputs, and gate enforcement.
 - **R22 exit:** Complete. R22.1–R22.6 verified real and merged in PR #92. Caption WGSL removed from pipeline, models bundled, Inspector inputs wired, R3.3 corrected, LUFS integrated split, durations serialized honestly.
-- **R23 exit:** In progress. R23.1 (TS transport), R23.2 (scaffold), R23.3 (task routes), and R23.4 (BridgePanel UI) verified real and done. R23.5 (desktop e2e) todo.
+- **R23 exit:** Complete. R23.1–R23.5 verified real and complete. Production build exposes native loopback HTTP sidecar with Bearer token authentication; external LLM/IDE callers can connect without Vite dev server, execute prompts, and mutate timeline state live on Tauri host.
 
 ## Next agent
 
-R23.3 task routes in `bridge_server.rs` verified on host (`cargo test` 14/14 passed, all 7 bridge_server tests green). Toolchain blocker resolved via LLVM-MinGW/xwin setup. Next task: R23.5 (desktop e2e verification on Tauri host).
+Phase R23 is 100% complete with full live host verification. All tasks through R23 are `done`.
 
 
 

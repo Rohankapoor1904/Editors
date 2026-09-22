@@ -1,3 +1,27 @@
+## 2026-09-22 — Antigravity — R23.5 Desktop end-to-end verification on live Tauri host
+- **Did:**
+  - Added discovery file export in `src-tauri/src/main.rs`: upon binding loopback HTTP sidecar, writes `target/bridge_info.json` and `%TEMP%\cinecraft_bridge_info.json` containing dynamic port and UUID token for host discovery.
+  - Rebuilt desktop binary `src-tauri/target/debug/cinecraft-ai-desktop.exe` via `cargo build`.
+  - Created automated desktop end-to-end verification suite `scripts/verify-desktop-e2e.ps1`.
+  - Executed end-to-end verification on live Tauri host:
+    - Spawned `cinecraft-ai-desktop.exe` (PID 28556).
+    - Discovered sidecar port and Bearer token dynamically.
+    - Probed `GET /api/agent/status` (verified `bridge: native-sidecar`, `authRequired: true`).
+    - Verified WebView2 frontend connected via heartbeat (`lastHeartbeatMsAgo: 150ms`).
+    - Connected external agent via `POST /api/agent/connect` with Bearer auth.
+    - Executed editorial prompt via `POST /api/agent/prompt` ("Change sequence aspect ratio to 9:16 vertical shorts"); asserted round-trip response and verified timeline metadata mutated to 1080x1920 @ 59.94fps.
+    - Executed direct tool via `POST /api/agent/tool` (`sequence_set_aspect_ratio` to 3840x2160); asserted timeline metadata mutated to 3840x2160.
+    - Cleanly terminated desktop process and purged discovery files.
+- **Verified:**
+  - `powershell -ExecutionPolicy Bypass -File scripts\verify-desktop-e2e.ps1`: all 6 stages passed with green output on live Tauri host.
+  - `cd src-tauri && cargo check`: passed in 1.21s.
+  - `cd src-tauri && cargo test`: 14/14 tests passed in 0.42s.
+  - `node scripts/verify-invariants.mjs`: all mechanical invariants passed cleanly.
+  - `npm test`: 78 files / 345 passed / 1 skipped in 36.32s.
+- **Left undone:** None. Phase R23 is 100% complete.
+- **Next:** User review and PR creation for Phase R23 completion.
+- **Blockers:** None.
+
 ## 2026-09-22 — Antigravity — PR #94 merge conflict resolution with main (PR #93 reconciliation)
 - **Did:**
   - Resolved merge conflicts on branch `feat/R23.3-task-routes` with `main` in `src-tauri/src/bridge_server.rs` and `PROGRESS.md`.
