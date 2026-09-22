@@ -147,7 +147,7 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R22.3** | UI honesty | Wire Inspector inputs, guard empty diffs, drop re-throw | `partial` | `in_progress` | opencode | Impl: 7 Inspector controls read selected clip + dispatch undoable commands (new `UpdateClipVolumeCommand`); Exposure→Temperature (no engine field); vocal checkbox removed (AudioWorkspace owns it); empty plans skip diff cards; failure path keeps `failTask`, no re-throw. Test: `InspectorWiring` 6/6; `AIPromptConsole` 4/4; commands 26/26; `tsc`/`eslint` clean; build 5.58s. NOT `done`: full gate red on pre-existing `.bat`; PR not opened. Missing: nothing — full Inspector coverage. Deps: none |
 | **R22.4** | Tracker | Correct R3.3 DAG row to `partial` (docs-only) | `real` | `in_progress` | opencode | Done 2026-09-22: R3.3 corrected with `file:line` evidence; R3.4/R3.5 evidence refreshed. NOT `done`: PR not opened. Deps: none |
 | **R22.5** | Audio | LUFS integrated-only API + shared error class | `partial` | `in_progress` | opencode | Impl: `measureIntegratedLUFS()` live-safe (reference tone → -23.0 as documented); `measureTruePeak()` throws live / sample-peak demo; `measureLUFS()` throws live rather than half-measuring; single shared error class (re-exported). UI meter stays honestly DISABLED. Test: `loudness.behavior` 6/6 (incl. -23 calibration), old suite 2/2; `tsc`/`eslint` clean; build 6.25s. NOT `done`: full gate red on pre-existing `.bat`; PR not opened. Missing: 4x-oversampled true peak. Deps: none |
-| **R22.6** | Editorial | Serialize durations honestly | `missing` | `todo` | — | Deps: none |
+| **R22.6** | Editorial | Serialize durations honestly | `missing` | `in_progress` | opencode | 2026-09-22 claim. Deps: none |
 
 ---
 
