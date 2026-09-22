@@ -1,0 +1,260 @@
+//! Native agent-bridge sidecar (R23.2, ADR-009).
+//!
+//! Serves the exact dev-plugin protocol (`scripts/agentBridgePlugin.ts`) on
+//! `127.0.0.1` with an OS-assigned port, so external IDE/LLM callers can
+//! reach production builds without the Vite dev server.
+//!
+//! The sidecar is a *transport*, not an executor: task requests are queued
+//! here and drained by the frontend `AgentBridgeClient` (`GET /pending`),
+//! which executes them in JS and reports back (`POST /result`) — the same
+//! polling handshake as the dev middleware.
+//!
+//! R23.2 scope: shared state, Bearer gate, CORS, `GET /status`,
+//! `GET /timeline`, `POST /heartbeat`. Task routes (`/prompt`, `/tool`,
+//! `/action`, `/connect`, `/pending`, `/result`) land in R23.3.
+//!
+//! VERIFICATION STATUS: `cargo check` cannot run in environments without an
+//! MSVC linker. This module is `unverified` until a tooled host compiles it.
+
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use axum::{
+    body::Body,
+    extract::State,
+    http::{HeaderMap, Method, Request, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+/// Connection facts handed to the frontend via `get_bridge_info`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeInfo {
+    pub port: u16,
+    pub token: String,
+}
+
+/// A task waiting for the frontend poll loop (R23.3 fills the queue).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BridgeTask {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub payload: Value,
+}
+
+#[derive(Debug, Default)]
+struct BridgeQueues {
+    pending: VecDeque<BridgeTask>,
+    latest_state: Option<Value>,
+    last_heartbeat_ms: u64,
+}
+
+/// Shared sidecar state: connection facts + polled queues.
+#[derive(Debug, Clone)]
+pub struct BridgeServerState {
+    info: BridgeInfo,
+    queues: Arc<Mutex<BridgeQueues>>,
+}
+
+impl BridgeServerState {
+    /// Binds `127.0.0.1:0` (OS-assigned port) and mints a random token.
+    pub async fn bind_loopback() -> std::io::Result<(tokio::net::TcpListener, Self)> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let state = Self {
+            info: BridgeInfo {
+                port,
+                token: uuid::Uuid::new_v4().to_string(),
+            },
+            queues: Arc::new(Mutex::new(BridgeQueues::default())),
+        };
+        Ok((listener, state))
+    }
+
+    pub fn info(&self) -> BridgeInfo {
+        self.info.clone()
+    }
+
+    pub fn router(&self) -> Router {
+        Router::new()
+            .route("/api/agent/status", get(handle_status))
+            .route("/api/agent/timeline", get(handle_timeline))
+            .route("/api/agent/heartbeat", post(handle_heartbeat))
+            .layer(middleware::from_fn(cors_layer))
+            .with_state(self.clone())
+    }
+
+    fn heartbeat_ms_locked(queues: &BridgeQueues) -> Option<u64> {
+        if queues.last_heartbeat_ms == 0 {
+            None
+        } else {
+            Some(queues.last_heartbeat_ms)
+        }
+    }
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn is_authorized(token: &str, headers: &HeaderMap) -> bool {
+    if token.is_empty() {
+        return true;
+    }
+    match headers.get("authorization").and_then(|v| v.to_str().ok()) {
+        Some(value) => value == format!("Bearer {token}"),
+        None => false,
+    }
+}
+
+fn unauthorized() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({ "error": "Missing or invalid bearer token" })),
+    )
+        .into_response()
+}
+
+async fn cors_layer(req: Request<Body>, next: Next) -> Response {
+    if req.method() == Method::OPTIONS {
+        return Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header("access-control-allow-origin", "*")
+            .header("access-control-allow-methods", "GET, POST, OPTIONS")
+            .header(
+                "access-control-allow-headers",
+                "Content-Type, Authorization",
+            )
+            .body(Body::empty())
+            .unwrap();
+    }
+    let mut res = next.run(req).await;
+    res.headers_mut().insert(
+        "access-control-allow-origin",
+        axum::http::HeaderValue::from_static("*"),
+    );
+    res
+}
+
+fn status_snapshot(queues: &BridgeQueues) -> Value {
+    let now = now_millis();
+    let alive = match BridgeServerState::heartbeat_ms_locked(queues) {
+        Some(last) => now.saturating_sub(last) < 10_000,
+        None => false,
+    };
+    json!({
+        "status": if alive { "connected" } else { "waiting_for_app" },
+        "bridge": "native-sidecar",
+        "authRequired": true,
+        "appName": "CineCraft AI Studio",
+        "connected": alive,
+        "lastHeartbeatMsAgo": BridgeServerState::heartbeat_ms_locked(queues).map(|last| now.saturating_sub(last)),
+        "state": queues.latest_state,
+    })
+}
+
+async fn handle_status(State(state): State<BridgeServerState>) -> impl IntoResponse {
+    let queues = state.queues.lock().unwrap();
+    Json(status_snapshot(&queues))
+}
+
+async fn handle_timeline(State(state): State<BridgeServerState>) -> impl IntoResponse {
+    let queues = state.queues.lock().unwrap();
+    let latest = queues.latest_state.clone().unwrap_or(Value::Null);
+    Json(json!({
+        "timeline": latest.get("timeline").unwrap_or(&Value::Null),
+        "metadata": latest.get("metadata").unwrap_or(&Value::Null),
+        "playhead": latest.get("playhead").unwrap_or(&Value::Null),
+        "activeWorkspace": latest.get("activeWorkspace").unwrap_or(&Value::Null),
+    }))
+}
+
+async fn handle_heartbeat(
+    State(state): State<BridgeServerState>,
+    Json(snapshot): Json<Value>,
+) -> impl IntoResponse {
+    let mut queues = state.queues.lock().unwrap();
+    queues.latest_state = Some(snapshot);
+    queues.last_heartbeat_ms = now_millis();
+    Json(json!({ "ok": true, "timestamp": queues.last_heartbeat_ms }))
+}
+
+/// Bearer gate shared by the R23.3 POST routes.
+pub fn require_bearer(info: &BridgeInfo, headers: &HeaderMap) -> Option<Response> {
+    if is_authorized(&info.token, headers) {
+        None
+    } else {
+        Some(unauthorized())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers_with(auth: Option<&str>) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        if let Some(value) = auth {
+            headers.insert(
+                "authorization",
+                axum::http::HeaderValue::from_str(value).unwrap(),
+            );
+        }
+        headers
+    }
+
+    #[test]
+    fn bearer_gate_accepts_exact_token_only() {
+        assert!(is_authorized("tok-1", &headers_with(Some("Bearer tok-1"))));
+        assert!(!is_authorized("tok-1", &headers_with(Some("Bearer tok-2"))));
+        assert!(!is_authorized("tok-1", &headers_with(None)));
+        assert!(!is_authorized("tok-1", &headers_with(Some("tok-1"))));
+    }
+
+    #[test]
+    fn empty_server_token_keeps_local_dev_open() {
+        assert!(is_authorized("", &headers_with(None)));
+    }
+
+    #[test]
+    fn status_reports_waiting_before_first_heartbeat() {
+        let queues = BridgeQueues::default();
+        let snapshot = status_snapshot(&queues);
+        assert_eq!(snapshot["status"], "waiting_for_app");
+        assert_eq!(snapshot["bridge"], "native-sidecar");
+        assert_eq!(snapshot["authRequired"], true);
+        assert_eq!(snapshot["connected"], false);
+    }
+
+    #[test]
+    fn status_reports_connected_after_heartbeat() {
+        let mut queues = BridgeQueues::default();
+        queues.last_heartbeat_ms = now_millis();
+        queues.latest_state = Some(json!({ "playhead": 12 }));
+        let snapshot = status_snapshot(&queues);
+        assert_eq!(snapshot["status"], "connected");
+        assert_eq!(snapshot["connected"], true);
+    }
+
+    #[test]
+    fn bridge_task_round_trips_through_json() {
+        let task = BridgeTask {
+            id: "req-1".to_string(),
+            kind: "prompt".to_string(),
+            payload: json!({ "prompt": "cut silences" }),
+        };
+        let serialized = serde_json::to_string(&task).unwrap();
+        assert!(serialized.contains("\"type\":\"prompt\""));
+        let back: BridgeTask = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(back.id, "req-1");
+    }
+}

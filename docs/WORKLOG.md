@@ -1,3 +1,13 @@
+## 2026-09-22 — opencode — R23.2
+- **Did:**
+  - New `src-tauri/src/bridge_server.rs`: `BridgeInfo`/`BridgeTask`/`BridgeServerState` (`bind_loopback` on 127.0.0.1:0 + uuid token), Bearer gate (exact-token only, open when empty), CORS incl. OPTIONS, `GET /status`, `GET /timeline`, `POST /heartbeat`, `require_bearer()` for R23.3 routes, 5 unit tests (gate, status transitions, task serde).
+  - `src-tauri/src/main.rs`: `pub mod bridge_server`, `get_bridge_info` command + registration, sidecar bind/spawn in `setup()` (bind failure is fatal by design).
+  - `src-tauri/Cargo.toml`: `axum = "0.7"` (locked to 0.7.9 + matchit/httpdate by cargo).
+- **Verified (verbatim):** `rustfmt --edition 2021 --check src-tauri/src/bridge_server.rs` -> clean (no diff); `cargo check` resolves deps (`Adding axum v0.7.9 ...`) then fails with `error: could not compile zmij|parking_lot_core|quote|proc-macro2|serde_core (build script) due to 1 previous error` — root cause `link.exe was not found` (no MSVC linker; baseline fails identically, R22.2). IPC invariant gate: `get_bridge_info` resolves, only pre-existing `.bat` error remains.
+- **Left undone:** type-check + unit tests need an MSVC host (row is `blocked`, honestly). R23.3 (task routes) next.
+- **Next:** R23.3, then R23.4 panel UI, then tooled-host verification (R23.5).
+- **Blockers:** No MSVC linker in this env; same `.bat` gate blocker.
+
 ## 2026-09-22 — opencode — R23.1
 - **Did:**
   - Wrote ADR-009 (axum loopback sidecar as pure transport, same polling protocol, OS port + startup token) + Phase R23 (5 tasks) in `docs/ROADMAP.md` / `PROGRESS.md`.
