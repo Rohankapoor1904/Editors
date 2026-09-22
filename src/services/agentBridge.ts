@@ -8,7 +8,240 @@ import { getCaptionWordsForClip } from '../engine/captions/clipCaptions';
 import { Clip } from '../types/timeline';
 import { useAgentStore } from '../store/agentStore';
 
-const AGENT_BRIDGE_BASE = 'http://localhost:3000/api/agent';
+export const DEFAULT_AGENT_BRIDGE_BASE = 'http://localhost:3000/api/agent';
+
+const BRIDGE_URL_STORAGE_KEY = 'cinecraft.bridge.url';
+const BRIDGE_TOKEN_STORAGE_KEY = 'cinecraft.bridge.token';
+
+export type BridgeAvailability = 'dev-middleware' | 'unavailable-in-production';
+
+/**
+ * Normalizes a bridge base URL. Throws on non-HTTP(S) values so a
+ * misconfigured IDE endpoint fails loudly instead of silently polling nowhere.
+ */
+export function normalizeBridgeBaseUrl(url: string): string {
+  const trimmed = (url || '').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\/.+/.test(trimmed)) {
+    throw new Error(`Invalid agent bridge URL: "${url}" (expected http:// or https://)`);
+  }
+  return trimmed;
+}
+
+/**
+ * Pure helper so tests do not depend on bundler env.
+ * The bridge middleware only ships inside the Vite dev server (R21.1 / ADR-008),
+ * so any non-dev build is explicitly unavailable.
+ */
+export function resolveBridgeAvailability(isDev: boolean): BridgeAvailability {
+  return isDev ? 'dev-middleware' : 'unavailable-in-production';
+}
+
+function readStored(key: string): string {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) || '' : '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStored(key: string, value: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    }
+  } catch {
+    // storage unavailable (e.g. tests) — keep in-memory only
+  }
+}
+
+let agentBridgeBase = (() => {
+  try {
+    const fromEnv =
+      (typeof import.meta !== 'undefined' &&
+        (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_AGENT_BRIDGE_URL) ||
+      '';
+    const stored = readStored(BRIDGE_URL_STORAGE_KEY);
+    return normalizeBridgeBaseUrl(fromEnv || stored || DEFAULT_AGENT_BRIDGE_BASE);
+  } catch {
+    return DEFAULT_AGENT_BRIDGE_BASE;
+  }
+})();
+
+let agentBridgeToken = (() => {
+  try {
+    const fromEnv =
+      (typeof import.meta !== 'undefined' &&
+        (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_AGENT_BRIDGE_TOKEN) ||
+      '';
+    return fromEnv || readStored(BRIDGE_TOKEN_STORAGE_KEY);
+  } catch {
+    return '';
+  }
+})();
+
+export function getAgentBridgeBase(): string {
+  return agentBridgeBase;
+}
+
+export function setAgentBridgeBase(url: string): string {
+  agentBridgeBase = normalizeBridgeBaseUrl(url);
+  writeStored(BRIDGE_URL_STORAGE_KEY, agentBridgeBase);
+  return agentBridgeBase;
+}
+
+export function getAgentBridgeToken(): string {
+  return agentBridgeToken;
+}
+
+export function setAgentBridgeToken(token: string): string {
+  agentBridgeToken = (token || '').trim();
+  writeStored(BRIDGE_TOKEN_STORAGE_KEY, agentBridgeToken);
+  return agentBridgeToken;
+}
+
+export function getBridgeAvailability(): BridgeAvailability {
+  try {
+    const isDev =
+      (typeof import.meta !== 'undefined' &&
+        (import.meta as unknown as { env?: Record<string, boolean | undefined> }).env?.DEV) === true;
+    return resolveBridgeAvailability(isDev);
+  } catch {
+    return 'unavailable-in-production';
+  }
+}
+
+export function buildBridgeHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (agentBridgeToken) {
+    headers['Authorization'] = `Bearer ${agentBridgeToken}`;
+  }
+  return headers;
+}
+
+// ---------------------------------------------------------------------------
+// R23.1: native sidecar transport (ADR-009).
+// The production sidecar speaks the exact dev-plugin protocol; only the base
+// URL discovery differs (Tauri `get_bridge_info` invoke -> 127.0.0.1:port).
+// ---------------------------------------------------------------------------
+
+export interface BridgeStatusInfo {
+  status: string;
+  bridge: string;
+  authRequired: boolean;
+  connected: boolean;
+  appName?: string;
+}
+
+export interface SidecarInfo {
+  port: number;
+  token: string;
+  baseUrl: string;
+}
+
+type FetchImpl = (
+  url: string,
+  init?: { headers?: Record<string, string> }
+) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+/**
+ * Fetches `/status` from any bridge base URL (dev middleware or native
+ * sidecar). Throws on transport failure or non-2xx — callers decide fallback.
+ */
+export async function fetchBridgeStatus(
+  baseUrl: string = getAgentBridgeBase(),
+  token: string = getAgentBridgeToken(),
+  fetchImpl: FetchImpl = fetch as unknown as FetchImpl
+): Promise<BridgeStatusInfo> {
+  const base = normalizeBridgeBaseUrl(baseUrl);
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let res;
+  try {
+    res = await fetchImpl(`${base}/status`, { headers });
+  } catch (err: unknown) {
+    throw new Error(`Bridge unreachable at ${base}: ${(err as Error)?.message || String(err)}`);
+  }
+  if (!res.ok) {
+    throw new Error(`Bridge status ${res.status} from ${base}`);
+  }
+  const data = (await res.json()) as Record<string, unknown>;
+  return {
+    status: typeof data.status === 'string' ? data.status : 'unknown',
+    bridge: typeof data.bridge === 'string' ? data.bridge : 'unknown',
+    authRequired: data.authRequired === true,
+    connected: data.connected === true,
+    appName: typeof data.appName === 'string' ? data.appName : undefined,
+  };
+}
+
+/**
+ * Validates raw sidecar info and derives its base URL. Throws loudly on
+ * malformed data so a broken host response can never become a silent poll
+ * to nowhere.
+ */
+export function resolveSidecarBase(info: { port: unknown; token: unknown }): SidecarInfo {
+  if (
+    typeof info.port !== 'number' ||
+    !Number.isInteger(info.port) ||
+    info.port < 1 ||
+    info.port > 65535
+  ) {
+    throw new Error(`Invalid sidecar port: ${JSON.stringify(info.port)}`);
+  }
+  if (typeof info.token !== 'string' || info.token.length === 0) {
+    throw new Error('Invalid sidecar token: expected a non-empty string');
+  }
+  return {
+    port: info.port,
+    token: info.token,
+    baseUrl: `http://127.0.0.1:${info.port}/api/agent`,
+  };
+}
+
+type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+
+function defaultTauriInvoke(): TauriInvoke | null {
+  try {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      return (window as unknown as { __TAURI_INTERNALS__: { invoke: TauriInvoke } })
+        .__TAURI_INTERNALS__.invoke;
+    }
+  } catch {
+    // no Tauri host
+  }
+  return null;
+}
+
+/**
+ * Discovers the native sidecar on a Tauri host via `get_bridge_info`.
+ * Applies base URL + token on success (the sidecar is authoritative on
+ * desktop) and publishes to the agent store. Returns `null` on any failure
+ * — discovery must degrade to the dev default, never throw into startup.
+ */
+export async function discoverSidecar(tauriInvoke?: TauriInvoke | null): Promise<SidecarInfo | null> {
+  const invoke = tauriInvoke === undefined ? defaultTauriInvoke() : tauriInvoke;
+  if (!invoke) return null;
+
+  try {
+    const raw = (await invoke('get_bridge_info')) as { port: unknown; token: unknown };
+    if (!raw || typeof raw !== 'object') return null;
+    const info = resolveSidecarBase(raw);
+    setAgentBridgeBase(info.baseUrl);
+    setAgentBridgeToken(info.token);
+    try {
+      useAgentStore.getState().setBridgeUrl(info.baseUrl);
+      useAgentStore.getState().setSidecarInfo(info.port, info.token);
+      useAgentStore.getState().setBridgeKind('native-sidecar');
+    } catch {
+      // store unavailable in some test contexts
+    }
+    return info;
+  } catch {
+    return null;
+  }
+}
 
 class AgentBridgeClient {
   private isRunning = false;
@@ -23,6 +256,21 @@ class AgentBridgeClient {
   public start() {
     if (this.isRunning) return;
     this.isRunning = true;
+
+    try {
+      useAgentStore.getState().setBridgeUrl(getAgentBridgeBase());
+      useAgentStore.getState().setBridgeAvailability(getBridgeAvailability());
+      useAgentStore.getState().setBridgeKind(
+        getBridgeAvailability() === 'dev-middleware' ? 'dev-middleware' : 'unknown'
+      );
+    } catch {
+      // store unavailable in some test contexts — polling still works
+    }
+
+    // Native sidecar (production): discover port+token, then heartbeat/poll
+    // against it with the exact dev protocol. Fire-and-forget on purpose:
+    // discoverSidecar() never rejects; failure degrades to the dev default.
+    void discoverSidecar();
 
     // Start heartbeat
     this.sendHeartbeat();
@@ -70,19 +318,31 @@ class AgentBridgeClient {
     try {
       const snapshot = this.getSnapshot();
 
-      const res = await fetch(`${AGENT_BRIDGE_BASE}/heartbeat`, {
+      const res = await fetch(`${getAgentBridgeBase()}/heartbeat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildBridgeHeaders(),
         body: JSON.stringify(snapshot),
       });
 
       if (res.ok) {
         this.connected = true;
         useAgentStore.getState().setConnected(true);
+        try {
+          useAgentStore.getState().setBridgeAvailability('dev-middleware');
+        } catch {
+          // ignore store failures in tests
+        }
       }
     } catch {
       this.connected = false;
-      useAgentStore.getState().setConnected(false);
+      try {
+        useAgentStore.getState().setConnected(false);
+        if (getBridgeAvailability() === 'unavailable-in-production') {
+          useAgentStore.getState().setBridgeAvailability('unavailable-in-production');
+        }
+      } catch {
+        // ignore store failures in tests
+      }
     }
   }
 
@@ -90,7 +350,9 @@ class AgentBridgeClient {
     if (!this.isRunning) return;
 
     try {
-      const res = await fetch(`${AGENT_BRIDGE_BASE}/pending`);
+      const res = await fetch(`${getAgentBridgeBase()}/pending`, {
+        headers: buildBridgeHeaders(),
+      });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.tasks) && data.tasks.length > 0) {
@@ -364,18 +626,18 @@ class AgentBridgeClient {
       }
 
       // Report result and fresh state snapshot back to server
-      await fetch(`${AGENT_BRIDGE_BASE}/result`, {
+      await fetch(`${getAgentBridgeBase()}/result`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildBridgeHeaders(),
         body: JSON.stringify({ id: task.id, result, state: this.getSnapshot() }),
       });
     } catch (err: any) {
       if (currentTaskId) {
         useAgentStore.getState().failTask(currentTaskId, err.message || String(err));
       }
-      await fetch(`${AGENT_BRIDGE_BASE}/result`, {
+      await fetch(`${getAgentBridgeBase()}/result`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildBridgeHeaders(),
         body: JSON.stringify({ id: task.id, error: err.message || String(err), state: this.getSnapshot() }),
       });
     }

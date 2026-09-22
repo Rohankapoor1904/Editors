@@ -364,6 +364,54 @@ Goal: Deliver a broadcast-grade multi-camera production suite with automated aud
 
 ---
 
+## Phase R21 — External Agent (IDE/LLM) Connection Hardening & Honest AI Outputs
+
+Goal: make the `IDE / external-LLM -> bridge -> tool registry -> CompoundCommand -> timeline` path honest and usable outside `npm run dev`. The 2026-09-22 audit found: (1) the bridge only exists as Vite dev middleware on hardcoded `localhost:3000` with no auth and no production story; (2) `/connect` stores a model-name string but never calls a model; (3) `RuleBasedAgentPlanner` is keyword `includes()` branching, not LLM reasoning; (4) `transcribe_and_align` / `detect_silence` / `timeline_remove_silence` / `getCaptionWordsForClip` return hardcoded fixtures; (5) `vlm.ts` / `semanticSearch.ts` are heuristics labelled as neural. Nothing in this phase adds a new model — it removes fabrication and makes connection state explicit.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R21.1** | **Bridge connection config + honest production state.** Make the bridge base URL + auth token configurable (env + runtime setter, no hardcoded `localhost:3000` on the main path); send auth header when configured; expose explicit bridge availability (`dev-middleware` vs `unavailable-in-production`) to the UI instead of silent offline. | `src/services/agentBridge.ts`, `scripts/agentBridgePlugin.ts`, `src/store/agentStore.ts` | Test: default URL is still `http://localhost:3000/api/agent` for back-compat; setter changes it; auth header is sent when a token is set; production build reports `unavailable` state rather than fake `waiting_for_app` success. No `invoke()` contract break. |
+| **R21.2** | **Planner honesty + LLM tool-schema exposure.** Keep the rule-based planner as an explicit fallback, expose `globalToolRegistry.getAllDefinitions()` as an LLM function-calling schema, and return an explicit no-plan response for unknown intents instead of silent []. | `src/services/agentOrchestrator.ts` | Test: unknown prompt returns `[]` with a `response` log stating no plan; tool-definition list matches the registry; existing silence/reframe/caption/music/probe/cut intents still plan. |
+| **R21.3** | **Honest AI tool outputs.** Delete hardcoded transcript words (`Welcome to CineCraft AI`), hardcoded silence windows, hardcoded `timeline_remove_silence` gap, and hardcoded caption poem/tokens from the tool path; call the real `whisperService` / `sileroVadService` where available, otherwise throw `NotImplementedError` in live mode. | `src/services/tools/timelineTools.ts`, `src/services/tools/effectsTools.ts`, `src/engine/captions/clipCaptions.ts` | Test: in live mode without Tauri, `transcribe_and_align` / `detect_silence` reject with a typed error (no fabricated words/ranges); no `Welcome to CineCraft` / `3.2` / `2.5` fixture remains on the tool path. |
+| **R21.4** | **VLM + semantic honesty + stronger gate.** Relabel the heuristic visual engine as `partial`/heuristic (model id must not imply CLIP/SigLIP), and extend `verify-invariants.mjs` to fail on hardcoded AI fixtures on the tool path. | `src/engine/perception/vlm.ts`, `src/services/semanticSearch.ts`, `scripts/verify-invariants.mjs` | Test: reintroducing a hardcoded transcript/silence/caption fixture on the tool path fails `npm test` with a specific message; model id states heuristic. |
+
+**Phase exit:** an external IDE/LLM can discover bridge availability explicitly, configure URL + token, list real tool schemas, and receive either real tool execution or an explicit unavailable/error state — never fabricated words, ranges, or captions; and the gate blocks reintroduction.
+
+---
+
+## Phase R22 — Post-R21 Residual Honesty (2026-09-22 audit findings)
+
+Goal: close the 10 verified residual issues from the 2026-09-22 post-R21 audit that R11/R21 left behind. Each task cites its `file:line` evidence. No new features — delete fabrication, wire dead controls, bundle what ships.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R22.1** | **Remove the placeholder caption WGSL from the GPU pipeline.** `caption.wgsl:10` self-declares placeholder yet is concatenated into the compiled pipeline (`webgpuRenderer.ts:78,82`), darkening the caption band 10% and tinting a fake word block while canvas draws the real captions. Delete the shader, its `getWGSLShaderCode` accessor, and the group(3) uniform plumbing; keep the canvas caption path. (Note: the renderer's remaining `as any` casts are required by @webgpu/types + TS 5.4 `ArrayBufferLike` friction — verified by reverting; not debt.) | `src/engine/webgpuRenderer.ts`, `src/engine/captions/captionEngine.ts`, `src/engine/shaders/caption.wgsl` (delete), `src/engine/captions/__tests__/captionEngine.test.ts`, `scripts/verify-invariants.mjs` | Test: combined pipeline WGSL contains no caption code; canvas kinetic captions render unchanged; `tsc` clean; gate fails on any shader self-declaring placeholder. |
+| **R22.2** | **Bundle ONNX/Whisper models + missing-model UX.** `ggml-tiny.en.bin` + `models/silero_vad.onnx` are tracked but `tauri.conf.json` has no `bundle.resources`, so the installed app cannot find them; no download guidance exists in `src/`. | `src-tauri/tauri.conf.json`, `src/components/SilenceTrimmerModal.tsx`, `src/components/TranscriptEditor.tsx` | Installed bundle resolves model paths (or documents why not); STT/VAD error states name the missing file + where to get it. `cargo check` verified or honestly marked unverified. |
+| **R22.3** | **Copilot console honesty: wire the Inspector, guard empty diffs, drop the re-throw.** 7 Inspector inputs are unbound `defaultValue` (`AIPromptConsole.tsx:581-712`); zero-command prompts still create `"Generated 0 timeline edits"` diffs; `failTask` is followed by a bare `throw` (unhandled rejection). | `src/components/AIPromptConsole.tsx` | Test: changing Scale/Position/Opacity/Volume dispatches commands on the selected clip; unknown prompts create no diff card; failed prompts reject without unhandled rejection noise. |
+| **R22.4** | **Correct the R3.3 DAG row to `partial` (tracker honesty, docs-only).** All four `renderGraph/nodes.ts` `process()` methods throw in live mode and the renderer bypasses the graph, but `PROGRESS.md` marks R3.3 `real`. | `PROGRESS.md`, `docs/WORKLOG.md` | Row reads `partial` with evidence naming the missing evaluation; no code change. |
+| **R22.5** | **LUFS: integrated-only API + shared error class.** `measureLUFS()` always throws in live because every path calls the unimplemented true-peak (`loudness.ts:99-117`); the file also duplicates `NotImplementedError` instead of importing it. | `src/engine/loudness.ts`, `src/engine/loudness.test.ts` | Test: integrated measurement returns without true-peak; true-peak-only callers get an explicit error; single shared error class. |
+| **R22.6** | **Serialize durations honestly.** Unparsable durations are invented (`serialize.ts:17-24`); `HH:MM:SS` parsing is claimed in a comment but absent. | `src/core/project/serialize.ts`, `src/core/project/*test*` | Test: round-trip preserves real durations; unparsable durations are omitted (schema-optional), never invented; `HH:MM:SS` parses. |
+
+**Phase exit:** no placeholder shader in the pipeline, shipped app finds its models or says why, every visible control acts or is gone, tracker rows match the code, and the gate covers placeholder shaders.
+
+---
+
+## Phase R23 — Native Sidecar Bridge (connect without dev server)
+
+Goal: let external IDE/LLM callers reach production builds via a native loopback HTTP sidecar speaking the exact dev-plugin protocol (ADR-009). Rust work is marked `unverified` until a host with an MSVC linker runs the checks — never implied green.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R23.1** | **TS sidecar transport (verifiable).** `fetchBridgeStatus()` helper + sidecar discovery (`get_bridge_info` invoke with dev fallback) + store fields for port/token/sidecar availability; tests include a real local-HTTP round-trip. | `src/services/agentBridge.ts`, `src/store/agentStore.ts`, `src/services/__tests__/*` | Test: status fetch against a local HTTP server returns parsed bridge/auth fields; missing sidecar falls back to dev default; no `invoke()` contract break. |
+| **R23.2** | **Rust sidecar scaffold (unverified here).** axum dep + `bridge_server.rs` (shared queue/state, Bearer gate on POSTs, `GET /status`, `GET /timeline`) + spawn in `setup()` + `get_bridge_info` command. | `src-tauri/Cargo.toml`, `src-tauri/src/bridge_server.rs`, `src-tauri/src/main.rs` | `cargo check` + `cargo test` pass on a tooled host, or the row stays `blocked` marked `unverified: requires MSVC host`. |
+| **R23.3** | **Rust task routes (unverified here).** `/prompt`, `/tool`, `/action`, `/connect`, `/pending`, `/result`, `/heartbeat` mirroring `scripts/agentBridgePlugin.ts` semantics. | `src-tauri/src/bridge_server.rs` | Same as R23.2: green on a tooled host or stays `blocked`. |
+| **R23.4** | **Bridge panel UI (verifiable).** Production UI shows sidecar port/token/status with copy affordance; dev keeps current behavior. | `src/components/*`, `src/store/agentStore.ts` | Test: panel renders port/token from store; copy writes clipboard; dev fallback text intact. |
+| **R23.5** | **Desktop end-to-end verification (blocked).** Installed/dev-desktop app: external HTTP client connects with token, prompt executes, timeline mutates. | — | Real command output from a Tauri host, or stays `blocked` with the reason named. |
+
+**Phase exit:** an external caller connects to a production build with a token, executes a prompt, and the timeline mutates — verified on a Tauri host; until then R23.2/R23.3/R23.5 stay honestly `blocked`.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:

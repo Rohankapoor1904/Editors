@@ -14,10 +14,41 @@ export interface AgentPlanStep {
 }
 
 export interface AgentPlanner {
+  /** Human-readable planner identity surfaced in UI logs (e.g. 'rule-based-fallback'). */
+  readonly plannerName?: string;
   generatePlan(prompt: string, state: TimelineState): Promise<AgentPlanStep[]>;
 }
 
+export interface AgentToolSchema {
+  name: string;
+  description: string;
+  parameters: unknown;
+}
+
+/**
+ * Exposes the registered timeline tool definitions as a plain LLM
+ * function-calling schema list. An external model (IDE agent, Ollama,
+ * Claude, GPT) can consume this to plan tool calls, then submit them via
+ * the agent bridge (`POST /api/agent/tool`) or the in-app Copilot.
+ * The list always mirrors `globalToolRegistry` — no hardcoded copy.
+ */
+export function getAgentToolSchemas(): AgentToolSchema[] {
+  return globalToolRegistry.getAllDefinitions().map((def) => ({
+    name: def.name,
+    description: def.description,
+    parameters: def.parameters,
+  }));
+}
+
+/**
+ * Explicit keyword fallback planner — NOT an LLM and NOT a ReAct reasoner.
+ * Matches a small set of editorial intents via substring rules so the
+ * in-app Copilot stays usable without a connected model. Any prompt
+ * outside these intents yields an empty plan and the orchestrator reports
+ * it explicitly instead of pretending to reason.
+ */
 export class RuleBasedAgentPlanner implements AgentPlanner {
+  readonly plannerName = 'rule-based-fallback';
   async generatePlan(prompt: string, state: TimelineState): Promise<AgentPlanStep[]> {
     const lower = prompt.toLowerCase();
     const steps: AgentPlanStep[] = [];
@@ -103,16 +134,28 @@ export class AgentOrchestratorService {
   ): Promise<Command[]> {
     onLog({ type: 'user', message: prompt });
 
-    onLog({ type: 'thought', message: `Evaluating user intent for prompt: "${prompt}"...` });
-
     const state = useTimelineStore.getState();
     const activePlanner = planner || new RuleBasedAgentPlanner();
+
+    onLog({
+      type: 'thought',
+      message: `Evaluating user intent for prompt: "${prompt}" via ${activePlanner.plannerName || 'unnamed planner'}...`,
+    });
+
     const plan = await activePlanner.generatePlan(prompt, state);
 
     if (plan.length === 0) {
+      const availableTools = getAgentToolSchemas()
+        .map((s) => s.name)
+        .join(', ');
       onLog({
         type: 'response',
-        message: `Understood intent "${prompt}". No immediate timeline mutations required.`,
+        message:
+          `No matching editorial intent found for "${prompt}" ` +
+          `(${activePlanner.plannerName || 'unnamed planner'}). ` +
+          `No timeline mutations made. ` +
+          `Available tools: ${availableTools || 'none registered'}. ` +
+          `Connect an external model via the agent bridge for open-ended prompts.`,
       });
       return [];
     }

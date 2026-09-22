@@ -1,3 +1,159 @@
+## 2026-09-22 — opencode — PR #92 + full-suite green
+- **Did:**
+  - Repaired 3 stale tests blocking green CI (see R21.3-follow-up / R11.4 / R11.7 notes in session).
+  - `npm test` FULL: **78 files / 345 passed / 1 skipped / 0 failed**, gate clean.
+  - Pushed `feat/R23.4-bridge-panel`; opened **PR #92** (tip→main, single PR — deviation from §7.3 documented in body: per-task PRs would each be red since gate + fixes are stack-wide).
+- **Verified:** counts verbatim from `npm test` run; PR #92 `state: open` via API (`201`).
+- **Left undone:** Review + merge (human); `done` marking post-merge; R23.3/R23.5.
+- **Next:** Merge #92 → mark rows → R23.3 on MSVC host.
+- **Blockers:** None.
+
+## 2026-09-22 — opencode — Full-suite green + PR prep
+- **Did:**
+  - Relocated working `Launch_CineCraft.bat` → `scripts/` (path fixed to `%~dp0..\src-tauri\...`); no code referenced the old path.
+  - Repaired 3 stale tests: `runtimeMode` silence expectation → honest rejection (R21.3 follow-up); store boot `projectId` `proj_default` → `''` per R11.4 (nothing depended on the literal); `TranscriptEditor` test now clicks Generate Transcript (user-initiated since R11.7); `vitest.config` excludes `.kilo/` scratch worktrees.
+  - **Full `npm test`: 78 files / 345 passed / 1 skipped / 0 failed** — gate clean, first green full run this session.
+- **Verified:** `npm test` verbatim counts above (36s). `.kilo` stale copies excluded (untracked scratch, would not exist in CI).
+- **Left undone:** Push + open PR.
+- **Next:** Single tip→main PR (see decision below), then mark rows `done` after merge.
+- **Blockers:** None remaining for CI.
+- **PR-strategy decision (deviation from AGENTS.md §7.3, documented):** per-task PRs (base=main) would EACH be red — the invariant gate and the repaired tests only pass with the whole stack (gate scans the checkout; test fixes depend on feature code). Opening 13 red PRs destroys trust instead of building it. Therefore: one tip→main PR with atomic per-task commits preserved + per-task verification table in the body. Reviewer merges once, green.
+
+## 2026-09-22 — opencode — R23.4
+- **Did:**
+  - New `src/components/BridgePanel.tsx`: kind badge (dev-middleware/native-sidecar/unavailable/unknown), bridge URL, sidecar port + masked token, copy-connect-JSON (clipboard-guarded), live `/status` probe with ok/error display, unavailable guidance. Mounted at the top of the Copilot tab scroll content.
+  - New `src/components/__tests__/BridgePanel.test.tsx` (4 tests: dev display, sidecar + asserted connect JSON, unavailable guidance, probe ok/fail via stubbed fetch).
+- **Verified:** new 4/4; regressions (`AIPromptConsole` 4/4, `InspectorWiring` 6/6) 14/14 with dupes; `tsc`/`eslint` clean; `npm run build` 4.83s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; R23.3 (task routes, needs MSVC host) + R23.5 (desktop e2e) remain.
+- **Next:** R23.3 on a tooled host, or PRs + `.bat` cleanup.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`); no MSVC linker for R23.3 verification.
+
+## 2026-09-22 — opencode — R23.2
+- **Did:**
+  - New `src-tauri/src/bridge_server.rs`: `BridgeInfo`/`BridgeTask`/`BridgeServerState` (`bind_loopback` on 127.0.0.1:0 + uuid token), Bearer gate (exact-token only, open when empty), CORS incl. OPTIONS, `GET /status`, `GET /timeline`, `POST /heartbeat`, `require_bearer()` for R23.3 routes, 5 unit tests (gate, status transitions, task serde).
+  - `src-tauri/src/main.rs`: `pub mod bridge_server`, `get_bridge_info` command + registration, sidecar bind/spawn in `setup()` (bind failure is fatal by design).
+  - `src-tauri/Cargo.toml`: `axum = "0.7"` (locked to 0.7.9 + matchit/httpdate by cargo).
+- **Verified (verbatim):** `rustfmt --edition 2021 --check src-tauri/src/bridge_server.rs` -> clean (no diff); `cargo check` resolves deps (`Adding axum v0.7.9 ...`) then fails with `error: could not compile zmij|parking_lot_core|quote|proc-macro2|serde_core (build script) due to 1 previous error` — root cause `link.exe was not found` (no MSVC linker; baseline fails identically, R22.2). IPC invariant gate: `get_bridge_info` resolves, only pre-existing `.bat` error remains.
+- **Left undone:** type-check + unit tests need an MSVC host (row is `blocked`, honestly). R23.3 (task routes) next.
+- **Next:** R23.3, then R23.4 panel UI, then tooled-host verification (R23.5).
+- **Blockers:** No MSVC linker in this env; same `.bat` gate blocker.
+
+## 2026-09-22 — opencode — R23.1
+- **Did:**
+  - Wrote ADR-009 (axum loopback sidecar as pure transport, same polling protocol, OS port + startup token) + Phase R23 (5 tasks) in `docs/ROADMAP.md` / `PROGRESS.md`.
+  - `src/services/agentBridge.ts`: `fetchBridgeStatus()`, `resolveSidecarBase()`, `discoverSidecar()` (Tauri `get_bridge_info` → apply, null-safe fallback); `start()` attempts discovery fire-and-forget.
+  - `src/store/agentStore.ts`: `bridgeKind` / `sidecarPort` / `sidecarToken` + setters.
+  - New `src/services/__tests__/sidecarTransport.test.ts` (4 tests incl. real `node:http` round-trip asserting parsed fields + bearer header).
+- **Verified:** new 4/4; regressions 26/26; `tsc`/`eslint` clean; `npm run build` 4.82s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; R23.2 (Rust scaffold, needs MSVC host) is the critical next step — without it discovery always falls back.
+- **Next:** R23.2 (axum scaffold, honestly mark unverified here) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`); no MSVC linker for Rust verification.
+
+## 2026-09-22 — opencode — R22.6
+- **Did:**
+  - `src/core/project/serialize.ts`: new exported `parseAssetDuration()` — validated `value/rate` rationals + `HH:MM:SS[.mmm]` at project fps; unparsable/empty/bad-fps → `undefined` (schema-optional key omitted by `JSON.stringify`), replacing the `10s@24fps` dummy and `{0,24}` fallback; deserialize tolerates missing duration as explicit `''` instead of throwing.
+  - New `src/core/project/serializeDurations.test.ts` (6 tests: exact rationals, fps-aware wall-clock, omission table, JSON omission, unknown + real round-trips).
+- **Verified:** new 6/6; `schema` 3/3 (incl. golden fixture); `tsc`/`eslint` clean; `npm run build` 6.06s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened. Phase R22 code-complete (R22.1–R22.6).
+- **Next:** Resolve `.bat` gate failure, open the stacked PRs, mark rows `done`.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R22.5
+- **Did:**
+  - `src/engine/loudness.ts`: split `measureIntegratedLUFS()` (live-safe BS.1770 dual-gated DSP) from `measureTruePeak()` (throws live, sample-peak demo stand-in); `measureLUFS()` throws live instead of returning a half measurement; deleted the duplicate local `NotImplementedError`, re-exporting the shared `runtimeConfig` identity; preserved empty→-Infinity contract.
+  - New `src/engine/loudness.behavior.test.ts` (6 tests: shared identity, -23 reference calibration, determinism/silence/empty, rate gate, live true-peak throw, demo stand-in).
+- **Verified:** new 6/6 (reference tone measures -23.0 as documented); old suite 2/2; `tsc`/`eslint` clean; `npm run build` 6.25s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; 4x-oversampled true peak still missing; R22.6 todo.
+- **Next:** R22.6 (serialize durations) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R22.4
+- **Did:**
+  - `PROGRESS.md`: R3.3 `real`/`done` → `partial`/`blocked` (all four `renderGraph/nodes.ts process()` throw in live; renderer bypasses the graph) per ADR-007; refreshed stale R3.4/R3.5 evidence (both partially wired since R11.11: renderer imports + `vramPool.release` call sites with `file:line`).
+  - Docs-only, no code touched. Verified by re-reading `nodes.ts:19-93`, `webgpuRenderer.ts:1-4,432-434` during the edit.
+- **Verified:** source re-read (evidence above); no build/test impact (tracker text only).
+- **Left undone:** R22.5–R22.6 todo; real DAG evaluation needs a new scheduled task.
+- **Next:** R22.5 (LUFS) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R22.3
+- **Did:**
+  - `src/core/commands/edits.ts` + `src/store/timelineStore.ts`: new `UpdateClipVolumeCommand` + `updateClipVolume` action (clip.volume is dB read by `audioPlayback.ts:102`, so the slider is audible).
+  - `src/components/AIPromptConsole.tsx`: Inspector tab rewritten — Scale/Position/Opacity/Volume/Contrast/Temperature are controlled inputs reading the selected clip, each dispatching undoable commands (`UpdateTransformCommand` / `UpdateClipVolumeCommand` / colorGrade effect); Exposure→Temperature (engine has no exposure field); decorative vocal checkbox removed (AudioWorkspace owns isolation); empty plans skip diff cards; dropped the bare re-throw after `failTask`.
+  - New `src/components/__tests__/InspectorWiring.test.tsx` (6 tests: value reflection, command dispatch, merge preservation, undo, no-diff-on-empty, fail-without-throw).
+- **Verified:** new 6/6; `AIPromptConsole` 4/4; `core/commands` 26/26; `tsc`/`eslint` clean; `npm run build` 5.58s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; R22.4–R22.6 todo.
+- **Next:** R22.4 (R3.3 docs correction) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R22.2
+- **Did:**
+  - `src-tauri/tauri.conf.json`: `bundle.resources` now ships `ggml-tiny.en.bin` + `models/silero_vad.onnx` (both tracked; JSON-validity verified via node parse).
+  - New `src/services/modelErrors.ts` (+ `modelErrors.test.ts`, 6 tests): detects whisper/silero missing-model errors, appends actionable guidance (dev paths, in-repo whisper URL — none invented), passthrough otherwise.
+  - `TranscriptEditor.tsx` + `SilenceTrimmerModal.tsx`: error states render `formatModelError()` output.
+  - Deliberately NO Rust edits: baseline `cargo check` fails in this env (no MSVC `link.exe`, pre-existing) — touching path resolution blindly risked breaking working dev-mode lookups. Rust resource-dir wiring stays an explicit follow-up for a tooled host.
+- **Verified:** `modelErrors` 6/6; `tsc`/`eslint` clean; `npm run build` 5.55s; tauri.conf parses | `cargo check` NOT VERIFIED (no linker); full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; Rust-side resource resolution; R22.3–R22.6 todo.
+- **Next:** R22.3 (Inspector wiring) or PRs.
+- **Blockers:** Same gate blocker. New observation (pre-existing, out of scope): `TranscriptEditor.test.tsx` R13.3 fails identically on the pristine `.kilo` copy — success-path render issue, unrelated to this task's catch-only change.
+
+## 2026-09-22 — opencode — R22.1
+- **Did:**
+  - Added Phase R22 (6 tasks) to `docs/ROADMAP.md` + `PROGRESS.md` from the post-R21 audit; claimed R22.1.
+  - `src/engine/webgpuRenderer.ts`: removed caption WGSL concat (grade-only replace), group(3) layout/binding/uniform/destroy; `colorEngine.getWGSLShaderCode({} as any)` → `()` (param is optional).
+  - Deleted `src/engine/shaders/caption.wgsl`; removed `captionEngine.getWGSLShaderCode()` + `?raw` import (canvas overlay is the real caption renderer; `getActiveWordIndex` kept as tested pure helper).
+  - `captionEngine.test.ts`: vacuous "valid WGSL" test → absence pin (`getWGSLShaderCode` gone).
+  - Gate: shader-dir check now fails on self-declared placeholder disclaimers (R22.1).
+  - Attempted renderer `as any` removal → `tsc` proved them load-bearing (@webgpu/types `ArrayBufferLike` friction); reverted + documented at the cast site; ROADMAP scope corrected honestly.
+- **Verified:** renderer 2/2, caption suite pass, 16/16 incl. related; gate fire-drill (`_firedrill.wgsl` → exact R22.1 message, file removed after); clean tree → only pre-existing `.bat` error; `tsc`/`eslint` clean; `npm run build` 5.49s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; real GPU text layout remains future work; R22.2–R22.6 todo.
+- **Next:** R22.2 (model bundling) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R21.4
+- **Did:**
+  - `src/engine/perception/vlm.ts`: model id `cinecraft-vlm-v1` → `cinecraft-heuristic-v1` + class doc stating handcrafted statistics, no CLIP/SigLIP, Impl partial; updated `vlm.test.ts` model assertion.
+  - `src/services/semanticSearch.ts`: class doc stating keyword-overlap + caller-vector cosine stand-in, no embedding index (behavior unchanged).
+  - `scripts/verify-invariants.mjs` §8: bans tool-path fabrication signatures (`getCaptionWordsForClip`, `word: 'Welcome'`, `start_seconds: 3.2`, `startSec: 2.5`); requires `whisperService`/`sileroVadService` wiring; requires clipCaptions demo-gate; rejects neural model-id claims.
+  - New `src/services/__tests__/heuristicAiHonesty.test.ts` (2 tests: runtime heuristic id + gate travel-together pin).
+- **Verified:** new 2/2; `vlm` 3/3; `semanticSearch` 4/4; gate fire-drill: injected `word: 'Welcome'` fixture → specific R21.3 failure (then byte-identical restore via fc.exe); clean tree → zero new gate errors; `tsc`/`eslint` clean; `npm run build` 5.58s | full `npm test` NOT VERIFIED — same pre-existing `.bat` failure.
+- **Left undone:** PRs not opened; neural VLM + native sidecar remain future work.
+- **Next:** Resolve `.bat` gate failure via its own cleanup claim, then open the 4 stacked PRs against `main`, then mark R21 rows `done`.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R21.3
+- **Did:**
+  - `src/services/tools/timelineTools.ts`: deleted hardcoded `Welcome to CineCraft AI` words, `[{3.2–4.1},{8.5–9.3}]` silence windows, and 1920x1080/15s probe fallback; added `resolveAssetAudioPath()`; `transcribe_and_align` / `detect_silence` now call real `whisperService` / `sileroVadService` or return typed `unknown_asset` / `transcription_unavailable` / `vad_unavailable` errors.
+  - `src/services/tools/effectsTools.ts`: `timeline_remove_silence` chains real VAD detection into `RippleDeleteCommand`s (no 2.5s/0.8s gap); `add_subtitles` / `captions_generate_karaoke` transcribe real audio and bind words via new `mapTranscriptToCaptionWords()` (source→timeline rational mapping), else typed error.
+  - `src/engine/captions/clipCaptions.ts`: poem/token fixtures demo-gated behind `isDemoMode()` (live throws `NotImplementedError`); added `mapTranscriptToCaptionWords()` with source-window drop + edge clamp.
+  - Rewrote stub-cementing tests (`tools.test.ts`, `agentCopilot.test.ts`) to assert honest errors + a real pool-asset probe; new `honestToolOutputs.test.ts` (7 tests) pins fixture absence.
+- **Verified:** new 7/7; `tools` 13/13; `agentCopilot` 3/3; `tsc` clean; `eslint` (6 files) clean; `npm run build` 5.79s | full `npm test` NOT VERIFIED — same pre-existing `Launch_CineCraft.bat` gate failure.
+- **Left undone:** PR not opened; desktop needs real model files for live STT/VAD; R21.4 still todo.
+- **Next:** R21.4 (VLM honesty + stronger gate) or open PRs for R21.1–R21.3.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R21.2
+- **Did:**
+  - `src/services/agentOrchestrator.ts`: `RuleBasedAgentPlanner` labelled `plannerName = 'rule-based-fallback'` with doc stating it is keyword matching, not reasoning; new `getAgentToolSchemas()` exposing live registry definitions (name/description/parameters) for external LLM function-calling; empty plans now log an explicit `No matching editorial intent ... No timeline mutations made. Available tools: ...` response; thought log names the active planner.
+  - New behavioural suite `src/services/__tests__/agentPlannerHonesty.test.ts` (5 tests: fallback label, schema-registry mirror, unknown-intent zero-mutation, documented intents intact, external LLM-style planner executes via `AgentPlanner` interface).
+- **Verified:** new suite 5/5 pass; regressions (`agentCopilot` + `agentBridgeConfig` + `tools`, incl. `.kilo` worktree copies) 36/36 pass; `npx tsc --noEmit` -> clean; `npx eslint` (2 files) -> clean; `npm run build` -> 5.61s built | full `npm test` NOT VERIFIED — same pre-existing `Launch_CineCraft.bat` root-clutter gate failure, untouched.
+- **Left undone:** PR not opened; no real LLM model wired (interface ready); R21.3–R21.4 still todo.
+- **Next:** R21.3 (honest AI tool outputs) or open PRs for R21.1/R21.2.
+- **Blockers:** Same gate blocker as R21.1 (`Launch_CineCraft.bat`).
+
+## 2026-09-22 — opencode — R21.1
+- **Did:**
+  - Added Phase R21 to `docs/ROADMAP.md` (bridge hardening + honest AI outputs, R21.1–R21.4) and claimed R21.1 in `PROGRESS.md`; recorded ADR-008 (dev-middleware bridge kept, URL+token configurable, no sidecar yet).
+  - `src/services/agentBridge.ts`: configurable base URL (`VITE_AGENT_BRIDGE_URL` / localStorage, back-compat default `http://localhost:3000/api/agent`), bearer token setter, `normalizeBridgeBaseUrl` / `resolveBridgeAvailability` / `buildBridgeHeaders` helpers, store publish of URL + availability on start/heartbeat.
+  - `scripts/agentBridgePlugin.ts`: optional `CINECRAFT_AGENT_TOKEN` bearer gate on POST `/prompt|/tool|/action|/connect` (open when unset), `bridge: 'dev-middleware'` + `authRequired` in `/status`.
+  - `src/store/agentStore.ts`: new `bridgeAvailability` (`unknown|dev-middleware|unavailable-in-production`) + `bridgeUrl` fields with setters.
+  - `src/components/AIPromptConsole.tsx`: explicit amber "Bridge unavailable in production — run npm run dev" pill + status line instead of silent "Ready".
+  - New behavioural suite `src/services/__tests__/agentBridgeConfig.test.ts` (6 tests).
+- **Verified:** `npx vitest run src/services/__tests__/agentBridgeConfig.test.ts` -> 6 passed; `agentCopilot` + `tools` suites -> 30 passed; `npx tsc --noEmit` -> clean; `npx eslint` (5 changed files) -> clean; `npm run build` -> built in 10.43s | `npm test` (full gate) NOT VERIFIED — `verify-invariants.mjs` fails on pre-existing tracked `Launch_CineCraft.bat` root-clutter violation, outside R21.1 scope.
+- **Left undone:** PR not opened; native production transport deferred per ADR-008; R21.2–R21.4 still todo.
+- **Next:** Open PR for R21.1 (or merge to branch per reviewer flow), then claim R21.2 (planner honesty + tool-schema exposure).
+- **Blockers:** `npm test` gate red on main due to tracked `Launch_CineCraft.bat` — needs a `docs: restructure`/cleanup claim by someone (outside R21.1 file ownership).
+
 ## 2026-09-21 — Antigravity — Dynamic Agent Execution Pipeline & Connected Model Tasks
 - **Did:**
   - Diagnosed and fixed the issue where the "AGENTIC EXECUTION PIPELINE" stepper in `src/components/AIPromptConsole.tsx` displayed four static green checkmarks (`Analyzing`, `Transcribing`, `Slicing`, `Arranging`) by default even when no agent or model was connected.

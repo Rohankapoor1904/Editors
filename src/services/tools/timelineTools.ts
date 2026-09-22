@@ -1,10 +1,43 @@
 import { useTimelineStore } from '../../store/timelineStore';
 import { useMediaPoolStore } from '../../store/mediaPool';
 import { nativeBridge } from '../nativeBridge';
+import { whisperService } from '../whisperTranscriber';
+import { sileroVadService } from '../sileroVad';
 import { Command } from '../../core/commands';
 import { AddClipCommand } from '../../core/commands/storeCommands';
 import { secondsToRational } from '../../types/time';
 import { Clip } from '../../types/timeline';
+
+/**
+ * Resolves an asset id / name / path to a real on-disk audio path via the
+ * media pool (falling back to timeline clip references). Returns `null`
+ * when nothing real resolves — callers must return a typed error rather
+ * than inventing transcript/silence data (R21.3, invariant §5.5).
+ */
+export function resolveAssetAudioPath(assetId: string): string | null {
+  const poolAssets = useMediaPoolStore.getState().assets;
+  const direct = poolAssets.find(
+    (a) => a.id === assetId || a.name === assetId || a.path === assetId
+  );
+  if (direct && direct.path && !direct.isOffline) {
+    return direct.path;
+  }
+
+  const timelineState = useTimelineStore.getState();
+  for (const track of timelineState.tracks) {
+    const clip = track.clips.find((c) => c.id === assetId || c.assetId === assetId);
+    if (clip) {
+      const poolAsset = poolAssets.find((a) => a.id === clip.assetId);
+      if (poolAsset && poolAsset.path && !poolAsset.isOffline) {
+        return poolAsset.path;
+      }
+      // A clip reference with no pool entry has no resolvable file path.
+      return null;
+    }
+  }
+
+  return null;
+}
 
 export const probe_media_def = {
   name: 'probe_media',
@@ -103,30 +136,42 @@ export async function probe_media_executor(args: { asset_id: string }) {
       };
     }
   } catch (_e) {
-    // Return structured default for asset
+    // No real source for this asset — report honestly instead of
+    // fabricating 1920x1080 / 15s metadata (R21.3, invariant §5.5).
   }
+  return {
+    error: 'unknown_asset',
+    details: `No media pool asset or timeline clip matches "${args.asset_id}", and native probing is unavailable in this environment.`,
+  };
+}
+
+export async function transcribe_and_align_executor(args: { asset_id: string; language?: string }) {
+  const audioPath = resolveAssetAudioPath(args.asset_id);
+  if (!audioPath) {
     return {
-      asset_id: args.asset_id,
-      duration: 15.0,
-      width: 1920,
-      height: 1080,
-      fps: 30,
-      channels: 2,
-      sampleRate: 48000,
+      error: 'unknown_asset',
+      details: `Cannot transcribe "${args.asset_id}": no resolvable audio file in the media pool or timeline.`,
     };
   }
 
-export async function transcribe_and_align_executor(args: { asset_id: string; language?: string }) {
-  return {
-    asset_id: args.asset_id,
-    language: args.language || 'auto',
-    words: [
-      { word: 'Welcome', start: 0.1, end: 0.45, confidence: 0.98 },
-      { word: 'to', start: 0.48, end: 0.65, confidence: 0.99 },
-      { word: 'CineCraft', start: 0.68, end: 1.15, confidence: 0.97 },
-      { word: 'AI', start: 1.2, end: 1.5, confidence: 0.99 },
-    ],
-  };
+  try {
+    const transcript = await whisperService.transcribe(audioPath);
+    return {
+      asset_id: args.asset_id,
+      language: args.language || 'auto',
+      words: transcript.words.map((w) => ({
+        word: w.word,
+        start: w.startTime,
+        end: w.endTime,
+        confidence: w.confidence,
+      })),
+    };
+  } catch (e: any) {
+    return {
+      error: 'transcription_unavailable',
+      details: e?.message || String(e),
+    };
+  }
 }
 
 export const detect_silence_def = {
@@ -176,17 +221,32 @@ export async function detect_silence_executor(args: {
   const threshold = args.noise_threshold_db ?? -30;
   const minDuration = args.min_silence_duration_sec ?? 0.5;
 
-  const silentRanges = [
-    { start_seconds: 3.2, end_seconds: 4.1, duration_seconds: 0.9 },
-    { start_seconds: 8.5, end_seconds: 9.3, duration_seconds: 0.8 },
-  ].filter((r) => r.duration_seconds >= minDuration);
+  const audioPath = resolveAssetAudioPath(args.asset_id);
+  if (!audioPath) {
+    return {
+      error: 'unknown_asset',
+      details: `Cannot detect silence in "${args.asset_id}": no resolvable audio file in the media pool or timeline.`,
+    };
+  }
 
-  return {
-    asset_id: args.asset_id,
-    noise_threshold_db: threshold,
-    min_silence_duration_sec: minDuration,
-    silent_ranges: silentRanges,
-  };
+  try {
+    const segments = await sileroVadService.detectSilence(audioPath, minDuration, threshold);
+    return {
+      asset_id: args.asset_id,
+      noise_threshold_db: threshold,
+      min_silence_duration_sec: minDuration,
+      silent_ranges: segments.map((s) => ({
+        start_seconds: s.startTime,
+        end_seconds: s.endTime,
+        duration_seconds: s.duration,
+      })),
+    };
+  } catch (e: any) {
+    return {
+      error: 'vad_unavailable',
+      details: e?.message || String(e),
+    };
+  }
 }
 
 export async function cut_and_arrange_timeline_executor(args: {

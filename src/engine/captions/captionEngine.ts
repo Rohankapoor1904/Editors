@@ -1,5 +1,3 @@
-import captionWgsl from '../shaders/caption.wgsl?raw';
-
 export interface CaptionWord {
   id: string;
   word: string;
@@ -93,10 +91,6 @@ export const CAPTION_PRESETS: Record<CaptionPreset, CaptionStyleConfig> = {
 };
 
 export class CaptionEngine {
-  getWGSLShaderCode(): string {
-    return captionWgsl;
-  }
-
   /**
    * Finds the index of the active word at a given timecode.
    * Returns -1 if no word is active.

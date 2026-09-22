@@ -69,6 +69,9 @@ describe('TranscriptEditor Descript-Style Editing (Task R13.3)', () => {
 
     render(<TranscriptEditor />);
 
+    // R11.7+: transcription is user-initiated (button), not on mount.
+    fireEvent.click(screen.getByText('Generate Transcript'));
+
     // Wait for words to mount
     await waitFor(() => {
       expect(screen.getByText('Hello')).toBeDefined();

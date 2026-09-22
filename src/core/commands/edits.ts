@@ -1026,6 +1026,47 @@ export class UpdateTransformCommand implements Command {
   }
 }
 
+export class UpdateClipVolumeCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly volumeDb: number
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let found = false;
+
+    const newTracks = state.tracks.map(track => ({
+      ...track,
+      clips: track.clips.map(clip => {
+        if (clip.id === this.clipId) {
+          found = true;
+          return { ...clip, volume: this.volumeDb };
+        }
+        return clip;
+      })
+    }));
+
+    if (!found) {
+      throw new Error(`Clip with id ${this.clipId} not found for volume update`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) {
+      return state;
+    }
+    return this.previousState;
+  }
+}
+
 export class UpdateClipEffectCommand implements Command {
   private previousState: TimelineState | null = null;
   public coalesceKey?: string;

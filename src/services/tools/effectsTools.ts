@@ -4,7 +4,9 @@ import { AddTrackCommand, AddClipCommand, RippleDeleteCommand, SetMetadataComman
 import { ApplyAutoReframeCommand, UpdateClipEffectCommand } from '../../core/commands/edits';
 import { secondsToRational } from '../../types/time';
 import { Clip } from '../../types/timeline';
-import { getCaptionWordsForClip } from '../../engine/captions/clipCaptions';
+import { mapTranscriptToCaptionWords } from '../../engine/captions/clipCaptions';
+import { whisperService } from '../whisperTranscriber';
+import { detect_silence_executor, resolveAssetAudioPath } from './timelineTools';
 
 export const add_subtitles_def = {
   name: 'add_subtitles',
@@ -147,8 +149,26 @@ export async function add_subtitles_executor(args: {
   const commands: Command[] = [];
 
   const targetClip = store.tracks.flatMap((t) => t.clips)[0];
-  if (targetClip) {
-    const words = getCaptionWordsForClip(targetClip);
+  if (!targetClip) {
+    return {
+      error: 'no_clip',
+      details: 'Cannot add subtitles: the timeline has no clips.',
+    };
+  }
+
+  // Real path only: transcribe the clip's audio, map word timestamps onto
+  // the clip range, attach as a caption effect. No fabricated words (R21.3).
+  const audioPath = resolveAssetAudioPath(targetClip.assetId);
+  if (!audioPath) {
+    return {
+      error: 'unknown_asset',
+      details: `Cannot subtitle clip "${targetClip.id}": no resolvable audio file in the media pool.`,
+    };
+  }
+
+  try {
+    const transcript = await whisperService.transcribe(audioPath);
+    const words = mapTranscriptToCaptionWords(transcript.words, targetClip);
     commands.push(
       new UpdateClipEffectCommand(targetClip.id, 'caption_overlay', 'caption', {
         preset,
@@ -157,6 +177,11 @@ export async function add_subtitles_executor(args: {
         words,
       })
     );
+  } catch (e: any) {
+    return {
+      error: 'transcription_unavailable',
+      details: e?.message || String(e),
+    };
   }
 
   return {
@@ -293,8 +318,24 @@ export async function captions_generate_karaoke_executor(args: {
     .flatMap((t) => t.clips)
     .find((c) => c.assetId === args.asset_id) || store.tracks.flatMap((t) => t.clips)[0];
 
-  if (targetClip) {
-    const words = getCaptionWordsForClip(targetClip);
+  if (!targetClip) {
+    return {
+      error: 'no_clip',
+      details: 'Cannot generate karaoke captions: the timeline has no clips.',
+    };
+  }
+
+  const audioPath = resolveAssetAudioPath(targetClip.assetId);
+  if (!audioPath) {
+    return {
+      error: 'unknown_asset',
+      details: `Cannot caption clip "${targetClip.id}": no resolvable audio file in the media pool.`,
+    };
+  }
+
+  try {
+    const transcript = await whisperService.transcribe(audioPath);
+    const words = mapTranscriptToCaptionWords(transcript.words, targetClip);
     commands.push(
       new UpdateClipEffectCommand(targetClip.id, 'caption_overlay', 'caption', {
         preset: args.style_preset || 'karaoke',
@@ -302,6 +343,11 @@ export async function captions_generate_karaoke_executor(args: {
         words,
       })
     );
+  } catch (e: any) {
+    return {
+      error: 'transcription_unavailable',
+      details: e?.message || String(e),
+    };
   }
 
   return {
@@ -318,20 +364,45 @@ export async function timeline_remove_silence_executor(args: {
   track_ids?: string[];
 }) {
   const store = useTimelineStore.getState();
-  const commands: Command[] = [];
 
   // Identify tracks to inspect
   const targetTracks = store.tracks.filter((t) =>
     args.track_ids && args.track_ids.length > 0 ? args.track_ids.includes(t.id) : t.type === 'audio'
   );
 
-  const silenceGapRanges: Array<{ startSec: number; durationSec: number }> = [
-    { startSec: 2.5, durationSec: 0.8 },
-  ].filter((g) => g.durationSec >= args.threshold_seconds);
+  // Find a real audio file to analyse: the first resolvable clip asset on
+  // the target tracks. No hardcoded silence gap (R21.3, invariant §5.5).
+  let audioAssetId: string | null = null;
+  for (const track of targetTracks) {
+    for (const clip of track.clips) {
+      if (resolveAssetAudioPath(clip.assetId)) {
+        audioAssetId = clip.assetId;
+        break;
+      }
+    }
+    if (audioAssetId) break;
+  }
 
-  for (const gap of silenceGapRanges) {
-    const startRational = secondsToRational(gap.startSec, 30);
-    const durationRational = secondsToRational(gap.durationSec, 30);
+  if (!audioAssetId) {
+    return {
+      error: 'no_audio',
+      details: 'Cannot remove silence: no resolvable audio clip on the target tracks.',
+    };
+  }
+
+  const detection = await detect_silence_executor({
+    asset_id: audioAssetId,
+    min_silence_duration_sec: args.threshold_seconds,
+  });
+  if (detection && typeof detection === 'object' && 'error' in detection) {
+    return detection;
+  }
+
+  const commands: Command[] = [];
+  for (const gap of detection.silent_ranges) {
+    if (gap.duration_seconds < args.threshold_seconds) continue;
+    const startRational = secondsToRational(gap.start_seconds, 30);
+    const durationRational = secondsToRational(gap.duration_seconds, 30);
     commands.push(new RippleDeleteCommand(startRational, durationRational));
   }
 

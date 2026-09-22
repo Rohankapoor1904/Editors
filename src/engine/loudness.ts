@@ -1,4 +1,9 @@
-import { getRuntimeMode } from '../services/runtimeConfig';
+import { getRuntimeMode, NotImplementedError } from '../services/runtimeConfig';
+
+// Single shared error class (R22.5): re-exported so existing
+// `import { NotImplementedError } from './loudness'` sites keep working
+// with the canonical identity.
+export { NotImplementedError };
 
 class Biquad {
     private b0: number;
@@ -53,19 +58,21 @@ export interface LoudnessMeasurement {
     truePeak: number;
 }
 
-export class NotImplementedError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = 'NotImplementedError';
+function assertSampleRate(sampleRate: number): void {
+    if (sampleRate !== 48000) {
+        throw new NotImplementedError(`48kHz-only loudness measurement (got ${sampleRate}Hz)`);
     }
 }
 
-export function measureLUFS(channels: Float32Array[], sampleRate: number): LoudnessMeasurement {
-    if (sampleRate !== 48000) {
-        throw new NotImplementedError(`Sample rate ${sampleRate} is not supported. Only 48kHz is implemented.`);
-    }
+/**
+ * BS.1770-style integrated loudness (K-weighted, dual-stage gated).
+ * Live-safe: pure DSP, no unimplemented stages. Silence/empty input
+ * measures -Infinity (no signal), matching the previous contract.
+ */
+export function measureIntegratedLUFS(channels: Float32Array[], sampleRate: number): number {
+    assertSampleRate(sampleRate);
 
-    if (!channels || channels.length === 0) return { integrated: -Infinity, truePeak: -Infinity };
+    if (!channels || channels.length === 0) return -Infinity;
 
     const filteredChannels = channels.map(c => {
         const pf = new Biquad(preFilterB0, preFilterB1, preFilterB2, preFilterA0, preFilterA1, preFilterA2);
@@ -96,7 +103,7 @@ export function measureLUFS(channels: Float32Array[], sampleRate: number): Loudn
     const absoluteThreshold = Math.pow(10, (-70 + 0.691) / 10);
     const absGatedBlocks = blocks.filter(e => e > absoluteThreshold);
 
-    if (absGatedBlocks.length === 0) return { integrated: -Infinity, truePeak: calculateTruePeak(channels) };
+    if (absGatedBlocks.length === 0) return -Infinity;
 
     const absGatedMeanEnergy = absGatedBlocks.reduce((a, b) => a + b, 0) / absGatedBlocks.length;
     const absGatedLoudness = -0.691 + 10 * Math.log10(absGatedMeanEnergy);
@@ -104,19 +111,41 @@ export function measureLUFS(channels: Float32Array[], sampleRate: number): Loudn
     const relativeThresholdEnergy = Math.pow(10, (absGatedLoudness - 10 + 0.691) / 10);
     const relGatedBlocks = absGatedBlocks.filter(e => e > relativeThresholdEnergy);
 
-    if (relGatedBlocks.length === 0) return { integrated: -Infinity, truePeak: calculateTruePeak(channels) };
+    if (relGatedBlocks.length === 0) return -Infinity;
 
     const relGatedMeanEnergy = relGatedBlocks.reduce((a, b) => a + b, 0) / relGatedBlocks.length;
     const integratedLoudness = -0.691 + 10 * Math.log10(relGatedMeanEnergy);
 
-    return { integrated: integratedLoudness, truePeak: calculateTruePeak(channels) };
+    return integratedLoudness;
 }
 
-function calculateTruePeak(channels: Float32Array[]): number {
+/**
+ * Full BS.1770 measurement (integrated + true peak).
+ *
+ * Throws in live mode: true-peak 4x oversampling is not implemented, and
+ * returning a measurement with a missing half would be fabrication. Live
+ * callers must use `measureIntegratedLUFS()` directly.
+ */
+export function measureLUFS(channels: Float32Array[], sampleRate: number): LoudnessMeasurement {
+    if (!channels || channels.length === 0) return { integrated: -Infinity, truePeak: -Infinity };
+    return {
+        integrated: measureIntegratedLUFS(channels, sampleRate),
+        truePeak: measureTruePeak(channels),
+    };
+}
+
+/**
+ * True peak (4x oversampled). Live: throws. Demo: sample peak stand-in.
+ */
+export function measureTruePeak(channels: Float32Array[]): number {
     if (getRuntimeMode() === 'live') {
-        throw new NotImplementedError("True Peak calculation via 4x oversampling is not yet implemented. Cannot use sample peak.");
+        throw new NotImplementedError('True-peak 4x oversampling meter');
     }
-    // Return sample peak in demo mode.
+    return calculateSamplePeak(channels);
+}
+
+function calculateSamplePeak(channels: Float32Array[]): number {
+    // Demo-mode stand-in: sample peak in dBFS (no oversampling).
     let peak = 0;
     for (const ch of channels) {
         for (let i = 0; i < ch.length; i++) {

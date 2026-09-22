@@ -37,6 +37,11 @@ export interface AgentTask {
 export interface AgentStoreState {
   isConnected: boolean;
   activeModel: string;
+  bridgeAvailability: 'unknown' | 'dev-middleware' | 'unavailable-in-production';
+  bridgeUrl: string;
+  bridgeKind: 'unknown' | 'dev-middleware' | 'native-sidecar';
+  sidecarPort: number | null;
+  sidecarToken: string;
   currentTask: AgentTask | null;
   taskHistory: AgentTask[];
   actionDiffs: ActionDiff[];
@@ -45,6 +50,10 @@ export interface AgentStoreState {
   // Actions
   setConnected: (connected: boolean) => void;
   setActiveModel: (model: string) => void;
+  setBridgeAvailability: (availability: 'unknown' | 'dev-middleware' | 'unavailable-in-production') => void;
+  setBridgeUrl: (url: string) => void;
+  setBridgeKind: (kind: 'unknown' | 'dev-middleware' | 'native-sidecar') => void;
+  setSidecarInfo: (port: number, token: string) => void;
   startTask: (params: { source: 'copilot' | 'bridge' | 'model'; prompt?: string; tool?: string }) => string;
   updateTaskStep: (taskId: string, step: number, stepLabel?: string) => void;
   addTaskLog: (taskId: string, log: { type: 'user' | 'thought' | 'tool' | 'response'; message: string }) => void;
@@ -60,6 +69,11 @@ export interface AgentStoreState {
 export const useAgentStore = create<AgentStoreState>((set, get) => ({
   isConnected: false,
   activeModel: 'CineCraft ReAct Copilot (Whisper ONNX + WebGPU)',
+  bridgeAvailability: 'unknown',
+  bridgeUrl: '',
+  bridgeKind: 'unknown',
+  sidecarPort: null,
+  sidecarToken: '',
   currentTask: null,
   taskHistory: [],
   actionDiffs: [],
@@ -68,6 +82,14 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
   setConnected: (connected) => set({ isConnected: connected }),
 
   setActiveModel: (model) => set({ activeModel: model }),
+
+  setBridgeAvailability: (availability) => set({ bridgeAvailability: availability }),
+
+  setBridgeUrl: (url) => set({ bridgeUrl: url }),
+
+  setBridgeKind: (kind) => set({ bridgeKind: kind }),
+
+  setSidecarInfo: (port, token) => set({ sidecarPort: port, sidecarToken: token }),
 
   startTask: ({ source, prompt, tool }) => {
     const id = `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;

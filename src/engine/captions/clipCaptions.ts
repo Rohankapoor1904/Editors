@@ -1,6 +1,7 @@
 import { CaptionWord } from './captionEngine';
 import { Clip } from '../../types/timeline';
 import { rationalToSeconds } from '../../types/time';
+import { isDemoMode, NotImplementedError } from '../../services/runtimeConfig';
 
 export const DEFAULT_HINDI_POEM_WORDS: CaptionWord[] = [
   // 0s - 3.8s
@@ -109,6 +110,15 @@ export const DEFAULT_HINDI_POEM_WORDS: CaptionWord[] = [
 ];
 
 export function getCaptionWordsForClip(clip: Clip): CaptionWord[] {
+  // R21.3 / invariant §5.5: the poem + token lists below are fabricated
+  // fixtures. They are only reachable in demo mode for UI previews. Live
+  // mode must transcribe the asset (see mapTranscriptToCaptionWords) or fail.
+  if (!isDemoMode()) {
+    throw new NotImplementedError(
+      'Real transcript captions (transcribe the clip audio first — no fabricated words in live mode)'
+    );
+  }
+
   const durationSec = rationalToSeconds(clip.duration);
   const startSec = rationalToSeconds(clip.startOffset);
 
@@ -128,4 +138,32 @@ export function getCaptionWordsForClip(clip: Clip): CaptionWord[] {
     startTime: startSec + i * tokenDuration,
     endTime: startSec + (i + 1) * tokenDuration,
   }));
+}
+
+/**
+ * Maps real transcript word timestamps (absolute to the source audio file)
+ * onto a clip's timeline range via rational-time arithmetic. Words outside
+ * the clip's source window are dropped; edge words are clamped.
+ */
+export function mapTranscriptToCaptionWords(
+  transcriptWords: Array<{ word: string; startTime: number; endTime: number }>,
+  clip: Clip
+): CaptionWord[] {
+  const sourceInSec = rationalToSeconds(clip.sourceIn);
+  const startSec = rationalToSeconds(clip.startOffset);
+  const durationSec = rationalToSeconds(clip.duration);
+
+  return transcriptWords
+    .map((w, i) => ({
+      id: `w_${clip.id}_${i}`,
+      word: w.word,
+      startTime: startSec + (w.startTime - sourceInSec),
+      endTime: startSec + (w.endTime - sourceInSec),
+    }))
+    .filter((w) => w.endTime > startSec && w.startTime < startSec + durationSec)
+    .map((w) => ({
+      ...w,
+      startTime: Math.max(w.startTime, startSec),
+      endTime: Math.min(w.endTime, startSec + durationSec),
+    }));
 }

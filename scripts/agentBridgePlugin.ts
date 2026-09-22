@@ -15,6 +15,18 @@ export function agentBridgePlugin(): Plugin {
   const queue: Array<{ id: string; type: string; payload: any }> = [];
   let latestState: any = null;
   let lastHeartbeat = 0;
+  // Optional bearer token for external IDE/LLM callers (R21.1 / ADR-008).
+  // When unset, the dev bridge stays open for local development (back-compat).
+  const expectedToken = process.env.CINECRAFT_AGENT_TOKEN || '';
+
+  function isAuthorized(req: IncomingMessage): boolean {
+    if (!expectedToken) return true;
+    const header =
+      (req.headers?.['authorization'] as string | undefined) ||
+      (req.headers?.['Authorization'] as string | undefined) ||
+      '';
+    return header === `Bearer ${expectedToken}`;
+  }
 
   function parseJsonBody(req: IncomingMessage): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -65,6 +77,8 @@ export function agentBridgePlugin(): Plugin {
           const isAlive = Date.now() - lastHeartbeat < 10000;
           return sendJson(res, 200, {
             status: isAlive ? 'connected' : 'waiting_for_app',
+            bridge: 'dev-middleware',
+            authRequired: expectedToken !== '',
             appName: 'CineCraft AI Studio',
             connected: isAlive,
             lastHeartbeatMsAgo: lastHeartbeat ? Date.now() - lastHeartbeat : null,
@@ -84,6 +98,9 @@ export function agentBridgePlugin(): Plugin {
 
         // 3. POST /api/agent/prompt
         if (pathname === '/api/agent/prompt' && req.method === 'POST') {
+          if (!isAuthorized(req)) {
+            return sendJson(res, 401, { error: 'Missing or invalid bearer token' });
+          }
           try {
             const body = await parseJsonBody(req);
             const prompt = body.prompt;
@@ -112,6 +129,9 @@ export function agentBridgePlugin(): Plugin {
 
         // 4. POST /api/agent/tool
         if (pathname === '/api/agent/tool' && req.method === 'POST') {
+          if (!isAuthorized(req)) {
+            return sendJson(res, 401, { error: 'Missing or invalid bearer token' });
+          }
           try {
             const body = await parseJsonBody(req);
             const { tool, args, model } = body;
@@ -139,6 +159,9 @@ export function agentBridgePlugin(): Plugin {
 
         // 5. POST /api/agent/action
         if (pathname === '/api/agent/action' && req.method === 'POST') {
+          if (!isAuthorized(req)) {
+            return sendJson(res, 401, { error: 'Missing or invalid bearer token' });
+          }
           try {
             const body = await parseJsonBody(req);
             if (!body.action) {
@@ -165,6 +188,9 @@ export function agentBridgePlugin(): Plugin {
 
         // 5.1 POST /api/agent/connect
         if (pathname === '/api/agent/connect' && req.method === 'POST') {
+          if (!isAuthorized(req)) {
+            return sendJson(res, 401, { error: 'Missing or invalid bearer token' });
+          }
           try {
             const body = await parseJsonBody(req);
             const model = body.model || body.agent || 'External Connected Agent';

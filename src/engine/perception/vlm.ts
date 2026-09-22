@@ -9,6 +9,16 @@ export interface VisionModelResponse {
 }
 
 export class MultimodalPerceptionEngine {
+  /**
+   * HEURISTIC visual engine — NOT a neural VLM (R21.4, Impl `partial`).
+   *
+   * Embeddings are handcrafted statistics (luma histogram, spatial
+   * gradients, center-vs-periphery energy, texture spread), and intent
+   * labels come from transcript keyword rules. There is no CLIP/SigLIP
+   * encoder, no learned weights, and no cross-modal attention. The model
+   * id below says `heuristic` so downstream consumers (and the invariant
+   * gate) cannot mistake these vectors for neural embeddings.
+   */
   constructor() {}
 
   /**
@@ -26,7 +36,7 @@ export class MultimodalPerceptionEngine {
       const len = frame.length;
 
       if (len === 0) {
-        embeddings.push({ vector: Array.from(vector), model: 'cinecraft-vlm-v1' });
+        embeddings.push({ vector: Array.from(vector), model: 'cinecraft-heuristic-v1' });
         continue;
       }
 
@@ -88,7 +98,7 @@ export class MultimodalPerceptionEngine {
 
       embeddings.push({
         vector: Array.from(vector),
-        model: 'cinecraft-vlm-v1',
+        model: 'cinecraft-heuristic-v1',
       });
     }
 

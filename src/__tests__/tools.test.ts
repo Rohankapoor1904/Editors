@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { globalToolRegistry } from '../services/tools/registry';
 import { setRuntimeMode } from '../services/runtimeConfig';
+import { useMediaPoolStore } from '../store/mediaPool';
 
 // Initialize the tools mapping by importing them
 import '../services/tools/index';
@@ -35,22 +36,46 @@ describe('Tool Layer Set 1: Metadata & Timeline', () => {
     expect((result as any).details[0]).toContain('Missing required property: edits[0].end_time');
   });
 
-  it('should execute transcribe_and_align successfully and return aligned words in live mode', async () => {
+  it('should fail honestly (no fabricated words) when no real audio resolves in live mode', async () => {
     setRuntimeMode('live');
     const result = await globalToolRegistry.execute('transcribe_and_align', { asset_id: 'test' });
-    expect(result).not.toHaveProperty('error');
-    expect((result as any).asset_id).toBe('test');
-    expect(Array.isArray((result as any).words)).toBe(true);
-    expect((result as any).words.length).toBeGreaterThan(0);
+    // R21.3: the hardcoded "Welcome to CineCraft AI" fixture is gone — without
+    // a resolvable audio file the tool reports a typed error instead.
+    expect(result).toHaveProperty('error');
+    expect(['unknown_asset', 'transcription_unavailable']).toContain((result as any).error);
   });
 
-  it('should execute probe_media successfully and return media dimensions', async () => {
+  it('should fail honestly for unknown assets instead of fabricating probe metadata', async () => {
     setRuntimeMode('live');
     const result = await globalToolRegistry.execute('probe_media', { asset_id: 'asset_fixture_1' });
+    // R21.3: the fabricated 1920x1080/15s fallback is gone.
+    expect(result).toHaveProperty('error', 'unknown_asset');
+  });
+
+  it('should probe real media pool assets without fabrication', async () => {
+    setRuntimeMode('live');
+    useMediaPoolStore.setState({
+      assets: [
+        {
+          id: 'asset_real_1',
+          name: 'Interview_A.mp4',
+          path: '/media/Interview_A.mp4',
+          type: 'video',
+          duration: '00:01:30',
+          fps: '29.97',
+          resolution: '3840x2160',
+          fingerprint: 'fp-real-1',
+          isOffline: false,
+        },
+      ],
+      selectedAssetId: null,
+    });
+    const result = await globalToolRegistry.execute('probe_media', { asset_id: 'asset_real_1' });
     expect(result).not.toHaveProperty('error');
-    expect((result as any).width).toBe(1920);
-    expect((result as any).height).toBe(1080);
-    expect((result as any).duration).toBeGreaterThan(0);
+    expect((result as any).width).toBe(3840);
+    expect((result as any).height).toBe(2160);
+    expect((result as any).duration).toBe(90);
+    useMediaPoolStore.setState({ assets: [], selectedAssetId: null });
   });
 
   it('should execute cut_and_arrange_timeline and return real commands', async () => {
@@ -99,11 +124,12 @@ describe('Tool Layer Set 2: Effects & Export', () => {
     expect((result as any).details[0]).toContain('expected integer, got 10');
   });
 
-  it('should execute timeline_remove_silence and return ripple deletion commands', async () => {
+  it('should fail honestly (no fabricated silence gap) when no real audio resolves', async () => {
     setRuntimeMode('live');
     const result = await globalToolRegistry.execute('timeline_remove_silence', { threshold_seconds: 0.5 });
-    expect(result).not.toHaveProperty('error');
-    expect((result as any).success).toBe(true);
-    expect((result as any).commands.length).toBeGreaterThan(0);
+    // R21.3: the hardcoded 2.5s/0.8s gap is gone — without VAD audio the tool
+    // reports a typed error instead of fake ripple deletes.
+    expect(result).toHaveProperty('error');
+    expect(['no_audio', 'unknown_asset', 'vad_unavailable']).toContain((result as any).error);
   });
 });

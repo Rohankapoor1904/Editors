@@ -5,6 +5,7 @@ import {
   RefreshCw, Volume2, Sun, Layers, AlertCircle
 } from 'lucide-react';
 import { SilenceTrimmerModal } from './SilenceTrimmerModal';
+import { BridgePanel } from './BridgePanel';
 import { useTimelineStore } from '../store/timelineStore';
 import { agentOrchestrator } from '../services/agentOrchestrator';
 import { useAgentStore, ActionDiff } from '../store/agentStore';
@@ -26,6 +27,8 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
   // Global Agent Store
   const isConnected = useAgentStore((s) => s.isConnected);
   const activeModel = useAgentStore((s) => s.activeModel);
+  const bridgeAvailability = useAgentStore((s) => s.bridgeAvailability);
+  const bridgeUrl = useAgentStore((s) => s.bridgeUrl);
   const currentTask = useAgentStore((s) => s.currentTask);
   const actionDiffs = useAgentStore((s) => s.actionDiffs);
   const isProcessing = useAgentStore((s) => s.isProcessing);
@@ -53,6 +56,9 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
 
   const selectedClipIds = useTimelineStore(s => s.selectedClipIds);
   const tracks = useTimelineStore(s => s.tracks);
+  const updateClipTransform = useTimelineStore(s => s.updateClipTransform);
+  const updateClipVolume = useTimelineStore(s => s.updateClipVolume);
+  const updateClipEffect = useTimelineStore(s => s.updateClipEffect);
 
   const getSelectedClip = () => {
     if (selectedClipIds.length === 0) return null;
@@ -62,6 +68,65 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
       if (clip) return clip;
     }
     return null;
+  };
+
+  // ---- Inspector (R22.3): every control below reads the selected clip and
+  // dispatches a real undoable command. No `defaultValue`-only inputs.
+  const inspectorClip = getSelectedClip();
+  const inspectorTransform = inspectorClip?.transform ?? {
+    position: { x: 0.5, y: 0.5 },
+    scale: { x: 1, y: 1 },
+    rotation: 0,
+    opacity: 1,
+    anchorPoint: { x: 0.5, y: 0.5 },
+  };
+  const inspectorGradeParams = (inspectorClip?.effects?.find(e => e.type === 'colorGrade')?.params ?? {}) as {
+    contrast?: number;
+    temperature?: number;
+  };
+
+  const inspectorColorEffectId =
+    inspectorClip?.effects?.find(e => e.type === 'colorGrade')?.id || 'color_grade_effect';
+
+  const handleInspectorScale = (pct: number) => {
+    if (!inspectorClip) return;
+    const s = pct / 100;
+    updateClipTransform(inspectorClip.id, {
+      ...inspectorTransform,
+      scale: { x: s, y: s },
+    });
+  };
+
+  const handleInspectorPosition = (axis: 'x' | 'y', value: number) => {
+    if (!inspectorClip || !Number.isFinite(value)) return;
+    updateClipTransform(inspectorClip.id, {
+      ...inspectorTransform,
+      position: { ...inspectorTransform.position, [axis]: value },
+    });
+  };
+
+  const handleInspectorOpacity = (pct: number) => {
+    if (!inspectorClip) return;
+    updateClipTransform(inspectorClip.id, { ...inspectorTransform, opacity: pct / 100 });
+  };
+
+  const handleInspectorVolume = (db: number) => {
+    if (!inspectorClip || !Number.isFinite(db)) return;
+    updateClipVolume(inspectorClip.id, db);
+  };
+
+  const handleInspectorContrast = (v: number) => {
+    if (!inspectorClip || !Number.isFinite(v)) return;
+    updateClipEffect(inspectorClip.id, inspectorColorEffectId, 'colorGrade', {
+      contrast: 1 + v / 100,
+    });
+  };
+
+  const handleInspectorTemperature = (v: number) => {
+    if (!inspectorClip || !Number.isFinite(v)) return;
+    updateClipEffect(inspectorClip.id, inspectorColorEffectId, 'colorGrade', {
+      temperature: v / 100,
+    });
   };
 
   const slashCommands = [
@@ -125,24 +190,30 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
       });
 
       const { CompoundCommand } = await import('../core/commands/transaction');
-      const compound = commands.length > 0 ? new CompoundCommand(commands) : undefined;
 
-      const newDiff: ActionDiff = {
-        id: `diff-${Date.now()}`,
-        type: cmdToRun.includes('silence') ? 'cut' : cmdToRun.includes('color') ? 'color' : 'subtitle',
-        title: `AI Action: ${cmdToRun.slice(0, 24)}...`,
-        description: `Generated ${commands.length} timeline edits based on "${cmdToRun}"`,
-        changeType: 'modified',
-        timestamp: 'Just now',
-        status: 'pending',
-        command: compound,
-      };
+      // R22.3: zero-command plans (e.g. unknown intents, already explained by
+      // the orchestrator's no-plan response log) produce no diff card.
+      if (commands.length > 0) {
+        const compound = new CompoundCommand(commands);
 
-      addActionDiff(newDiff);
+        const newDiff: ActionDiff = {
+          id: `diff-${Date.now()}`,
+          type: cmdToRun.includes('silence') ? 'cut' : cmdToRun.includes('color') ? 'color' : 'subtitle',
+          title: `AI Action: ${cmdToRun.slice(0, 24)}...`,
+          description: `Generated ${commands.length} timeline edits based on "${cmdToRun}"`,
+          changeType: 'modified',
+          timestamp: 'Just now',
+          status: 'pending',
+          command: compound,
+        };
+
+        addActionDiff(newDiff);
+      }
       completeTask(taskId, commands.length);
     } catch (err: any) {
+      // R22.3: record the failure on the task. Do NOT re-throw: this handler
+      // is fire-and-forget, so a bare throw becomes an unhandled rejection.
       failTask(taskId, err.message || String(err));
-      throw err;
     }
   };
 
@@ -233,6 +304,11 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span>Bridge Connected</span>
                 </span>
+              ) : bridgeAvailability === 'unavailable-in-production' ? (
+                <span className="flex items-center space-x-1 text-amber-400 text-[10px] font-mono" title="External agent bridge only runs inside the Vite dev server. Run npm run dev for IDE/LLM access.">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Bridge unavailable in production</span>
+                </span>
               ) : (
                 <span className="flex items-center space-x-1 text-neutral-500 text-[10px]">
                   <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
@@ -284,13 +360,15 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                 <span className="truncate text-neutral-300 font-mono text-[9px]">{activeModel}</span>
               </span>
               <span className="font-mono text-[9px] text-neutral-500 shrink-0">
-                {currentTask?.currentStepLabel || (isConnected ? 'Bridge Active (/api/agent)' : 'Idle')}
+                {currentTask?.currentStepLabel || (isConnected ? 'Bridge Active (/api/agent)' : bridgeAvailability === 'unavailable-in-production' ? `Bridge unavailable in production${bridgeUrl ? ` (${bridgeUrl})` : ''} — run npm run dev` : 'Idle')}
               </span>
             </div>
           </div>
 
           {/* Main Execution Content: Live Logs, Diff Cards & Ready State */}
           <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-dark-950">
+            {/* Bridge transport for external IDE/LLM callers (R23.4) */}
+            <BridgePanel />
             {/* Active / Recent Task Stream */}
             {currentTask && (
               <div className="p-2.5 rounded-panel bg-dark-900 border border-neutral-800 space-y-2">
@@ -566,35 +644,55 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
 
             {inspectorSections.transform && (
               <div className="p-3 border-t border-subtle space-y-3 bg-dark-950/60 text-xs">
+                {!inspectorClip && (
+                  <p className="text-neutral-500 text-[11px]">Select a clip to inspect its properties.</p>
+                )}
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-neutral-400">Scale</span>
-                    <span className="font-mono text-indigo-400 font-semibold tabular-nums">100%</span>
+                    <span className="font-mono text-indigo-400 font-semibold tabular-nums">
+                      {Math.round(inspectorTransform.scale.x * 100)}%
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="10"
                     max="200"
-                    defaultValue="100"
-                    className="w-full accent-indigo-accent h-1 bg-neutral-800 rounded cursor-pointer"
+                    data-testid="inspector-scale"
+                    value={Math.round(inspectorTransform.scale.x * 100)}
+                    disabled={!inspectorClip}
+                    onChange={(e) => handleInspectorScale(parseFloat(e.target.value))}
+                    className="w-full accent-indigo-accent h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-[10px] text-neutral-500 block mb-1">Position X</span>
+                    <span className="text-[10px] text-neutral-500 block mb-1">Position X (0–1)</span>
                     <input
                       type="number"
-                      defaultValue="0"
-                      className="w-full bg-dark-900 border border-subtle rounded px-2 py-1 font-mono text-xs text-neutral-200"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      data-testid="inspector-pos-x"
+                      value={inspectorTransform.position.x}
+                      disabled={!inspectorClip}
+                      onChange={(e) => handleInspectorPosition('x', parseFloat(e.target.value))}
+                      className="w-full bg-dark-900 border border-subtle rounded px-2 py-1 font-mono text-xs text-neutral-200 disabled:opacity-40"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-500 block mb-1">Position Y</span>
+                    <span className="text-[10px] text-neutral-500 block mb-1">Position Y (0–1)</span>
                     <input
                       type="number"
-                      defaultValue="0"
-                      className="w-full bg-dark-900 border border-subtle rounded px-2 py-1 font-mono text-xs text-neutral-200"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      data-testid="inspector-pos-y"
+                      value={inspectorTransform.position.y}
+                      disabled={!inspectorClip}
+                      onChange={(e) => handleInspectorPosition('y', parseFloat(e.target.value))}
+                      className="w-full bg-dark-900 border border-subtle rounded px-2 py-1 font-mono text-xs text-neutral-200 disabled:opacity-40"
                     />
                   </div>
                 </div>
@@ -602,14 +700,19 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-neutral-400">Opacity</span>
-                    <span className="font-mono text-indigo-400 font-semibold tabular-nums">100%</span>
+                    <span className="font-mono text-indigo-400 font-semibold tabular-nums">
+                      {Math.round(inspectorTransform.opacity * 100)}%
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="0"
                     max="100"
-                    defaultValue="100"
-                    className="w-full accent-indigo-accent h-1 bg-neutral-800 rounded cursor-pointer"
+                    data-testid="inspector-opacity"
+                    value={Math.round(inspectorTransform.opacity * 100)}
+                    disabled={!inspectorClip}
+                    onChange={(e) => handleInspectorOpacity(parseFloat(e.target.value))}
+                    className="w-full accent-indigo-accent h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
                   />
                 </div>
               </div>
@@ -638,21 +741,26 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-neutral-400">Volume Level</span>
-                    <span className="font-mono text-teal-400 font-semibold tabular-nums">0.0 dB</span>
+                    <span className="font-mono text-teal-400 font-semibold tabular-nums">
+                      {(inspectorClip?.volume ?? 0).toFixed(1)} dB
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="-24"
                     max="12"
-                    defaultValue="0"
-                    className="w-full accent-teal-accent h-1 bg-neutral-800 rounded cursor-pointer"
+                    step="0.5"
+                    data-testid="inspector-volume"
+                    value={inspectorClip?.volume ?? 0}
+                    disabled={!inspectorClip}
+                    onChange={(e) => handleInspectorVolume(parseFloat(e.target.value))}
+                    className="w-full accent-teal-accent h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-neutral-400">AI Vocal Suppressor</span>
-                  <input type="checkbox" defaultChecked className="accent-teal-accent rounded cursor-pointer w-4 h-4" />
-                </div>
+                <p className="text-[11px] text-neutral-500">
+                  Voice isolation lives in the Audio workspace mixer.
+                </p>
               </div>
             )}
           </div>
@@ -678,30 +786,41 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
               <div className="p-3 border-t border-subtle space-y-3 bg-dark-950/60 text-xs">
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-neutral-400">Exposure</span>
-                    <span className="font-mono text-purple-400 font-semibold tabular-nums">+0.15 EV</span>
+                    <span className="text-neutral-400">Temperature</span>
+                    <span className="font-mono text-purple-400 font-semibold tabular-nums">
+                      {((inspectorGradeParams.temperature ?? 0) >= 0 ? '+' : '') +
+                        ((inspectorGradeParams.temperature ?? 0) * 100).toFixed(0)}
+                    </span>
                   </div>
                   <input
                     type="range"
-                    min="-2"
-                    max="2"
-                    step="0.05"
-                    defaultValue="0.15"
-                    className="w-full accent-purple-500 h-1 bg-neutral-800 rounded cursor-pointer"
+                    min="-100"
+                    max="100"
+                    step="1"
+                    data-testid="inspector-temperature"
+                    value={Math.round((inspectorGradeParams.temperature ?? 0) * 100)}
+                    disabled={!inspectorClip}
+                    onChange={(e) => handleInspectorTemperature(parseFloat(e.target.value))}
+                    className="w-full accent-purple-500 h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
                   />
                 </div>
 
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-neutral-400">Contrast</span>
-                    <span className="font-mono text-purple-400 font-semibold tabular-nums">+10%</span>
+                    <span className="font-mono text-purple-400 font-semibold tabular-nums">
+                      +{Math.round(((inspectorGradeParams.contrast ?? 1) - 1) * 100)}%
+                    </span>
                   </div>
                   <input
                     type="range"
                     min="-50"
                     max="50"
-                    defaultValue="10"
-                    className="w-full accent-purple-500 h-1 bg-neutral-800 rounded cursor-pointer"
+                    data-testid="inspector-contrast"
+                    value={Math.round(((inspectorGradeParams.contrast ?? 1) - 1) * 100)}
+                    disabled={!inspectorClip}
+                    onChange={(e) => handleInspectorContrast(parseFloat(e.target.value))}
+                    className="w-full accent-purple-500 h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
                   />
                 </div>
               </div>

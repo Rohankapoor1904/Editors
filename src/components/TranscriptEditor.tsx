@@ -5,6 +5,7 @@ import { useMediaPoolStore } from '../store/mediaPool';
 import { rationalToSeconds, secondsToRational } from '../types/time';
 import { FileText, Trash2, Play, AlertCircle, Loader2 } from 'lucide-react';
 import { deleteWordsFromTimeline } from '../services/alignment';
+import { formatModelError } from '../services/modelErrors';
 
 export const TranscriptEditor: React.FC = () => {
   const [words, setWords] = useState<WordTimestamp[]>([]);
@@ -48,7 +49,7 @@ export const TranscriptEditor: React.FC = () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[TranscriptEditor] Transcription failed:', err);
-      setError(msg);
+      setError(formatModelError(msg));
       setWords([]);
     } finally {
       setIsLoading(false);

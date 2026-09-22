@@ -10,6 +10,7 @@ pub mod audio_separation;
 pub mod voice_denoise;
 pub mod process_utils;
 pub mod audio_conformance;
+pub mod bridge_server;
 
 use ffmpeg_demuxer::{FFmpegDemuxerEngine, MediaProbeInfo};
 use whisper_onnx::{WhisperTranscriptNative, WhisperOnnxEngine};
@@ -18,6 +19,7 @@ use export_native::{ExportProgress, ExportTaskConfig, FFmpegCommandSpec, Hardwar
 use proxy_engine::{ProxyEngine, ProxyProgressNative, ProxyTaskConfig};
 use audio_separation::{AudioSeparationConfig, AudioSeparationEngine, SeparationResultNative};
 use voice_denoise::{DenoiseResultNative, VoiceDenoiseConfig, VoiceDenoiseEngine};
+use bridge_server::{BridgeInfo, BridgeServerState};
 
 use sha2::{Sha256, Digest};
 
@@ -59,6 +61,14 @@ async fn get_file_fingerprint(file_path: String) -> Result<String, String> {
 #[tauri::command]
 fn check_file_exists(file_path: String) -> Result<bool, String> {
     Ok(std::path::Path::new(&file_path).exists())
+}
+
+/// Connection facts for the native agent-bridge sidecar (R23.2, ADR-009).
+/// The frontend calls this once at startup, then polls the sidecar with the
+/// exact dev-plugin protocol. Unavailable before `setup()` binds the socket.
+#[tauri::command]
+fn get_bridge_info(state: tauri::State<'_, BridgeServerState>) -> Result<BridgeInfo, String> {
+    Ok(state.info())
 }
 
 #[tauri::command]
@@ -188,6 +198,28 @@ fn main() {
                 let _ = win.set_focus();
                 let _ = win.maximize();
             }
+            // Native agent-bridge sidecar (R23.2, ADR-009): loopback HTTP on
+            // an OS-assigned port. A bind failure is fatal — without it the
+            // installed app has no agent transport at all.
+            let (listener, bridge_state) = match tauri::async_runtime::block_on(
+                BridgeServerState::bind_loopback(),
+            ) {
+                Ok(bound) => bound,
+                Err(e) => {
+                    return Err(Box::new(e) as Box<dyn std::error::Error>);
+                }
+            };
+            println!(
+                "[bridge] sidecar listening on 127.0.0.1:{}",
+                bridge_state.info().port
+            );
+            app.manage(bridge_state.clone());
+            let router = bridge_state.router();
+            tauri::async_runtime::spawn(async move {
+                if let Err(err) = axum::serve(listener, router).await {
+                    eprintln!("[bridge] sidecar serve error: {err}");
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -204,7 +236,8 @@ fn main() {
             generate_proxy_video,
             poll_proxy_generation,
             separate_audio_stems,
-            denoise_audio_file
+            denoise_audio_file,
+            get_bridge_info
         ])
         .run(tauri::generate_context!())
     {

@@ -20,7 +20,7 @@ describe('MultimodalPerceptionEngine (Task R19.3)', () => {
     const embeddings = await engine.encodeFrames([frame]);
     expect(embeddings).toHaveLength(1);
     expect(embeddings[0].vector).toHaveLength(64);
-    expect(embeddings[0].model).toBe('cinecraft-vlm-v1');
+    expect(embeddings[0].model).toBe('cinecraft-heuristic-v1'); // R21.4: heuristic id, not a neural VLM claim
 
     // Check unit L2 norm: sum(v_i^2) ≈ 1.0
     const normSq = embeddings[0].vector.reduce((acc, v) => acc + v * v, 0);
