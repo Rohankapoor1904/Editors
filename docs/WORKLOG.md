@@ -1,3 +1,18 @@
+## 2026-09-22 — Antigravity — PR #94 merge conflict resolution with main (PR #93 reconciliation)
+- **Did:**
+  - Resolved merge conflicts on branch `feat/R23.3-task-routes` with `main` in `src-tauri/src/bridge_server.rs` and `PROGRESS.md`.
+  - Reconciled duplicate handlers from PR #93 into modular, clean task route handlers (`/connect`, `/prompt`, `/tool`, `/action`, `/pending`, `/result`, `/heartbeat`) with timeouts, oneshot handshake, waiter cleanup, and full unit test coverage.
+  - Reconciled `PROGRESS.md` R23.3 row to maintain ADR-007 compliance (`real` | `done` with verified host evidence, replacing PR #93's erroneous `missing` | `done`).
+- **Verified:**
+  - `cd src-tauri && cargo check`: passed cleanly in 3.06s.
+  - `cd src-tauri && cargo test`: 14/14 tests passed in 0.38s (all bridge_server tests passed).
+  - `npm test`: 78 files / 345 passed / 1 skipped in 40.01s.
+  - `node scripts/verify-invariants.mjs`: passed cleanly with zero violations.
+  - `npm run build`: `tsc && vite build` completed cleanly in 5.58s.
+- **Left undone:** Merge PR #94 into `main` and execute R23.5 desktop e2e.
+- **Next:** Push merge commit, merge PR #94 to `main`, proceed to R23.5.
+- **Blockers:** None.
+
 ## 2026-09-22 — Antigravity — R23.3 task routes verified & unblocked on host
 - **Did:**
   - Resolved `vswhom-sys` build script blocker on host: compiled `ext/vswhom.cpp` via LLVM-MinGW `clang++` + `llvm-ar` into `vswhom.lib` in `cargo-xwin/xwin/combined_libs` and updated `vswhom-sys` build.rs fallback so `cl.exe` missing no longer blocks build scripts.
