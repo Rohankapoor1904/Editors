@@ -26,6 +26,8 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
   // Global Agent Store
   const isConnected = useAgentStore((s) => s.isConnected);
   const activeModel = useAgentStore((s) => s.activeModel);
+  const bridgeAvailability = useAgentStore((s) => s.bridgeAvailability);
+  const bridgeUrl = useAgentStore((s) => s.bridgeUrl);
   const currentTask = useAgentStore((s) => s.currentTask);
   const actionDiffs = useAgentStore((s) => s.actionDiffs);
   const isProcessing = useAgentStore((s) => s.isProcessing);
@@ -233,6 +235,11 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span>Bridge Connected</span>
                 </span>
+              ) : bridgeAvailability === 'unavailable-in-production' ? (
+                <span className="flex items-center space-x-1 text-amber-400 text-[10px] font-mono" title="External agent bridge only runs inside the Vite dev server. Run npm run dev for IDE/LLM access.">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Bridge unavailable in production</span>
+                </span>
               ) : (
                 <span className="flex items-center space-x-1 text-neutral-500 text-[10px]">
                   <span className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
@@ -284,7 +291,7 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                 <span className="truncate text-neutral-300 font-mono text-[9px]">{activeModel}</span>
               </span>
               <span className="font-mono text-[9px] text-neutral-500 shrink-0">
-                {currentTask?.currentStepLabel || (isConnected ? 'Bridge Active (/api/agent)' : 'Idle')}
+                {currentTask?.currentStepLabel || (isConnected ? 'Bridge Active (/api/agent)' : bridgeAvailability === 'unavailable-in-production' ? `Bridge unavailable in production${bridgeUrl ? ` (${bridgeUrl})` : ''} — run npm run dev` : 'Idle')}
               </span>
             </div>
           </div>

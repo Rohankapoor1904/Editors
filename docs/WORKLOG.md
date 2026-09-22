@@ -1,3 +1,16 @@
+## 2026-09-22 — opencode — R21.1
+- **Did:**
+  - Added Phase R21 to `docs/ROADMAP.md` (bridge hardening + honest AI outputs, R21.1–R21.4) and claimed R21.1 in `PROGRESS.md`; recorded ADR-008 (dev-middleware bridge kept, URL+token configurable, no sidecar yet).
+  - `src/services/agentBridge.ts`: configurable base URL (`VITE_AGENT_BRIDGE_URL` / localStorage, back-compat default `http://localhost:3000/api/agent`), bearer token setter, `normalizeBridgeBaseUrl` / `resolveBridgeAvailability` / `buildBridgeHeaders` helpers, store publish of URL + availability on start/heartbeat.
+  - `scripts/agentBridgePlugin.ts`: optional `CINECRAFT_AGENT_TOKEN` bearer gate on POST `/prompt|/tool|/action|/connect` (open when unset), `bridge: 'dev-middleware'` + `authRequired` in `/status`.
+  - `src/store/agentStore.ts`: new `bridgeAvailability` (`unknown|dev-middleware|unavailable-in-production`) + `bridgeUrl` fields with setters.
+  - `src/components/AIPromptConsole.tsx`: explicit amber "Bridge unavailable in production — run npm run dev" pill + status line instead of silent "Ready".
+  - New behavioural suite `src/services/__tests__/agentBridgeConfig.test.ts` (6 tests).
+- **Verified:** `npx vitest run src/services/__tests__/agentBridgeConfig.test.ts` -> 6 passed; `agentCopilot` + `tools` suites -> 30 passed; `npx tsc --noEmit` -> clean; `npx eslint` (5 changed files) -> clean; `npm run build` -> built in 10.43s | `npm test` (full gate) NOT VERIFIED — `verify-invariants.mjs` fails on pre-existing tracked `Launch_CineCraft.bat` root-clutter violation, outside R21.1 scope.
+- **Left undone:** PR not opened; native production transport deferred per ADR-008; R21.2–R21.4 still todo.
+- **Next:** Open PR for R21.1 (or merge to branch per reviewer flow), then claim R21.2 (planner honesty + tool-schema exposure).
+- **Blockers:** `npm test` gate red on main due to tracked `Launch_CineCraft.bat` — needs a `docs: restructure`/cleanup claim by someone (outside R21.1 file ownership).
+
 ## 2026-09-21 — Antigravity — Dynamic Agent Execution Pipeline & Connected Model Tasks
 - **Did:**
   - Diagnosed and fixed the issue where the "AGENTIC EXECUTION PIPELINE" stepper in `src/components/AIPromptConsole.tsx` displayed four static green checkmarks (`Analyzing`, `Transcribing`, `Slicing`, `Arranging`) by default even when no agent or model was connected.
