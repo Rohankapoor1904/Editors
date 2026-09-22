@@ -1,3 +1,18 @@
+## 2026-09-22 — Antigravity — PR #92 merged + rows marked done
+- **Did:**
+  - Merged PR #92 (`feat/R23.4-bridge-panel` -> `main`, merge commit `1f8e5e01e9271d1e3f0235f929e290aed39f7058`).
+  - Pulled `main` locally; updated `PROGRESS.md` to mark R21.1–R22.6 + R23.1 + R23.4 as `real`/`done` with PR #92 merge evidence; R23.2 remains `partial`/`blocked` awaiting MSVC host toolchain.
+  - Updated Phase R21 & R22 exit criteria status to Complete.
+- **Verified:**
+  - `npm test`: 78 files / 345 passed / 1 skipped / 0 failed.
+  - `node scripts/verify-invariants.mjs`: All mechanical invariants passed cleanly.
+  - `npm run build`: `tsc && vite build` built in 4.81s cleanly.
+  - `npm run lint`: 0 errors / 0 warnings.
+  - PR #92 merged via GitHub API.
+- **Left undone:** R23.3 task routes in `bridge_server.rs`; R23.5 desktop e2e on Tauri host.
+- **Next:** Implement R23.3 task routes on an MSVC host with `cargo check` validation.
+- **Blockers:** MSVC host required for Rust compilation/linking (`link.exe`).
+
 ## 2026-09-22 — opencode — PR #92 + full-suite green
 - **Did:**
   - Repaired 3 stale tests blocking green CI (see R21.3-follow-up / R11.4 / R11.7 notes in session).
