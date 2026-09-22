@@ -120,9 +120,9 @@ describe('CaptionEngine', () => {
     expect(scaleCalls[0].sx).toBeGreaterThan(1.0); // Bounced > 1.0
   });
 
-  it('returns valid WGSL caption shader source', () => {
-    const wgsl = captionEngine.getWGSLShaderCode();
-    expect(wgsl).toBeDefined();
-    expect(typeof wgsl).toBe('string');
+  it('has no GPU shader stage: captions render on the 2D canvas overlay only (R22.1)', () => {
+    // The former caption.wgsl stage only darkened the caption band and
+    // tinted a fake word block. It must not come back.
+    expect('getWGSLShaderCode' in captionEngine).toBe(false);
   });
 });

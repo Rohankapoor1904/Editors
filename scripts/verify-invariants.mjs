@@ -174,6 +174,22 @@ if (fs.existsSync(shaderDir)) {
     if (content.length < 20) {
       errors.push(`Shader Violation: ${sFile} in src/engine/shaders is empty or truncated.`);
     }
+    // R22.1: a shader that self-declares as placeholder must never ship in
+    // the pipeline (caption.wgsl darkened the caption band and tinted a fake
+    // word block while canvas drew the real captions).
+    const BANNED_SHADER_DISCLAIMERS = [
+      'placeholder shader because',
+      "don't have a real text layout engine",
+      'Just a placeholder effect',
+    ];
+    for (const disclaimer of BANNED_SHADER_DISCLAIMERS) {
+      if (content.includes(disclaimer)) {
+        errors.push(
+          `R22.1 Violation: ${sFile} self-declares as placeholder ('${disclaimer}'). ` +
+          `Ship real shader code or remove the stage — a placeholder in the compiled pipeline is a defect.`
+        );
+      }
+    }
   }
 }
 

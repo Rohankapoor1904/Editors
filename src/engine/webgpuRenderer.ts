@@ -74,12 +74,15 @@ export class WebGPURendererEngine {
         });
 
 
-        const colorWgslSource = colorEngine.getWGSLShaderCode({} as any);
-        const captionWgslSource = captionEngine.getWGSLShaderCode();
+        const colorWgslSource = colorEngine.getWGSLShaderCode();
+        // R22.1: captions render on the 2D canvas overlay
+        // (renderKineticCaptionsToCanvas). The former caption.wgsl stage only
+        // darkened the caption band and tinted a fake word block, so it is
+        // deliberately NOT part of the compiled pipeline.
         const combinedShaderCode = yuvToRgbWgsl.replace(
           'return vec4<f32>(r, g, b, uniforms.opacity);',
-          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b));\n    let captioned = applyCaptionHighlight(graded, in.uv);\n    return vec4<f32>(captioned, uniforms.opacity);'
-        ) + '\n' + colorWgslSource + '\n' + captionWgslSource;
+          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b));\n    return vec4<f32>(graded, uniforms.opacity);'
+        ) + '\n' + colorWgslSource;
 
         const shaderModule = this.device.createShaderModule({
           label: 'YUV to RGB Shader with Color Grading',
@@ -109,14 +112,8 @@ export class WebGPURendererEngine {
           ],
         });
 
-        const captionBindGroupLayout = this.device.createBindGroupLayout({
-          entries: [
-            { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } }
-          ],
-        });
-
         const pipelineLayout = this.device.createPipelineLayout({
-          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout, colorBindGroupLayout, captionBindGroupLayout],
+          bindGroupLayouts: [bindGroupLayout, uniformBindGroupLayout, colorBindGroupLayout],
         });
 
         this.pipeline = this.device.createRenderPipeline({
@@ -247,7 +244,6 @@ export class WebGPURendererEngine {
     let uTexture: GPUTexture | null = null;
     let vTexture: GPUTexture | null = null;
     let uniformBuffer: GPUBuffer | null = null;
-    let captionUniformBuffer: GPUBuffer | null = null;
 
     if (_options.yuvData && this.pipeline) {
       // YUV420p dimensions
@@ -265,6 +261,9 @@ export class WebGPURendererEngine {
 
         this.device!.queue.writeTexture(
           { texture },
+          // `as any`: @webgpu/types + TS 5.4 lib type Uint8Array as
+          // Float32Array<ArrayBufferLike>, which is not assignable to
+          // GPUAllowSharedBufferSource. Cast is lib friction, not sloppiness.
           data as any,
           { bytesPerRow: w, rowsPerImage: h },
           [w, h, 1]
@@ -393,35 +392,10 @@ export class WebGPURendererEngine {
         ],
       });
 
-      captionUniformBuffer = this.device.createBuffer({
-        size: 16,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-
-      const captionDataArray = new Float32Array(3);
-      if (_options.captionData) {
-        const activeIdx = captionEngine.getActiveWordIndex(_options.captionData.words, _options.timecode);
-        captionDataArray[0] = activeIdx;
-        captionDataArray[1] = _options.timecode;
-        captionDataArray[2] = _options.captionData.words.length;
-      } else {
-        captionDataArray[0] = -1.0;
-        captionDataArray[1] = 0.0;
-        captionDataArray[2] = 0.0;
-      }
-
-      this.device!.queue.writeBuffer(captionUniformBuffer, 0, captionDataArray as any);
-
-      const captionBindGroup = this.device.createBindGroup({
-        layout: this.pipeline.getBindGroupLayout(3),
-        entries: [{ binding: 0, resource: { buffer: captionUniformBuffer } }],
-      });
-
       passEncoder.setPipeline(this.pipeline);
       passEncoder.setBindGroup(0, bindGroup);
       passEncoder.setBindGroup(1, uniformBindGroup);
       passEncoder.setBindGroup(2, colorBindGroup);
-      passEncoder.setBindGroup(3, captionBindGroup);
       passEncoder.draw(6, 1, 0, 0);
     }
 
@@ -434,7 +408,6 @@ export class WebGPURendererEngine {
     if (vTexture) vramPool.release(vTexture);
     if (lutTexture) lutTexture.destroy();
     if (colorUniformBuffer) colorUniformBuffer.destroy();
-    if (captionUniformBuffer) captionUniformBuffer.destroy();
     // In actual WebGPU we can't destroy the buffer immediately if it's in use by the queue,
     // but the engine uses small buffers that garbage collect, or we should manage them.
     // However for zero-copy constraint let's just destroy it. Wait, destroying a buffer

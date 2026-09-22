@@ -1,3 +1,16 @@
+## 2026-09-22 — opencode — R22.1
+- **Did:**
+  - Added Phase R22 (6 tasks) to `docs/ROADMAP.md` + `PROGRESS.md` from the post-R21 audit; claimed R22.1.
+  - `src/engine/webgpuRenderer.ts`: removed caption WGSL concat (grade-only replace), group(3) layout/binding/uniform/destroy; `colorEngine.getWGSLShaderCode({} as any)` → `()` (param is optional).
+  - Deleted `src/engine/shaders/caption.wgsl`; removed `captionEngine.getWGSLShaderCode()` + `?raw` import (canvas overlay is the real caption renderer; `getActiveWordIndex` kept as tested pure helper).
+  - `captionEngine.test.ts`: vacuous "valid WGSL" test → absence pin (`getWGSLShaderCode` gone).
+  - Gate: shader-dir check now fails on self-declared placeholder disclaimers (R22.1).
+  - Attempted renderer `as any` removal → `tsc` proved them load-bearing (@webgpu/types `ArrayBufferLike` friction); reverted + documented at the cast site; ROADMAP scope corrected honestly.
+- **Verified:** renderer 2/2, caption suite pass, 16/16 incl. related; gate fire-drill (`_firedrill.wgsl` → exact R22.1 message, file removed after); clean tree → only pre-existing `.bat` error; `tsc`/`eslint` clean; `npm run build` 5.49s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; real GPU text layout remains future work; R22.2–R22.6 todo.
+- **Next:** R22.2 (model bundling) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R21.4
 - **Did:**
   - `src/engine/perception/vlm.ts`: model id `cinecraft-vlm-v1` → `cinecraft-heuristic-v1` + class doc stating handcrafted statistics, no CLIP/SigLIP, Impl partial; updated `vlm.test.ts` model assertion.
