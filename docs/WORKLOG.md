@@ -1,3 +1,12 @@
+## 2026-09-22 — opencode — R23.3
+- **Did:**
+  - Read live `PROGRESS.md`: PR #92 merged, R23.2 host-verified `done` (peer ran `cargo check` clean + `cargo test` 12/12 on MSVC PC). Proceeded to R23.3 on `main`.
+  - `src-tauri/src/bridge_server.rs`: 7 task routes (`/connect` immediate; `/prompt`+`/tool` 20s, `/action` 15s waits; `/pending` drain; `/result` completes oneshot + state/heartbeat) with dev-plugin parity (400s, Bearer on POSTs, waiter removal on timeout/close); +3 unit tests.
+- **Verified:** `rustfmt --edition 2021 --check` clean (one reflow applied); `node scripts/verify-invariants.mjs` → **fully clean** (`.bat` fix from PR #92 holds); `cargo check` → still MSVC-linker-blocked here (verbatim same build-script errors).
+- **Left undone:** `cargo check` + `cargo test` on MSVC host (row `blocked`); then R23.5 desktop e2e.
+- **Next:** Run on the tooled PC: `cd src-tauri && cargo check` and `cargo test` (expect 8 bridge_server tests), paste output → mark `done`.
+- **Blockers:** No MSVC linker in this env.
+
 ## 2026-09-22 — Antigravity — PR #92 merged + R23.2 host verified
 - **Did:**
   - Merged PR #92 (`feat/R23.4-bridge-panel` -> `main`, merge commit `1f8e5e01e9271d1e3f0235f929e290aed39f7058`).
