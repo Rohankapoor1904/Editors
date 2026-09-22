@@ -1,3 +1,13 @@
+## 2026-09-22 — opencode — R22.3
+- **Did:**
+  - `src/core/commands/edits.ts` + `src/store/timelineStore.ts`: new `UpdateClipVolumeCommand` + `updateClipVolume` action (clip.volume is dB read by `audioPlayback.ts:102`, so the slider is audible).
+  - `src/components/AIPromptConsole.tsx`: Inspector tab rewritten — Scale/Position/Opacity/Volume/Contrast/Temperature are controlled inputs reading the selected clip, each dispatching undoable commands (`UpdateTransformCommand` / `UpdateClipVolumeCommand` / colorGrade effect); Exposure→Temperature (engine has no exposure field); decorative vocal checkbox removed (AudioWorkspace owns isolation); empty plans skip diff cards; dropped the bare re-throw after `failTask`.
+  - New `src/components/__tests__/InspectorWiring.test.tsx` (6 tests: value reflection, command dispatch, merge preservation, undo, no-diff-on-empty, fail-without-throw).
+- **Verified:** new 6/6; `AIPromptConsole` 4/4; `core/commands` 26/26; `tsc`/`eslint` clean; `npm run build` 5.58s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; R22.4–R22.6 todo.
+- **Next:** R22.4 (R3.3 docs correction) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R22.2
 - **Did:**
   - `src-tauri/tauri.conf.json`: `bundle.resources` now ships `ggml-tiny.en.bin` + `models/silero_vad.onnx` (both tracked; JSON-validity verified via node parse).

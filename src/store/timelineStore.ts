@@ -17,6 +17,7 @@ import {
   RealignSyncCommand,
   UpdateTransformCommand,
   UpdateClipEffectCommand,
+  UpdateClipVolumeCommand,
   SetKeyframeCommand,
   RemoveKeyframeCommand,
   ApplySpeedRampCommand,
@@ -61,6 +62,7 @@ interface TimelineStoreActions {
   realignSync: (clipId: string) => void;
   toggleClipMute: (clipId: string) => void;
   updateClipTransform: (clipId: string, transform: Transform) => void;
+  updateClipVolume: (clipId: string, volumeDb: number) => void;
   updateClipEffect: (clipId: string, effectId: string, effectType: string, params: Record<string, unknown>) => void;
   setClipKeyframe: (clipId: string, property: string, keyframe: Keyframe) => void;
   removeClipKeyframe: (clipId: string, property: string, time: RationalTime) => void;
@@ -308,6 +310,9 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   },
   updateClipTransform: (clipId, transform) => {
     get().executeCommand(new UpdateTransformCommand(clipId, transform));
+  },
+  updateClipVolume: (clipId, volumeDb) => {
+    get().executeCommand(new UpdateClipVolumeCommand(clipId, volumeDb));
   },
   updateClipEffect: (clipId, effectId, effectType, params) => {
     get().executeCommand(new UpdateClipEffectCommand(clipId, effectId, effectType, params));
