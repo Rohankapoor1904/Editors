@@ -5,6 +5,7 @@ import {
   RefreshCw, Volume2, Sun, Layers, AlertCircle
 } from 'lucide-react';
 import { SilenceTrimmerModal } from './SilenceTrimmerModal';
+import { BridgePanel } from './BridgePanel';
 import { useTimelineStore } from '../store/timelineStore';
 import { agentOrchestrator } from '../services/agentOrchestrator';
 import { useAgentStore, ActionDiff } from '../store/agentStore';
@@ -366,6 +367,8 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
 
           {/* Main Execution Content: Live Logs, Diff Cards & Ready State */}
           <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-dark-950">
+            {/* Bridge transport for external IDE/LLM callers (R23.4) */}
+            <BridgePanel />
             {/* Active / Recent Task Stream */}
             {currentTask && (
               <div className="p-2.5 rounded-panel bg-dark-900 border border-neutral-800 space-y-2">

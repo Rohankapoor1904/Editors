@@ -1,3 +1,12 @@
+## 2026-09-22 — opencode — R23.4
+- **Did:**
+  - New `src/components/BridgePanel.tsx`: kind badge (dev-middleware/native-sidecar/unavailable/unknown), bridge URL, sidecar port + masked token, copy-connect-JSON (clipboard-guarded), live `/status` probe with ok/error display, unavailable guidance. Mounted at the top of the Copilot tab scroll content.
+  - New `src/components/__tests__/BridgePanel.test.tsx` (4 tests: dev display, sidecar + asserted connect JSON, unavailable guidance, probe ok/fail via stubbed fetch).
+- **Verified:** new 4/4; regressions (`AIPromptConsole` 4/4, `InspectorWiring` 6/6) 14/14 with dupes; `tsc`/`eslint` clean; `npm run build` 4.83s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; R23.3 (task routes, needs MSVC host) + R23.5 (desktop e2e) remain.
+- **Next:** R23.3 on a tooled host, or PRs + `.bat` cleanup.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`); no MSVC linker for R23.3 verification.
+
 ## 2026-09-22 — opencode — R23.2
 - **Did:**
   - New `src-tauri/src/bridge_server.rs`: `BridgeInfo`/`BridgeTask`/`BridgeServerState` (`bind_loopback` on 127.0.0.1:0 + uuid token), Bearer gate (exact-token only, open when empty), CORS incl. OPTIONS, `GET /status`, `GET /timeline`, `POST /heartbeat`, `require_bearer()` for R23.3 routes, 5 unit tests (gate, status transitions, task serde).
