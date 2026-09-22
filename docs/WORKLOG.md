@@ -1,3 +1,12 @@
+## 2026-09-22 — opencode — R21.2
+- **Did:**
+  - `src/services/agentOrchestrator.ts`: `RuleBasedAgentPlanner` labelled `plannerName = 'rule-based-fallback'` with doc stating it is keyword matching, not reasoning; new `getAgentToolSchemas()` exposing live registry definitions (name/description/parameters) for external LLM function-calling; empty plans now log an explicit `No matching editorial intent ... No timeline mutations made. Available tools: ...` response; thought log names the active planner.
+  - New behavioural suite `src/services/__tests__/agentPlannerHonesty.test.ts` (5 tests: fallback label, schema-registry mirror, unknown-intent zero-mutation, documented intents intact, external LLM-style planner executes via `AgentPlanner` interface).
+- **Verified:** new suite 5/5 pass; regressions (`agentCopilot` + `agentBridgeConfig` + `tools`, incl. `.kilo` worktree copies) 36/36 pass; `npx tsc --noEmit` -> clean; `npx eslint` (2 files) -> clean; `npm run build` -> 5.61s built | full `npm test` NOT VERIFIED — same pre-existing `Launch_CineCraft.bat` root-clutter gate failure, untouched.
+- **Left undone:** PR not opened; no real LLM model wired (interface ready); R21.3–R21.4 still todo.
+- **Next:** R21.3 (honest AI tool outputs) or open PRs for R21.1/R21.2.
+- **Blockers:** Same gate blocker as R21.1 (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R21.1
 - **Did:**
   - Added Phase R21 to `docs/ROADMAP.md` (bridge hardening + honest AI outputs, R21.1–R21.4) and claimed R21.1 in `PROGRESS.md`; recorded ADR-008 (dev-middleware bridge kept, URL+token configurable, no sidecar yet).
