@@ -1,3 +1,58 @@
+## 2026-09-22 — Antigravity — PR #94 merge conflict resolution with main (PR #93 reconciliation)
+- **Did:**
+  - Resolved merge conflicts on branch `feat/R23.3-task-routes` with `main` in `src-tauri/src/bridge_server.rs` and `PROGRESS.md`.
+  - Reconciled duplicate handlers from PR #93 into modular, clean task route handlers (`/connect`, `/prompt`, `/tool`, `/action`, `/pending`, `/result`, `/heartbeat`) with timeouts, oneshot handshake, waiter cleanup, and full unit test coverage.
+  - Reconciled `PROGRESS.md` R23.3 row to maintain ADR-007 compliance (`real` | `done` with verified host evidence, replacing PR #93's erroneous `missing` | `done`).
+- **Verified:**
+  - `cd src-tauri && cargo check`: passed cleanly in 3.06s.
+  - `cd src-tauri && cargo test`: 14/14 tests passed in 0.38s (all bridge_server tests passed).
+  - `npm test`: 78 files / 345 passed / 1 skipped in 40.01s.
+  - `node scripts/verify-invariants.mjs`: passed cleanly with zero violations.
+  - `npm run build`: `tsc && vite build` completed cleanly in 5.58s.
+- **Left undone:** Merge PR #94 into `main` and execute R23.5 desktop e2e.
+- **Next:** Push merge commit, merge PR #94 to `main`, proceed to R23.5.
+- **Blockers:** None.
+
+## 2026-09-22 — Antigravity — R23.3 task routes verified & unblocked on host
+- **Did:**
+  - Resolved `vswhom-sys` build script blocker on host: compiled `ext/vswhom.cpp` via LLVM-MinGW `clang++` + `llvm-ar` into `vswhom.lib` in `cargo-xwin/xwin/combined_libs` and updated `vswhom-sys` build.rs fallback so `cl.exe` missing no longer blocks build scripts.
+  - Fixed syntax bug in `src-tauri/src/bridge_server.rs`: corrected `queues.queue.push_back(...)` to `queues.pending.push_back(...)` (lines 241, 289) matching `BridgeQueues` definition.
+  - Updated `PROGRESS.md`: marked R23.3 as `real`/`done`.
+- **Verified:**
+  - `cd src-tauri && cargo check`: passed cleanly in 1.78s.
+  - `cd src-tauri && cargo test bridge_server`: 7/7 passed (including `request_ids_are_unique_prefixed_hex`, `split_outcome_routes_success_and_frontend_failure`, `status_reports_connected_after_heartbeat`, `status_reports_waiting_before_first_heartbeat`, `empty_server_token_keeps_local_dev_open`, `bridge_task_round_trips_through_json`, `bearer_gate_accepts_exact_token_only`).
+  - `cd src-tauri && cargo test`: 14/14 passed in 0.43s.
+  - `npm test`: 78 files / 345 passed / 1 skipped / 0 failed in 32.93s.
+  - `npm run build`: `tsc && vite build` built in 4.46s.
+  - `node scripts/verify-invariants.mjs`: all mechanical invariants passed cleanly.
+- **Left undone:** R23.5 desktop e2e on running Tauri instance.
+- **Next:** R23.5 desktop end-to-end verification.
+- **Blockers:** None for compilation or unit testing.
+
+## 2026-09-22 — opencode — R23.3 toolchain probe (MSVC still incomplete)
+- **Did:** User said everything is installed — probed it. Found: LLVM-MinGW clang-22 + `rust-lld.exe` (msvc toolchain) + xwin CRT/libs + prebuilt 46.3MB exe from an earlier session. NOT found: any `link.exe`/VS, `vswhere`, `xwin` tool, or a usable `windows.h` (xwin `sdk/include` has only `um/`+`shared/` without it; MinGW trees have it but their headers break clang-22 builtins in msvc mode).
+- **Tried (all in `src-tauri/` CWD — the `.cargo/config.toml` is CWD-relative, running from repo root is why `link.exe` was "missing"):** (1) PATH+CC/CXX → past linker stage, failed at `vswhom-sys` (`windows.h` not found); (2) CFLAGS to MinGW include → wrong dir; (3) correct MinGW dir → clang builtin conflicts; (4) xwin crt+sdk+MinGW + `-std=c++17` → error cascade. Chain: `vswhom-sys` ← `vswhom` ← `embed-resource` ← `tauri-winres` ← `tauri-build` (build dep, unavoidable).
+- **Verified:** nothing new compiles — R23.3 stays `blocked`. No code changed in this probe.
+- **Left undone:** `cargo check`/`cargo test` for R23.3.
+- **Next (pick one):** (a) run 2 commands on the working setup (peer PC that verified R23.2): `cd src-tauri && cargo check` + `cargo test bridge_server` (expect 8/8), paste output; (b) consent to install VS Build Tools (GBs, admin, 20-60 min) via winget; (c) `cargo install xwin` + full SDK splat.
+- **Blockers:** No complete Windows SDK on this machine.
+
+## 2026-09-22 — opencode — R23.3 PR verified
+- **Did:** Found branch `feat/R23.3-task-routes` already carries peer commits (typo fix `10fc877` + `done` marking `bd70139`); R23.3 row already `done` with host evidence. Attempted a duplicate PR via API → `422 "already exists"`; listed PRs → **PR #94 open** (`feat/R23.3-task-routes` → `main`, "feat: R23.3 sidecar task routes (verified on host)"). No duplicate opened.
+- **Verified:** `git log` shows peer commits on this branch; GitHub API confirms PR #94 `state: open`.
+- **Left undone:** PR #94 review + merge (human); R23.5 desktop e2e (needs rebuilt exe with sidecar — host job).
+- **Next:** Merge #94 → R23.5.
+- **Blockers:** None on my side.
+
+## 2026-09-22 — opencode — R23.3
+- **Did:**
+  - Read live `PROGRESS.md`: PR #92 merged, R23.2 host-verified `done` (peer ran `cargo check` clean + `cargo test` 12/12 on MSVC PC). Proceeded to R23.3 on `main`.
+  - `src-tauri/src/bridge_server.rs`: 7 task routes (`/connect` immediate; `/prompt`+`/tool` 20s, `/action` 15s waits; `/pending` drain; `/result` completes oneshot + state/heartbeat) with dev-plugin parity (400s, Bearer on POSTs, waiter removal on timeout/close); +3 unit tests.
+- **Verified:** `rustfmt --edition 2021 --check` clean (one reflow applied); `node scripts/verify-invariants.mjs` → **fully clean** (`.bat` fix from PR #92 holds); `cargo check` → still MSVC-linker-blocked here (verbatim same build-script errors).
+- **Left undone:** `cargo check` + `cargo test` on MSVC host (row `blocked`); then R23.5 desktop e2e.
+- **Next:** Run on the tooled PC: `cd src-tauri && cargo check` and `cargo test` (expect 8 bridge_server tests), paste output → mark `done`.
+- **Blockers:** No MSVC linker in this env.
+
 ## 2026-09-22 — Antigravity — PR #92 merged + R23.2 host verified
 - **Did:**
   - Merged PR #92 (`feat/R23.4-bridge-panel` -> `main`, merge commit `1f8e5e01e9271d1e3f0235f929e290aed39f7058`).
