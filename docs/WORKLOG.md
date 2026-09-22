@@ -1,3 +1,14 @@
+## 2026-09-22 — opencode — R21.4
+- **Did:**
+  - `src/engine/perception/vlm.ts`: model id `cinecraft-vlm-v1` → `cinecraft-heuristic-v1` + class doc stating handcrafted statistics, no CLIP/SigLIP, Impl partial; updated `vlm.test.ts` model assertion.
+  - `src/services/semanticSearch.ts`: class doc stating keyword-overlap + caller-vector cosine stand-in, no embedding index (behavior unchanged).
+  - `scripts/verify-invariants.mjs` §8: bans tool-path fabrication signatures (`getCaptionWordsForClip`, `word: 'Welcome'`, `start_seconds: 3.2`, `startSec: 2.5`); requires `whisperService`/`sileroVadService` wiring; requires clipCaptions demo-gate; rejects neural model-id claims.
+  - New `src/services/__tests__/heuristicAiHonesty.test.ts` (2 tests: runtime heuristic id + gate travel-together pin).
+- **Verified:** new 2/2; `vlm` 3/3; `semanticSearch` 4/4; gate fire-drill: injected `word: 'Welcome'` fixture → specific R21.3 failure (then byte-identical restore via fc.exe); clean tree → zero new gate errors; `tsc`/`eslint` clean; `npm run build` 5.58s | full `npm test` NOT VERIFIED — same pre-existing `.bat` failure.
+- **Left undone:** PRs not opened; neural VLM + native sidecar remain future work.
+- **Next:** Resolve `.bat` gate failure via its own cleanup claim, then open the 4 stacked PRs against `main`, then mark R21 rows `done`.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R21.3
 - **Did:**
   - `src/services/tools/timelineTools.ts`: deleted hardcoded `Welcome to CineCraft AI` words, `[{3.2–4.1},{8.5–9.3}]` silence windows, and 1920x1080/15s probe fallback; added `resolveAssetAudioPath()`; `transcribe_and_align` / `detect_silence` now call real `whisperService` / `sileroVadService` or return typed `unknown_asset` / `transcription_unavailable` / `vad_unavailable` errors.

@@ -7,6 +7,15 @@ export interface SemanticSearchResult {
 }
 
 export class SemanticSearchService {
+  /**
+   * HEURISTIC search — NOT neural retrieval (R21.4, Impl `partial`).
+   *
+   * Ranking blends (a) keyword overlap between the query and the clip id
+   * text (a stand-in label, not a transcript/FTS index) with (b) cosine
+   * similarity over caller-supplied vectors. There is no embedding index,
+   * no SQLite-vector store, and no learned ranker. Scores are only
+   * meaningful relative to each other within one result set.
+   */
   constructor() {}
 
   /**

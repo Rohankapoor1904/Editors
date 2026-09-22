@@ -178,7 +178,88 @@ if (fs.existsSync(shaderDir)) {
 }
 
 // =========================================================================
-// 8. Gate Result Evaluation
+// 8. R21.3/R21.4: No fabricated AI outputs on the agent tool path
+// Reintroducing any of these fixtures must fail `npm test` with the
+// specific message below (acceptance: R21.4).
+// =========================================================================
+const TOOLS_DIR = path.join(projectRoot, 'src/services/tools');
+if (fs.existsSync(TOOLS_DIR)) {
+  // 8a. Known hardcoded fabrication signatures are banned from tool executors.
+  const BANNED_TOOL_FIXTURES = [
+    'getCaptionWordsForClip',
+    "word: 'Welcome'",
+    'start_seconds: 3.2',
+    'startSec: 2.5',
+  ];
+  const toolFiles = getAllFiles(TOOLS_DIR).filter(
+    (f) =>
+      (f.endsWith('.ts') || f.endsWith('.tsx')) &&
+      !f.includes('__tests__') &&
+      !f.includes('.test.')
+  );
+  for (const file of toolFiles) {
+    const content = fs.readFileSync(file, 'utf-8');
+    for (const signature of BANNED_TOOL_FIXTURES) {
+      if (content.includes(signature)) {
+        const rel = path.relative(projectRoot, file);
+        errors.push(
+          `R21.3 Violation: fabricated AI fixture '${signature}' found in ${rel}. ` +
+          `Tool executors must call the real Whisper/VAD services or return a typed error — never hardcoded words, silence windows, or caption fixtures.`
+        );
+      }
+    }
+  }
+
+  // 8b. The real STT/VAD wiring must stay in place (positive check so the
+  // ban in 8a cannot be satisfied by deleting the whole executor).
+  const timelineToolsContent = checkFileExists('src/services/tools/timelineTools.ts');
+  if (timelineToolsContent) {
+    if (!timelineToolsContent.includes('whisperService')) {
+      errors.push(
+        'R21.3 Violation: src/services/tools/timelineTools.ts no longer references whisperService. ' +
+        'transcribe_and_align must call the real Whisper service or return a typed error.'
+      );
+    }
+    if (!timelineToolsContent.includes('sileroVadService')) {
+      errors.push(
+        'R21.3 Violation: src/services/tools/timelineTools.ts no longer references sileroVadService. ' +
+        'detect_silence must call the real Silero VAD service or return a typed error.'
+      );
+    }
+  }
+}
+
+// 8c. Caption fixtures stay demo-gated: removing the live-mode guard
+// re-exposes fabricated words on the main path.
+const clipCaptionsContent = checkFileExists('src/engine/captions/clipCaptions.ts');
+if (clipCaptionsContent) {
+  if (!clipCaptionsContent.includes('isDemoMode()') || !clipCaptionsContent.includes('NotImplementedError')) {
+    errors.push(
+      'R21.3 Violation: src/engine/captions/clipCaptions.ts lost its demo-mode guard. ' +
+      'getCaptionWordsForClip must throw NotImplementedError in live mode.'
+    );
+  }
+}
+
+// 8d. VLM honesty: the heuristic engine must not claim a neural model id.
+const vlmContent = checkFileExists('src/engine/perception/vlm.ts');
+if (vlmContent) {
+  if (vlmContent.includes('cinecraft-vlm-v1')) {
+    errors.push(
+      "R21.4 Violation: src/engine/perception/vlm.ts still claims model id 'cinecraft-vlm-v1'. " +
+      'The heuristic engine must identify as cinecraft-heuristic-v1 — it is not a neural VLM.'
+    );
+  }
+  if (!vlmContent.includes('heuristic')) {
+    errors.push(
+      'R21.4 Violation: src/engine/perception/vlm.ts no longer discloses its heuristic nature. ' +
+      'The engine must document that it is handcrafted statistics, not CLIP/SigLIP.'
+    );
+  }
+}
+
+// =========================================================================
+// 9. Gate Result Evaluation
 // =========================================================================
 if (errors.length > 0) {
   console.error('\n❌ MECHANICAL INVARIANT CHECKS FAILED:');
