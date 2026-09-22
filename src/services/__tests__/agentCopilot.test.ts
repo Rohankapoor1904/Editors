@@ -92,22 +92,19 @@ describe('Agentic Timeline Copilot & ReAct Reasoning Loop (Task R19.2)', () => {
     expect(captionPlan[0].args.style).toBe('karaoke_bounce');
   });
 
-  it('orchestrator runs in live mode and emits structured logs to stepper', async () => {
+  it('orchestrator fails honestly on silence removal without real VAD audio', async () => {
     const logs: AgentStepLog[] = [];
 
-    const commands = await agentOrchestrator.processPrompt(
-      'Remove all dead air and silence',
-      (log) => logs.push(log)
-    );
+    // R21.3: the seeded store has no resolvable audio file, so the silence
+    // tool reports no_audio instead of applying the old fabricated 2.5s gap.
+    // The orchestrator surfaces the failure rather than fake success.
+    await expect(
+      agentOrchestrator.processPrompt('Remove all dead air and silence', (log) => logs.push(log))
+    ).rejects.toThrow(/Tool execution failed/);
 
-    // Assert log progression
     expect(logs.some((l) => l.type === 'user')).toBe(true);
     expect(logs.some((l) => l.type === 'thought')).toBe(true);
-    expect(logs.some((l) => l.type === 'tool')).toBe(true);
-    expect(logs.some((l) => l.type === 'response')).toBe(true);
-
-    // Verify commands returned
-    expect(commands.length).toBeGreaterThan(0);
+    expect(logs.some((l) => l.type === 'tool' && l.message.includes('failed'))).toBe(true);
   });
 
   it('wrapping agent commands in CompoundCommand enables atomic 1-click undo/redo', async () => {

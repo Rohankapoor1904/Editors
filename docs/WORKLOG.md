@@ -1,3 +1,14 @@
+## 2026-09-22 — opencode — R21.3
+- **Did:**
+  - `src/services/tools/timelineTools.ts`: deleted hardcoded `Welcome to CineCraft AI` words, `[{3.2–4.1},{8.5–9.3}]` silence windows, and 1920x1080/15s probe fallback; added `resolveAssetAudioPath()`; `transcribe_and_align` / `detect_silence` now call real `whisperService` / `sileroVadService` or return typed `unknown_asset` / `transcription_unavailable` / `vad_unavailable` errors.
+  - `src/services/tools/effectsTools.ts`: `timeline_remove_silence` chains real VAD detection into `RippleDeleteCommand`s (no 2.5s/0.8s gap); `add_subtitles` / `captions_generate_karaoke` transcribe real audio and bind words via new `mapTranscriptToCaptionWords()` (source→timeline rational mapping), else typed error.
+  - `src/engine/captions/clipCaptions.ts`: poem/token fixtures demo-gated behind `isDemoMode()` (live throws `NotImplementedError`); added `mapTranscriptToCaptionWords()` with source-window drop + edge clamp.
+  - Rewrote stub-cementing tests (`tools.test.ts`, `agentCopilot.test.ts`) to assert honest errors + a real pool-asset probe; new `honestToolOutputs.test.ts` (7 tests) pins fixture absence.
+- **Verified:** new 7/7; `tools` 13/13; `agentCopilot` 3/3; `tsc` clean; `eslint` (6 files) clean; `npm run build` 5.79s | full `npm test` NOT VERIFIED — same pre-existing `Launch_CineCraft.bat` gate failure.
+- **Left undone:** PR not opened; desktop needs real model files for live STT/VAD; R21.4 still todo.
+- **Next:** R21.4 (VLM honesty + stronger gate) or open PRs for R21.1–R21.3.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R21.2
 - **Did:**
   - `src/services/agentOrchestrator.ts`: `RuleBasedAgentPlanner` labelled `plannerName = 'rule-based-fallback'` with doc stating it is keyword matching, not reasoning; new `getAgentToolSchemas()` exposing live registry definitions (name/description/parameters) for external LLM function-calling; empty plans now log an explicit `No matching editorial intent ... No timeline mutations made. Available tools: ...` response; thought log names the active planner.
