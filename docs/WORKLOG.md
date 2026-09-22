@@ -1,3 +1,12 @@
+## 2026-09-22 — opencode — R22.6
+- **Did:**
+  - `src/core/project/serialize.ts`: new exported `parseAssetDuration()` — validated `value/rate` rationals + `HH:MM:SS[.mmm]` at project fps; unparsable/empty/bad-fps → `undefined` (schema-optional key omitted by `JSON.stringify`), replacing the `10s@24fps` dummy and `{0,24}` fallback; deserialize tolerates missing duration as explicit `''` instead of throwing.
+  - New `src/core/project/serializeDurations.test.ts` (6 tests: exact rationals, fps-aware wall-clock, omission table, JSON omission, unknown + real round-trips).
+- **Verified:** new 6/6; `schema` 3/3 (incl. golden fixture); `tsc`/`eslint` clean; `npm run build` 6.06s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened. Phase R22 code-complete (R22.1–R22.6).
+- **Next:** Resolve `.bat` gate failure, open the stacked PRs, mark rows `done`.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R22.5
 - **Did:**
   - `src/engine/loudness.ts`: split `measureIntegratedLUFS()` (live-safe BS.1770 dual-gated DSP) from `measureTruePeak()` (throws live, sample-peak demo stand-in); `measureLUFS()` throws live instead of returning a half measurement; deleted the duplicate local `NotImplementedError`, re-exporting the shared `runtimeConfig` identity; preserved empty→-Infinity contract.

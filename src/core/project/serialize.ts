@@ -3,26 +3,52 @@ import { MediaAsset } from '../../store/mediaPool';
 import { ProjectDocumentSchema, MediaPoolAssetSchema, SequenceSchema, ProjectTrackSchema, ProjectClipSchema, RationalTimeSchema } from './schema';
 import { createRational } from '../../types/time';
 
+/**
+ * Parses a MediaAsset duration string into rational schema form (R22.6).
+ *
+ * Accepted (real) formats:
+ * - `"value/rate"` — exact rational frames (e.g. `"240/24"`).
+ * - `"HH:MM:SS[.mmm]"` — wall-clock, converted at `projectFps`
+ *   (e.g. `"00:00:10"` at 24fps → `{ value: 240, rate: 24 }`).
+ *
+ * Anything else (empty, garbage, non-positive rate, unusable fps) yields
+ * `undefined` so the schema-optional field is omitted — never invented.
+ */
+export function parseAssetDuration(
+  raw: string | undefined,
+  projectFps: number
+): RationalTimeSchema | undefined {
+  if (!raw) return undefined;
+
+  if (raw.includes('/')) {
+    const parts = raw.split('/');
+    if (parts.length !== 2) return undefined;
+    const value = Number(parts[0]);
+    const rate = Number(parts[1]);
+    if (!Number.isInteger(value) || !Number.isInteger(rate) || rate <= 0 || value < 0) {
+      return undefined;
+    }
+    return { value, rate };
+  }
+
+  const match = /^(\d+):([0-5]?\d):([0-5]?\d(?:\.\d+)?)$/.exec(raw.trim());
+  if (!match) return undefined;
+  if (!Number.isFinite(projectFps) || projectFps <= 0) return undefined;
+  const seconds = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+  const rate = Math.round(projectFps);
+  if (rate <= 0) return undefined;
+  return { value: Math.round(seconds * projectFps), rate };
+}
+
 export function serializeProject(
   timelineState: TimelineState,
   assets: MediaAsset[]
 ): string {
+  const projectFps = timelineState.metadata.fps;
   const mediaPool: MediaPoolAssetSchema[] = assets.map(asset => {
-    let duration: RationalTimeSchema | undefined;
-    // We try to parse "value/rate" or "HH:MM:SS" for duration as it's a string in MediaAsset
-    if (asset.duration && asset.duration.includes('/')) {
-        const parts = asset.duration.split('/');
-        duration = { value: parseInt(parts[0]), rate: parseInt(parts[1]) };
-    } else {
-        // Mock fallback to not break schema requirements of having a duration.
-        // Actually, schema duration is optional so we can omit it if we can't parse it.
-        // But our tests rely on duration being there, so let's try to pass 10s if we see "00:00:10"
-        if (asset.duration === '00:00:10') {
-            duration = { value: 10 * 24, rate: 24 }; // dummy 24fps
-        } else {
-            duration = { value: 0, rate: 24 }; // Default throw if we want but this is string fallback
-        }
-    }
+    // R22.6: parse real duration formats only ("value/rate", "HH:MM:SS[.mmm]").
+    // Anything else is omitted (schema-optional) — never invented.
+    const duration = parseAssetDuration(asset.duration, projectFps);
 
     return {
         asset_id: asset.id,
@@ -169,10 +195,12 @@ export function deserializeProject(
       throw new Error(`Media asset is missing required fields (asset_id, name, file_path, checksum_sha256).`);
     }
 
-    if (!assetSchema.duration) {
-      throw new Error(`Media asset ${assetSchema.asset_id} is missing duration`);
-    }
-    const duration = `${assetSchema.duration.value}/${assetSchema.duration.rate}`;
+    // R22.6: duration is schema-optional. A missing duration means
+    // "unknown" (empty string) — it must round-trip, never throw, and never
+    // be replaced with an invented value.
+    const duration = assetSchema.duration
+      ? `${assetSchema.duration.value}/${assetSchema.duration.rate}`
+      : '';
 
     let type: 'video' | 'audio' | 'subtitle' | 'ai' = 'video';
     if (assetSchema.audio_streams && assetSchema.audio_streams.length > 0 && (!assetSchema.video_streams || assetSchema.video_streams.length === 0)) {
