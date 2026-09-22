@@ -457,6 +457,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tempfile",
  "tokio",
+ "tower",
  "uuid",
  "whisper-rs",
 ]

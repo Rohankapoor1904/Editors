@@ -489,3 +489,57 @@ mod tests {
         assert!(a.starts_with("req-") && a.len() == 36);
     }
 }
+
+#[cfg(test)]
+mod e2e_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn e2e_status_endpoint_returns_json() {
+        use axum::{body::Body, http::{Request, StatusCode}};
+        use tower::ServiceExt as _;
+
+        let state = BridgeServerState {
+            info: BridgeInfo {
+                port: 0,
+                token: "test-token".to_string(),
+            },
+            queues: std::sync::Arc::new(std::sync::Mutex::new(BridgeQueues::default())),
+        };
+        let app = state.router();
+
+        let req = Request::builder()
+            .uri("/api/agent/status")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn e2e_action_endpoint_requires_auth() {
+        use axum::{body::Body, http::{Request, StatusCode}};
+        use tower::ServiceExt as _;
+
+        let state = BridgeServerState {
+            info: BridgeInfo {
+                port: 0,
+                token: "test-token".to_string(),
+            },
+            queues: std::sync::Arc::new(std::sync::Mutex::new(BridgeQueues::default())),
+        };
+        let app = state.router();
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/agent/action")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"action": "test"}"#))
+            .unwrap();
+
+        let response = app.oneshot(req).await.unwrap();
+        // Since no token is provided, it should return UNAUTHORIZED
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+}

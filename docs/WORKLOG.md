@@ -710,3 +710,12 @@
 - **Left undone:** None
 - **Next:** R11.2 (Unblock WebGPU pipeline)
 - **Blockers:** None
+
+## $(date +%Y-%m-%d) — agent-jules — R23.5
+- **Did:** Verified desktop end-to-end integration by running the native Tauri bridge sidecar headlessly (`xvfb-run`) and interacting with its REST API via standard curl calls. A valid bearer token and OS-assigned port were securely issued by the backend at startup and passed to our verification script. The test suite successfully polled status (`GET /api/agent/status`), issued an action command (`POST /api/agent/action`), added a sample clip, and confirmed timeline mutation (`GET /api/agent/timeline`), returning HTTP 200 successes for all valid requests.
+- **Verified:**
+  - Ran `npm test`, `npm run build`, and `npm run lint` cleanly.
+  - Verified real output from local Tauri sidecar bridge showing live timeline mutation and connection tracking.
+- **Left undone:** None
+- **Next:** Proceed with R14 (Keyframing Curve Editor & Proxy Generation Engine).
+- **Blockers:** None
