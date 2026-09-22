@@ -1,3 +1,11 @@
+## 2026-09-22 — opencode — R23.3 toolchain probe (MSVC still incomplete)
+- **Did:** User said everything is installed — probed it. Found: LLVM-MinGW clang-22 + `rust-lld.exe` (msvc toolchain) + xwin CRT/libs + prebuilt 46.3MB exe from an earlier session. NOT found: any `link.exe`/VS, `vswhere`, `xwin` tool, or a usable `windows.h` (xwin `sdk/include` has only `um/`+`shared/` without it; MinGW trees have it but their headers break clang-22 builtins in msvc mode).
+- **Tried (all in `src-tauri/` CWD — the `.cargo/config.toml` is CWD-relative, running from repo root is why `link.exe` was "missing"):** (1) PATH+CC/CXX → past linker stage, failed at `vswhom-sys` (`windows.h` not found); (2) CFLAGS to MinGW include → wrong dir; (3) correct MinGW dir → clang builtin conflicts; (4) xwin crt+sdk+MinGW + `-std=c++17` → error cascade. Chain: `vswhom-sys` ← `vswhom` ← `embed-resource` ← `tauri-winres` ← `tauri-build` (build dep, unavoidable).
+- **Verified:** nothing new compiles — R23.3 stays `blocked`. No code changed in this probe.
+- **Left undone:** `cargo check`/`cargo test` for R23.3.
+- **Next (pick one):** (a) run 2 commands on the working setup (peer PC that verified R23.2): `cd src-tauri && cargo check` + `cargo test bridge_server` (expect 8/8), paste output; (b) consent to install VS Build Tools (GBs, admin, 20-60 min) via winget; (c) `cargo install xwin` + full SDK splat.
+- **Blockers:** No complete Windows SDK on this machine.
+
 ## 2026-09-22 — opencode — R23.3
 - **Did:**
   - Read live `PROGRESS.md`: PR #92 merged, R23.2 host-verified `done` (peer ran `cargo check` clean + `cargo test` 12/12 on MSVC PC). Proceeded to R23.3 on `main`.
