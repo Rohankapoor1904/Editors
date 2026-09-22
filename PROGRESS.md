@@ -138,6 +138,10 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R20.1** | Multi-Cam | Audio Waveform Cross-Correlation Multi-Cam Sync | `real` | `done` | Antigravity | `src/engine/multicam/multicamSync.ts` (normalized cross-correlation peak offset detection in RationalTime) & `src/core/commands/multicam.ts` (`SyncClipsCommand`), tested in `src/engine/multicam/__tests__/multicamSync.test.ts`. Deps: none |
 | **R20.2** | Multi-Cam | 4-Up Quad Split Multi-Cam Studio & Live Switching | `real` | `done` | Antigravity | `src/components/MultiCamViewer.tsx`, `src/components/ProgramMonitor.tsx` (top bar toggle `[ ⊞ Multi-Cam ]`), hotkeys `1`-`4`, green ON AIR tally highlight, & `SwitchMultiCamAngleCommand`, tested in `src/core/commands/__tests__/multicamCommands.test.ts` and verified in browser. Deps: R20.1 |
 | **R20.3** | Multi-Cam | AI Dialogue Turn Auto-Switching & Cross-Talk Handling | `real` | `done` | Antigravity | `src/engine/multicam/autoSwitch.ts` (active speaker RMS detection, cross-talk wide shot, min 2.0s shot duration constraint), tested in `src/engine/multicam/__tests__/autoSwitch.test.ts`. Deps: R20.1, R20.2 |
+| **R21.1** | Agent bridge | Bridge connection config + honest production state | `missing` | `in_progress` | opencode | 2026-09-22 claim. Deps: none |
+| **R21.2** | Agent | Planner honesty + LLM tool-schema exposure | `missing` | `todo` | — | Deps: R21.1 |
+| **R21.3** | Agent | Honest AI tool outputs (no hardcoded transcript/silence/captions) | `missing` | `todo` | — | Deps: R21.1 |
+| **R21.4** | Agent | VLM + semantic honesty + stronger gate | `missing` | `todo` | — | Deps: R21.3 |
 
 ---
 
@@ -153,10 +157,11 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 - **R18 exit:** Complete. Hardware NVENC/QSV GPU Export, Social Presets (YouTube 4K, TikTok/Reels 9:16, Broadcast), and Batch Export Queue verified.
 - **R19 exit:** Complete. AI Copilot ReAct Reasoning, Typed Timeline Tools, CompoundCommand undo transactions, and Multimodal Semantic Search verified.
 - **R20 exit:** Complete. Multi-Camera Audio Cross-Correlation Alignment, 4-Up Quad Split Studio Monitor with Live Angle Switching (Keys 1-4 & green ON AIR tally), and AI Dialogue Turn Auto-Switching with cross-talk wide protection verified.
+- **R21 exit:** Not started. R21.1 claimed 2026-09-22 (opencode); R21.2–R21.4 todo. Exit when an external IDE/LLM gets explicit bridge availability, configurable URL + token, real tool schemas, and real-or-explicit-error AI outputs with a gate that blocks hardcoded fixtures.
 
 ## Next agent
 
-All roadmap phases (R0 through R20) are 100% implemented, mechanically verified, and live in the application with 0 stubs and passing mechanical gates.
+R21.1 is claimed (opencode, `in_progress`). Next claimable todo in order is none until R21.1 is `done` — R21.2–R21.4 depend on R21.1 directly or indirectly. See `docs/ROADMAP.md` Phase R21 for acceptance criteria.
 
 
 

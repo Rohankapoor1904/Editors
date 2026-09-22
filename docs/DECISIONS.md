@@ -21,6 +21,21 @@ Format:
 
 ---
 
+## ADR-008: External agent bridge stays dev-middleware until a native transport ships; URL + token configurable, availability explicit
+
+- **Date:** 2026-09-22
+- **Status:** accepted
+- **Task:** R21.1
+- **Context:** The 2026-09-22 audit found the IDE/LLM bridge (`scripts/agentBridgePlugin.ts` + `src/services/agentBridge.ts`) only exists inside the Vite dev server on hardcoded `http://localhost:3000/api/agent`, with no auth and no production story, while `/connect` stores a model-name string without calling any model. Shipping a Tauri sidecar HTTP server now would be a large, hard-to-reverse surface (port selection, firewall, auth, lifecycle).
+- **Options considered:**
+  - Tauri sidecar HTTP bridge now — rejected for R21.1: too large, needs port/auth/lifecycle design and installer implications.
+  - Keep hardcoded localhost + silent offline — rejected: repeats the silent-fabrication failure (ADR-007); a shipped `.exe` can never be reached on `:3000`.
+  - Configurable URL + optional token with explicit availability (`dev-middleware` vs `unavailable-in-production`) — chosen: small, reversible, honest.
+- **Decision:** R21.1 keeps the Vite-middleware transport, makes base URL + bearer token configurable (env + runtime setter, back-compat default `http://localhost:3000/api/agent`), sends `Authorization: Bearer <token>` when set, and surfaces explicit availability to the UI. No new network listener is added.
+- **Consequences:** External IDEs can point at a dev host + token today; production shows an explicit unavailable state instead of fake success. A native sidecar remains a future ADR with its own threat model.
+
+---
+
 ## ADR-007: `done` requires `Impl = real`; a green gate is not proof of function
 
 - **Date:** 2026-09-19
