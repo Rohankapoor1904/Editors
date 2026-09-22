@@ -71,4 +71,4 @@ jobs:
           workspaces: src-tauri -> target
 
       - name: Cargo check
-        run: cargo check
+        run: mkdir -p ../dist && cargo check
