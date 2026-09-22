@@ -1,3 +1,12 @@
+## 2026-09-22 — opencode — R22.4
+- **Did:**
+  - `PROGRESS.md`: R3.3 `real`/`done` → `partial`/`blocked` (all four `renderGraph/nodes.ts process()` throw in live; renderer bypasses the graph) per ADR-007; refreshed stale R3.4/R3.5 evidence (both partially wired since R11.11: renderer imports + `vramPool.release` call sites with `file:line`).
+  - Docs-only, no code touched. Verified by re-reading `nodes.ts:19-93`, `webgpuRenderer.ts:1-4,432-434` during the edit.
+- **Verified:** source re-read (evidence above); no build/test impact (tracker text only).
+- **Left undone:** R22.5–R22.6 todo; real DAG evaluation needs a new scheduled task.
+- **Next:** R22.5 (LUFS) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R22.3
 - **Did:**
   - `src/core/commands/edits.ts` + `src/store/timelineStore.ts`: new `UpdateClipVolumeCommand` + `updateClipVolume` action (clip.volume is dB read by `audioPlayback.ts:102`, so the slider is audible).
