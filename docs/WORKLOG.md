@@ -22,6 +22,13 @@
 - **Next (pick one):** (a) run 2 commands on the working setup (peer PC that verified R23.2): `cd src-tauri && cargo check` + `cargo test bridge_server` (expect 8/8), paste output; (b) consent to install VS Build Tools (GBs, admin, 20-60 min) via winget; (c) `cargo install xwin` + full SDK splat.
 - **Blockers:** No complete Windows SDK on this machine.
 
+## 2026-09-22 — opencode — R23.3 PR verified
+- **Did:** Found branch `feat/R23.3-task-routes` already carries peer commits (typo fix `10fc877` + `done` marking `bd70139`); R23.3 row already `done` with host evidence. Attempted a duplicate PR via API → `422 "already exists"`; listed PRs → **PR #94 open** (`feat/R23.3-task-routes` → `main`, "feat: R23.3 sidecar task routes (verified on host)"). No duplicate opened.
+- **Verified:** `git log` shows peer commits on this branch; GitHub API confirms PR #94 `state: open`.
+- **Left undone:** PR #94 review + merge (human); R23.5 desktop e2e (needs rebuilt exe with sidecar — host job).
+- **Next:** Merge #94 → R23.5.
+- **Blockers:** None on my side.
+
 ## 2026-09-22 — opencode — R23.3
 - **Did:**
   - Read live `PROGRESS.md`: PR #92 merged, R23.2 host-verified `done` (peer ran `cargo check` clean + `cargo test` 12/12 on MSVC PC). Proceeded to R23.3 on `main`.
