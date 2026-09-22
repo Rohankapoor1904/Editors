@@ -3,6 +3,7 @@ import { Clip } from '../types/timeline';
 import { useMediaPoolStore } from '../store/mediaPool';
 import { useTimelineStore } from '../store/timelineStore';
 import { SileroVadService, SilenceSegment } from '../services/sileroVad';
+import { formatModelError } from '../services/modelErrors';
 import { secondsToRational, addRational, subRational, compareRational } from '../types/time';
 import { CompoundCommand } from '../core/commands/transaction';
 import { RippleDeleteCommand } from '../core/commands/edits';
@@ -56,7 +57,7 @@ export const SilenceTrimmerModal: React.FC<SilenceTrimmerModalProps> = ({
       } catch (err: any) {
         if (isMounted) {
           console.error('VAD Error:', err);
-          setError(err.message || "Failed to detect silence.");
+          setError(formatModelError(err.message || "Failed to detect silence."));
         }
       } finally {
         if (isMounted) {

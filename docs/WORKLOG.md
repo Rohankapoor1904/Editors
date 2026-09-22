@@ -1,3 +1,14 @@
+## 2026-09-22 — opencode — R22.2
+- **Did:**
+  - `src-tauri/tauri.conf.json`: `bundle.resources` now ships `ggml-tiny.en.bin` + `models/silero_vad.onnx` (both tracked; JSON-validity verified via node parse).
+  - New `src/services/modelErrors.ts` (+ `modelErrors.test.ts`, 6 tests): detects whisper/silero missing-model errors, appends actionable guidance (dev paths, in-repo whisper URL — none invented), passthrough otherwise.
+  - `TranscriptEditor.tsx` + `SilenceTrimmerModal.tsx`: error states render `formatModelError()` output.
+  - Deliberately NO Rust edits: baseline `cargo check` fails in this env (no MSVC `link.exe`, pre-existing) — touching path resolution blindly risked breaking working dev-mode lookups. Rust resource-dir wiring stays an explicit follow-up for a tooled host.
+- **Verified:** `modelErrors` 6/6; `tsc`/`eslint` clean; `npm run build` 5.55s; tauri.conf parses | `cargo check` NOT VERIFIED (no linker); full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; Rust-side resource resolution; R22.3–R22.6 todo.
+- **Next:** R22.3 (Inspector wiring) or PRs.
+- **Blockers:** Same gate blocker. New observation (pre-existing, out of scope): `TranscriptEditor.test.tsx` R13.3 fails identically on the pristine `.kilo` copy — success-path render issue, unrelated to this task's catch-only change.
+
 ## 2026-09-22 — opencode — R22.1
 - **Did:**
   - Added Phase R22 (6 tasks) to `docs/ROADMAP.md` + `PROGRESS.md` from the post-R21 audit; claimed R22.1.
