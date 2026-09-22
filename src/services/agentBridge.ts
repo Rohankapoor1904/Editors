@@ -119,6 +119,130 @@ export function buildBridgeHeaders(): Record<string, string> {
   return headers;
 }
 
+// ---------------------------------------------------------------------------
+// R23.1: native sidecar transport (ADR-009).
+// The production sidecar speaks the exact dev-plugin protocol; only the base
+// URL discovery differs (Tauri `get_bridge_info` invoke -> 127.0.0.1:port).
+// ---------------------------------------------------------------------------
+
+export interface BridgeStatusInfo {
+  status: string;
+  bridge: string;
+  authRequired: boolean;
+  connected: boolean;
+  appName?: string;
+}
+
+export interface SidecarInfo {
+  port: number;
+  token: string;
+  baseUrl: string;
+}
+
+type FetchImpl = (
+  url: string,
+  init?: { headers?: Record<string, string> }
+) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+/**
+ * Fetches `/status` from any bridge base URL (dev middleware or native
+ * sidecar). Throws on transport failure or non-2xx — callers decide fallback.
+ */
+export async function fetchBridgeStatus(
+  baseUrl: string = getAgentBridgeBase(),
+  token: string = getAgentBridgeToken(),
+  fetchImpl: FetchImpl = fetch as unknown as FetchImpl
+): Promise<BridgeStatusInfo> {
+  const base = normalizeBridgeBaseUrl(baseUrl);
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let res;
+  try {
+    res = await fetchImpl(`${base}/status`, { headers });
+  } catch (err: unknown) {
+    throw new Error(`Bridge unreachable at ${base}: ${(err as Error)?.message || String(err)}`);
+  }
+  if (!res.ok) {
+    throw new Error(`Bridge status ${res.status} from ${base}`);
+  }
+  const data = (await res.json()) as Record<string, unknown>;
+  return {
+    status: typeof data.status === 'string' ? data.status : 'unknown',
+    bridge: typeof data.bridge === 'string' ? data.bridge : 'unknown',
+    authRequired: data.authRequired === true,
+    connected: data.connected === true,
+    appName: typeof data.appName === 'string' ? data.appName : undefined,
+  };
+}
+
+/**
+ * Validates raw sidecar info and derives its base URL. Throws loudly on
+ * malformed data so a broken host response can never become a silent poll
+ * to nowhere.
+ */
+export function resolveSidecarBase(info: { port: unknown; token: unknown }): SidecarInfo {
+  if (
+    typeof info.port !== 'number' ||
+    !Number.isInteger(info.port) ||
+    info.port < 1 ||
+    info.port > 65535
+  ) {
+    throw new Error(`Invalid sidecar port: ${JSON.stringify(info.port)}`);
+  }
+  if (typeof info.token !== 'string' || info.token.length === 0) {
+    throw new Error('Invalid sidecar token: expected a non-empty string');
+  }
+  return {
+    port: info.port,
+    token: info.token,
+    baseUrl: `http://127.0.0.1:${info.port}/api/agent`,
+  };
+}
+
+type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+
+function defaultTauriInvoke(): TauriInvoke | null {
+  try {
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      return (window as unknown as { __TAURI_INTERNALS__: { invoke: TauriInvoke } })
+        .__TAURI_INTERNALS__.invoke;
+    }
+  } catch {
+    // no Tauri host
+  }
+  return null;
+}
+
+/**
+ * Discovers the native sidecar on a Tauri host via `get_bridge_info`.
+ * Applies base URL + token on success (the sidecar is authoritative on
+ * desktop) and publishes to the agent store. Returns `null` on any failure
+ * — discovery must degrade to the dev default, never throw into startup.
+ */
+export async function discoverSidecar(tauriInvoke?: TauriInvoke | null): Promise<SidecarInfo | null> {
+  const invoke = tauriInvoke === undefined ? defaultTauriInvoke() : tauriInvoke;
+  if (!invoke) return null;
+
+  try {
+    const raw = (await invoke('get_bridge_info')) as { port: unknown; token: unknown };
+    if (!raw || typeof raw !== 'object') return null;
+    const info = resolveSidecarBase(raw);
+    setAgentBridgeBase(info.baseUrl);
+    setAgentBridgeToken(info.token);
+    try {
+      useAgentStore.getState().setBridgeUrl(info.baseUrl);
+      useAgentStore.getState().setSidecarInfo(info.port, info.token);
+      useAgentStore.getState().setBridgeKind('native-sidecar');
+    } catch {
+      // store unavailable in some test contexts
+    }
+    return info;
+  } catch {
+    return null;
+  }
+}
+
 class AgentBridgeClient {
   private isRunning = false;
   private connected = false;
@@ -136,9 +260,17 @@ class AgentBridgeClient {
     try {
       useAgentStore.getState().setBridgeUrl(getAgentBridgeBase());
       useAgentStore.getState().setBridgeAvailability(getBridgeAvailability());
+      useAgentStore.getState().setBridgeKind(
+        getBridgeAvailability() === 'dev-middleware' ? 'dev-middleware' : 'unknown'
+      );
     } catch {
       // store unavailable in some test contexts — polling still works
     }
+
+    // Native sidecar (production): discover port+token, then heartbeat/poll
+    // against it with the exact dev protocol. Fire-and-forget on purpose:
+    // discoverSidecar() never rejects; failure degrades to the dev default.
+    void discoverSidecar();
 
     // Start heartbeat
     this.sendHeartbeat();

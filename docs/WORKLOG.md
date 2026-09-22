@@ -1,3 +1,14 @@
+## 2026-09-22 — opencode — R23.1
+- **Did:**
+  - Wrote ADR-009 (axum loopback sidecar as pure transport, same polling protocol, OS port + startup token) + Phase R23 (5 tasks) in `docs/ROADMAP.md` / `PROGRESS.md`.
+  - `src/services/agentBridge.ts`: `fetchBridgeStatus()`, `resolveSidecarBase()`, `discoverSidecar()` (Tauri `get_bridge_info` → apply, null-safe fallback); `start()` attempts discovery fire-and-forget.
+  - `src/store/agentStore.ts`: `bridgeKind` / `sidecarPort` / `sidecarToken` + setters.
+  - New `src/services/__tests__/sidecarTransport.test.ts` (4 tests incl. real `node:http` round-trip asserting parsed fields + bearer header).
+- **Verified:** new 4/4; regressions 26/26; `tsc`/`eslint` clean; `npm run build` 4.82s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; R23.2 (Rust scaffold, needs MSVC host) is the critical next step — without it discovery always falls back.
+- **Next:** R23.2 (axum scaffold, honestly mark unverified here) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`); no MSVC linker for Rust verification.
+
 ## 2026-09-22 — opencode — R22.6
 - **Did:**
   - `src/core/project/serialize.ts`: new exported `parseAssetDuration()` — validated `value/rate` rationals + `HH:MM:SS[.mmm]` at project fps; unparsable/empty/bad-fps → `undefined` (schema-optional key omitted by `JSON.stringify`), replacing the `10s@24fps` dummy and `{0,24}` fallback; deserialize tolerates missing duration as explicit `''` instead of throwing.
