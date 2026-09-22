@@ -1,3 +1,12 @@
+## 2026-09-22 — opencode — R22.5
+- **Did:**
+  - `src/engine/loudness.ts`: split `measureIntegratedLUFS()` (live-safe BS.1770 dual-gated DSP) from `measureTruePeak()` (throws live, sample-peak demo stand-in); `measureLUFS()` throws live instead of returning a half measurement; deleted the duplicate local `NotImplementedError`, re-exporting the shared `runtimeConfig` identity; preserved empty→-Infinity contract.
+  - New `src/engine/loudness.behavior.test.ts` (6 tests: shared identity, -23 reference calibration, determinism/silence/empty, rate gate, live true-peak throw, demo stand-in).
+- **Verified:** new 6/6 (reference tone measures -23.0 as documented); old suite 2/2; `tsc`/`eslint` clean; `npm run build` 6.25s | full `npm test` NOT VERIFIED (same `.bat`).
+- **Left undone:** PR not opened; 4x-oversampled true peak still missing; R22.6 todo.
+- **Next:** R22.6 (serialize durations) or PRs.
+- **Blockers:** Same gate blocker (`Launch_CineCraft.bat`).
+
 ## 2026-09-22 — opencode — R22.4
 - **Did:**
   - `PROGRESS.md`: R3.3 `real`/`done` → `partial`/`blocked` (all four `renderGraph/nodes.ts process()` throw in live; renderer bypasses the graph) per ADR-007; refreshed stale R3.4/R3.5 evidence (both partially wired since R11.11: renderer imports + `vramPool.release` call sites with `file:line`).
