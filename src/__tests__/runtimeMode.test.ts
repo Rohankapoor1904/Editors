@@ -13,6 +13,7 @@ import { nativeBridge } from '../services/nativeBridge';
 import { exportEngine } from '../engine/exportEngine';
 
 import { agentOrchestrator } from '../services/agentOrchestrator';
+import { useTimelineStore } from '../store/timelineStore';
 
 describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
   beforeEach(() => {
@@ -60,9 +61,14 @@ describe('RuntimeMode & Safe-by-Default Boundary (R0.3)', () => {
     });
 
 
-    it('agentOrchestrator executes real reasoning loop in live mode', async () => {
-      const commands = await agentOrchestrator.processPrompt('cut silence', () => {});
-      expect(commands.length).toBeGreaterThan(0);
+    it('agentOrchestrator fails honestly on silence removal without VAD audio in live mode', async () => {
+      // R21.3: the fabricated silence gap is gone. With no resolvable audio
+      // file, the silence tool reports no_audio and the orchestrator surfaces
+      // the failure instead of fake commands.
+      useTimelineStore.setState({ past: [], future: [], tracks: [], selectedClipIds: [] });
+      await expect(agentOrchestrator.processPrompt('cut silence', () => {})).rejects.toThrow(
+        /Tool execution failed/
+      );
     });
   });
 

@@ -83,7 +83,9 @@ const initialTimelineState: TimelineState & UndoState = {
   future: [],
   targetTrackId: null,
   version: '1.0.0',
-  projectId: 'proj_default',
+  // Unsaved projects carry an empty id; serializeProject() substitutes
+  // 'proj_default' on save. Never boot a demo/fixture id here (R11.4).
+  projectId: '',
   metadata: {
     name: 'New Project',
     fps: 59.94,
