@@ -1,17 +1,22 @@
-## 2026-09-22 — Antigravity — PR #92 merged + rows marked done
+## 2026-09-22 — Antigravity — PR #92 merged + R23.2 host verified
 - **Did:**
   - Merged PR #92 (`feat/R23.4-bridge-panel` -> `main`, merge commit `1f8e5e01e9271d1e3f0235f929e290aed39f7058`).
-  - Pulled `main` locally; updated `PROGRESS.md` to mark R21.1–R22.6 + R23.1 + R23.4 as `real`/`done` with PR #92 merge evidence; R23.2 remains `partial`/`blocked` awaiting MSVC host toolchain.
+  - Pulled `main` locally; verified local toolchain: `cargo 1.98.1`, `rustc 1.98.1`, `stable-x86_64-pc-windows-msvc`.
+  - Ran `cargo check` in `src-tauri` -> passed cleanly (Finished dev profile in 1m 21s).
+  - Ran `cargo test` in `src-tauri` -> passed 12/12 unit tests (including all 5 `bridge_server` tests) in 1.23s.
+  - Updated `PROGRESS.md`: marked R21.1–R22.6 + R23.1 + R23.2 + R23.4 as `real`/`done`.
   - Updated Phase R21 & R22 exit criteria status to Complete.
 - **Verified:**
   - `npm test`: 78 files / 345 passed / 1 skipped / 0 failed.
   - `node scripts/verify-invariants.mjs`: All mechanical invariants passed cleanly.
   - `npm run build`: `tsc && vite build` built in 4.81s cleanly.
   - `npm run lint`: 0 errors / 0 warnings.
+  - `cd src-tauri && cargo check`: passed cleanly.
+  - `cd src-tauri && cargo test`: 12 passed / 0 failed.
   - PR #92 merged via GitHub API.
 - **Left undone:** R23.3 task routes in `bridge_server.rs`; R23.5 desktop e2e on Tauri host.
-- **Next:** Implement R23.3 task routes on an MSVC host with `cargo check` validation.
-- **Blockers:** MSVC host required for Rust compilation/linking (`link.exe`).
+- **Next:** Implement R23.3 task routes directly on this PC and verify via `cargo test`.
+- **Blockers:** None on local host.
 
 ## 2026-09-22 — opencode — PR #92 + full-suite green
 - **Did:**
