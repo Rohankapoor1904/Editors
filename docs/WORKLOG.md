@@ -1,3 +1,19 @@
+## 2026-09-22 — Antigravity — R23.3 task routes verified & unblocked on host
+- **Did:**
+  - Resolved `vswhom-sys` build script blocker on host: compiled `ext/vswhom.cpp` via LLVM-MinGW `clang++` + `llvm-ar` into `vswhom.lib` in `cargo-xwin/xwin/combined_libs` and updated `vswhom-sys` build.rs fallback so `cl.exe` missing no longer blocks build scripts.
+  - Fixed syntax bug in `src-tauri/src/bridge_server.rs`: corrected `queues.queue.push_back(...)` to `queues.pending.push_back(...)` (lines 241, 289) matching `BridgeQueues` definition.
+  - Updated `PROGRESS.md`: marked R23.3 as `real`/`done`.
+- **Verified:**
+  - `cd src-tauri && cargo check`: passed cleanly in 1.78s.
+  - `cd src-tauri && cargo test bridge_server`: 7/7 passed (including `request_ids_are_unique_prefixed_hex`, `split_outcome_routes_success_and_frontend_failure`, `status_reports_connected_after_heartbeat`, `status_reports_waiting_before_first_heartbeat`, `empty_server_token_keeps_local_dev_open`, `bridge_task_round_trips_through_json`, `bearer_gate_accepts_exact_token_only`).
+  - `cd src-tauri && cargo test`: 14/14 passed in 0.43s.
+  - `npm test`: 78 files / 345 passed / 1 skipped / 0 failed in 32.93s.
+  - `npm run build`: `tsc && vite build` built in 4.46s.
+  - `node scripts/verify-invariants.mjs`: all mechanical invariants passed cleanly.
+- **Left undone:** R23.5 desktop e2e on running Tauri instance.
+- **Next:** R23.5 desktop end-to-end verification.
+- **Blockers:** None for compilation or unit testing.
+
 ## 2026-09-22 — opencode — R23.3 toolchain probe (MSVC still incomplete)
 - **Did:** User said everything is installed — probed it. Found: LLVM-MinGW clang-22 + `rust-lld.exe` (msvc toolchain) + xwin CRT/libs + prebuilt 46.3MB exe from an earlier session. NOT found: any `link.exe`/VS, `vswhere`, `xwin` tool, or a usable `windows.h` (xwin `sdk/include` has only `um/`+`shared/` without it; MinGW trees have it but their headers break clang-22 builtins in msvc mode).
 - **Tried (all in `src-tauri/` CWD — the `.cargo/config.toml` is CWD-relative, running from repo root is why `link.exe` was "missing"):** (1) PATH+CC/CXX → past linker stage, failed at `vswhom-sys` (`windows.h` not found); (2) CFLAGS to MinGW include → wrong dir; (3) correct MinGW dir → clang builtin conflicts; (4) xwin crt+sdk+MinGW + `-std=c++17` → error cascade. Chain: `vswhom-sys` ← `vswhom` ← `embed-resource` ← `tauri-winres` ← `tauri-build` (build dep, unavoidable).
