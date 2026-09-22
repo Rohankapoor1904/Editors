@@ -53,6 +53,8 @@ struct BridgeQueues {
     pending: VecDeque<BridgeTask>,
     latest_state: Option<Value>,
     last_heartbeat_ms: u64,
+    #[allow(clippy::type_complexity)]
+    channels: std::collections::HashMap<String, tokio::sync::oneshot::Sender<Result<Value, String>>>,
 }
 
 /// Shared sidecar state: connection facts + polled queues.
@@ -86,6 +88,12 @@ impl BridgeServerState {
             .route("/api/agent/status", get(handle_status))
             .route("/api/agent/timeline", get(handle_timeline))
             .route("/api/agent/heartbeat", post(handle_heartbeat))
+            .route("/api/agent/prompt", post(handle_prompt))
+            .route("/api/agent/tool", post(handle_tool))
+            .route("/api/agent/action", post(handle_action))
+            .route("/api/agent/connect", post(handle_connect))
+            .route("/api/agent/pending", get(handle_pending))
+            .route("/api/agent/result", post(handle_result))
             .layer(middleware::from_fn(cors_layer))
             .with_state(self.clone())
     }
@@ -95,6 +103,171 @@ impl BridgeServerState {
             None
         } else {
             Some(queues.last_heartbeat_ms)
+        }
+    }
+}
+
+async fn handle_connect(
+    State(state): State<BridgeServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    if let Some(err) = require_bearer(&state.info, &headers) {
+        return err;
+    }
+
+    let model = payload
+        .get("model")
+        .and_then(|v| v.as_str())
+        .or_else(|| payload.get("agent").and_then(|v| v.as_str()))
+        .unwrap_or("External Connected Agent")
+        .to_string();
+
+    let agent = payload.get("agent").cloned().unwrap_or(Value::Null);
+
+    let id = format!("req-{}-{}", now_millis(), uuid::Uuid::new_v4().to_string().chars().take(6).collect::<String>());
+
+    let task = BridgeTask {
+        id,
+        kind: "connect".to_string(),
+        payload: json!({ "model": model, "agent": agent }),
+    };
+
+    {
+        let mut queues = state.queues.lock().unwrap();
+        queues.pending.push_back(task);
+        queues.last_heartbeat_ms = now_millis();
+    }
+
+    Json(json!({
+        "success": true,
+        "connected": true,
+        "model": model,
+        "message": format!("Agent/Model {} registered and connected to CineCraft Studio.", model)
+    })).into_response()
+}
+
+async fn handle_pending(State(state): State<BridgeServerState>) -> impl IntoResponse {
+    let mut queues = state.queues.lock().unwrap();
+    let tasks: Vec<BridgeTask> = queues.pending.drain(..).collect();
+    Json(json!({ "tasks": tasks }))
+}
+
+async fn handle_result(
+    State(state): State<BridgeServerState>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    let id = match payload.get("id").and_then(|v| v.as_str()) {
+        Some(i) => i.to_string(),
+        None => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Missing \"id\" parameter" }))).into_response(),
+    };
+
+    let result = payload.get("result").cloned().unwrap_or(Value::Null);
+    let error = payload.get("error").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let frontend_state = payload.get("state").cloned();
+
+    let tx = {
+        let mut queues = state.queues.lock().unwrap();
+        if let Some(s) = frontend_state {
+            queues.latest_state = Some(s);
+            queues.last_heartbeat_ms = now_millis();
+        }
+        queues.channels.remove(&id)
+    };
+
+    if let Some(sender) = tx {
+        if let Some(err_msg) = error {
+            let _ = sender.send(Err(err_msg));
+        } else {
+            let _ = sender.send(Ok(result));
+        }
+    }
+
+    Json(json!({ "acknowledged": true })).into_response()
+}
+
+async fn handle_action(
+    State(state): State<BridgeServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    if let Some(err) = require_bearer(&state.info, &headers) {
+        return err;
+    }
+
+    let action = match payload.get("action").and_then(|v| v.as_str()) {
+        Some(a) => a,
+        None => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Missing \"action\" parameter" }))).into_response(),
+    };
+
+    let id = format!("req-{}-{}", now_millis(), uuid::Uuid::new_v4().to_string().chars().take(6).collect::<String>());
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    let task = BridgeTask {
+        id: id.clone(),
+        kind: "action".to_string(),
+        payload: payload.clone(), // Pass the entire body as payload for action
+    };
+
+    {
+        let mut queues = state.queues.lock().unwrap();
+        queues.pending.push_back(task);
+        queues.channels.insert(id.clone(), tx);
+    }
+
+    match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
+        Ok(Ok(Ok(result))) => Json(json!({ "success": true, "id": id, "result": result })).into_response(),
+        Ok(Ok(Err(err))) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": err }))).into_response(),
+        Ok(Err(_)) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Channel closed" }))).into_response(),
+        Err(_) => {
+            let mut queues = state.queues.lock().unwrap();
+            queues.channels.remove(&id);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Action {} timed out.", action) }))).into_response()
+        }
+    }
+}
+
+async fn handle_tool(
+    State(state): State<BridgeServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    if let Some(err) = require_bearer(&state.info, &headers) {
+        return err;
+    }
+
+    let tool = match payload.get("tool").and_then(|v| v.as_str()) {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Missing \"tool\" parameter" }))).into_response(),
+    };
+    let args = payload.get("args").cloned().unwrap_or_else(|| json!({}));
+    let model = payload.get("model").cloned().unwrap_or(Value::Null);
+
+    let id = format!("req-{}-{}", now_millis(), uuid::Uuid::new_v4().to_string().chars().take(6).collect::<String>());
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    let task = BridgeTask {
+        id: id.clone(),
+        kind: "tool".to_string(),
+        payload: json!({ "tool": tool, "args": args, "model": model }),
+    };
+
+    {
+        let mut queues = state.queues.lock().unwrap();
+        queues.pending.push_back(task);
+        queues.channels.insert(id.clone(), tx);
+    }
+
+    match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
+        Ok(Ok(Ok(result))) => Json(json!({ "success": true, "id": id, "result": result })).into_response(),
+        Ok(Ok(Err(err))) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": err }))).into_response(),
+        Ok(Err(_)) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Channel closed" }))).into_response(),
+        Err(_) => {
+            let mut queues = state.queues.lock().unwrap();
+            queues.channels.remove(&id);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Tool {} execution timed out.", tool) }))).into_response()
         }
     }
 }
@@ -194,6 +367,49 @@ pub fn require_bearer(info: &BridgeInfo, headers: &HeaderMap) -> Option<Response
         None
     } else {
         Some(unauthorized())
+    }
+}
+
+async fn handle_prompt(
+    State(state): State<BridgeServerState>,
+    headers: HeaderMap,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    if let Some(err) = require_bearer(&state.info, &headers) {
+        return err;
+    }
+
+    let prompt = match payload.get("prompt").and_then(|v| v.as_str()) {
+        Some(p) => p,
+        None => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Missing \"prompt\" parameter" }))).into_response(),
+    };
+    let model = payload.get("model").cloned().unwrap_or(Value::Null);
+
+    let id = format!("req-{}-{}", now_millis(), uuid::Uuid::new_v4().to_string().chars().take(6).collect::<String>());
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    let task = BridgeTask {
+        id: id.clone(),
+        kind: "prompt".to_string(),
+        payload: json!({ "prompt": prompt, "model": model }),
+    };
+
+    {
+        let mut queues = state.queues.lock().unwrap();
+        queues.pending.push_back(task);
+        queues.channels.insert(id.clone(), tx);
+    }
+
+    match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
+        Ok(Ok(Ok(result))) => Json(json!({ "success": true, "id": id, "result": result })).into_response(),
+        Ok(Ok(Err(err))) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": err }))).into_response(),
+        Ok(Err(_)) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Channel closed" }))).into_response(),
+        Err(_) => {
+            let mut queues = state.queues.lock().unwrap();
+            queues.channels.remove(&id);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Agent prompt execution timed out after 20 seconds." }))).into_response()
+        }
     }
 }
 
