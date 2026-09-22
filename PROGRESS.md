@@ -175,7 +175,7 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 
 ## Next agent
 
-R21.1–R21.4 are code-complete but unmerged (`in_progress`, opencode). Next actions in order: (1) resolve the `Launch_CineCraft.bat` root-clutter gate failure (needs its own cleanup claim — outside R21 file ownership); (2) open PRs `feat/R21.1-bridge-config` → `feat/R21.2-planner-honesty` → `feat/R21.3-honest-tool-outputs` → `feat/R21.4-heuristic-gate` against `main`; (3) only then mark rows `done` per ADR-007. See `docs/ROADMAP.md` Phase R21 for acceptance criteria.
+PR #92 (`feat/R23.4-bridge-panel` → `main`) carries the whole R21–R23 stack with atomic per-task commits; full `npm test` green (78 files / 345 passed / 1 skipped). Single-PR deviation from §7.3 is documented in the PR body + WORKLOG 2026-09-22. After green merge: mark R21.1–R22.6 + R23.1 + R23.4 `done` per ADR-007 (R23.2 stays `blocked` until an MSVC host runs `cargo check`). Next code work: R23.3 (task routes, needs MSVC host).
 
 
 

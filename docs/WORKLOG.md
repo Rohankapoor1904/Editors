@@ -1,3 +1,13 @@
+## 2026-09-22 — opencode — PR #92 + full-suite green
+- **Did:**
+  - Repaired 3 stale tests blocking green CI (see R21.3-follow-up / R11.4 / R11.7 notes in session).
+  - `npm test` FULL: **78 files / 345 passed / 1 skipped / 0 failed**, gate clean.
+  - Pushed `feat/R23.4-bridge-panel`; opened **PR #92** (tip→main, single PR — deviation from §7.3 documented in body: per-task PRs would each be red since gate + fixes are stack-wide).
+- **Verified:** counts verbatim from `npm test` run; PR #92 `state: open` via API (`201`).
+- **Left undone:** Review + merge (human); `done` marking post-merge; R23.3/R23.5.
+- **Next:** Merge #92 → mark rows → R23.3 on MSVC host.
+- **Blockers:** None.
+
 ## 2026-09-22 — opencode — Full-suite green + PR prep
 - **Did:**
   - Relocated working `Launch_CineCraft.bat` → `scripts/` (path fixed to `%~dp0..\src-tauri\...`); no code referenced the old path.
