@@ -396,6 +396,22 @@ Goal: close the 10 verified residual issues from the 2026-09-22 post-R21 audit t
 
 ---
 
+## Phase R23 — Native Sidecar Bridge (connect without dev server)
+
+Goal: let external IDE/LLM callers reach production builds via a native loopback HTTP sidecar speaking the exact dev-plugin protocol (ADR-009). Rust work is marked `unverified` until a host with an MSVC linker runs the checks — never implied green.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R23.1** | **TS sidecar transport (verifiable).** `fetchBridgeStatus()` helper + sidecar discovery (`get_bridge_info` invoke with dev fallback) + store fields for port/token/sidecar availability; tests include a real local-HTTP round-trip. | `src/services/agentBridge.ts`, `src/store/agentStore.ts`, `src/services/__tests__/*` | Test: status fetch against a local HTTP server returns parsed bridge/auth fields; missing sidecar falls back to dev default; no `invoke()` contract break. |
+| **R23.2** | **Rust sidecar scaffold (unverified here).** axum dep + `bridge_server.rs` (shared queue/state, Bearer gate on POSTs, `GET /status`, `GET /timeline`) + spawn in `setup()` + `get_bridge_info` command. | `src-tauri/Cargo.toml`, `src-tauri/src/bridge_server.rs`, `src-tauri/src/main.rs` | `cargo check` + `cargo test` pass on a tooled host, or the row stays `blocked` marked `unverified: requires MSVC host`. |
+| **R23.3** | **Rust task routes (unverified here).** `/prompt`, `/tool`, `/action`, `/connect`, `/pending`, `/result`, `/heartbeat` mirroring `scripts/agentBridgePlugin.ts` semantics. | `src-tauri/src/bridge_server.rs` | Same as R23.2: green on a tooled host or stays `blocked`. |
+| **R23.4** | **Bridge panel UI (verifiable).** Production UI shows sidecar port/token/status with copy affordance; dev keeps current behavior. | `src/components/*`, `src/store/agentStore.ts` | Test: panel renders port/token from store; copy writes clipboard; dev fallback text intact. |
+| **R23.5** | **Desktop end-to-end verification (blocked).** Installed/dev-desktop app: external HTTP client connects with token, prompt executes, timeline mutates. | — | Real command output from a Tauri host, or stays `blocked` with the reason named. |
+
+**Phase exit:** an external caller connects to a production build with a token, executes a prompt, and the timeline mutates — verified on a Tauri host; until then R23.2/R23.3/R23.5 stay honestly `blocked`.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:

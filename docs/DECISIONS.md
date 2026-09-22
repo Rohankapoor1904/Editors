@@ -21,6 +21,21 @@ Format:
 
 ---
 
+## ADR-009: Native loopback sidecar for the agent bridge (axum, OS port, token)
+
+- **Date:** 2026-09-22
+- **Status:** accepted
+- **Task:** R23.1–R23.5
+- **Context:** The agent bridge only exists as Vite dev middleware (ADR-008), so external IDE/LLM callers cannot reach production builds. Timeline tool execution lives in frontend JS (`agentBridge.ts` polling `/pending`, posting `/result`), which constrains the design.
+- **Options considered:**
+  - Re-implement tool execution natively in Rust — rejected: duplicates the entire registry/command stack; two executors will diverge.
+  - std-only hand-rolled HTTP in Rust — rejected: more blind code to get wrong without a local toolchain; axum is standard.
+  - axum sidecar as pure transport (same polling protocol), bound to loopback with OS-assigned port + startup token — chosen: reuses 100% of the JS execution path; Rust holds queue/state (`Arc<Mutex<>>`); Bearer required on POSTs; `GET /status|/timeline` public on loopback for discovery.
+- **Decision:** `axum 0.7` (+ existing `tokio full`, `uuid v4`, `serde_json`) serves the dev-plugin protocol on `127.0.0.1:0`; `BridgeInfo { port, token }` in `tauri::State`; frontend discovers via `get_bridge_info` invoke and polls the sidecar exactly like the dev middleware. Spawn in `setup()`; process exit reaps it.
+- **Consequences:** IDEs connect to installed builds with zero JS execution changes. New crate deps to compile. Rust in R23.2–R23.3 is marked `unverified` until a host with an MSVC linker runs `cargo check`/`cargo test` (this env has `cargo` but no `link.exe`).
+
+---
+
 ## ADR-008: External agent bridge stays dev-middleware until a native transport ships; URL + token configurable, availability explicit
 
 - **Date:** 2026-09-22
