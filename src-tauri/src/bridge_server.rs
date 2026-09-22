@@ -238,7 +238,7 @@ async fn enqueue_and_wait(
     let (tx, rx) = oneshot::channel();
     {
         let mut queues = state.queues.lock().unwrap();
-        queues.queue.push_back(BridgeTask {
+        queues.pending.push_back(BridgeTask {
             id: id.clone(),
             kind: kind.to_string(),
             payload,
@@ -286,7 +286,7 @@ async fn handle_connect(
     let id = format!("req-{}", uuid::Uuid::new_v4().to_string());
     {
         let mut queues = state.queues.lock().unwrap();
-        queues.queue.push_back(BridgeTask {
+        queues.pending.push_back(BridgeTask {
             id,
             kind: "connect".to_string(),
             payload: json!({ "model": model, "agent": body.get("agent").unwrap_or(&Value::Null) }),
