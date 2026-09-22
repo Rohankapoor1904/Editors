@@ -142,6 +142,12 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 | **R21.2** | Agent | Planner honesty + LLM tool-schema exposure | `partial` | `in_progress` | opencode | Impl: `RuleBasedAgentPlanner` labelled `rule-based-fallback`, `getAgentToolSchemas()` mirrors live registry, unknown prompts get explicit no-plan response with zero mutations, `AgentPlanner` accepts external LLM planners. Test: `src/services/__tests__/agentPlannerHonesty.test.ts` 5/5 pass; regressions 36/36; `tsc` clean; `eslint` clean; `npm run build` 5.61s. NOT `done`: full `npm test` gate still red on pre-existing `Launch_CineCraft.bat` clutter; PR not opened. Missing subset: real LLM-backed planner (interface ready, no model wired). Deps: R21.1 |
 | **R21.3** | Agent | Honest AI tool outputs (no hardcoded transcript/silence/captions) | `partial` | `in_progress` | opencode | Impl: deleted Welcome-words/`3.2–4.1`/`8.5–9.3`/`2.5s` fixtures + probe fallback; `transcribe`/`detect_silence` run real Whisper/VAD or typed error; `timeline_remove_silence` chains real VAD; captions map real transcript via `mapTranscriptToCaptionWords`, poem demo-gated. Test: `honestToolOutputs` 7/7, `tools` 13/13, `agentCopilot` 3/3; `tsc`/`eslint` clean; build 5.79s. NOT `done`: full gate red on pre-existing `Launch_CineCraft.bat`; PR not opened. Missing: real-model fixtures in repo (desktop needs model files). Deps: R21.1 |
 | **R21.4** | Agent | VLM + semantic honesty + stronger gate | `partial` | `in_progress` | opencode | Impl: `cinecraft-vlm-v1` → `cinecraft-heuristic-v1` + heuristic disclosure docs; gate §8 bans tool-path fixtures (`Welcome`/`3.2`/`2.5`/`getCaptionWordsForClip`), requires whisper/silero wiring + demo-gate, rejects neural model-id claims. Test: `heuristicAiHonesty` 2/2, `vlm` 3/3, `semanticSearch` 4/4; gate fire-drill proved specific R21.3 failure on injected fixture + zero new errors on clean tree; `tsc`/`eslint` clean; build 5.58s. NOT `done`: full gate red on pre-existing `.bat`; PR not opened. Missing: neural VLM + native sidecar (future). Deps: R21.3 |
+| **R22.1** | Render | Remove placeholder caption WGSL from GPU pipeline + renderer `as any` cleanup | `missing` | `in_progress` | opencode | 2026-09-22 claim. Deps: none |
+| **R22.2** | Packaging | Bundle ONNX/Whisper models + missing-model UX | `missing` | `todo` | — | Deps: none |
+| **R22.3** | UI honesty | Wire Inspector inputs, guard empty diffs, drop re-throw | `missing` | `todo` | — | Deps: none |
+| **R22.4** | Tracker | Correct R3.3 DAG row to `partial` (docs-only) | `missing` | `todo` | — | Deps: none |
+| **R22.5** | Audio | LUFS integrated-only API + shared error class | `missing` | `todo` | — | Deps: none |
+| **R22.6** | Editorial | Serialize durations honestly | `missing` | `todo` | — | Deps: none |
 
 ---
 
@@ -160,6 +166,7 @@ Statuses below are corrected to match the code as read. Remediation is **Phase R
 - **R21 exit:** Not started. R21.1 claimed 2026-09-22 (opencode); R21.2–R21.4 todo. Exit when an external IDE/LLM gets explicit bridge availability, configurable URL + token, real tool schemas, and real-or-explicit-error AI outputs with a gate that blocks hardcoded fixtures.
 
 - **R21 exit:** In progress. R21.1–R21.4 code-complete on stacked branches (opencode), each with behavioural tests; all `in_progress` pending PRs + the pre-existing `Launch_CineCraft.bat` gate failure. Exit when PRs merge green and the gate blocks reintroduced fixtures on main.
+- **R22 exit:** Not started. 2026-09-22 post-R21 audit findings (10 issues); R22.1–R22.6 todo. Exit per `docs/ROADMAP.md` Phase R22.
 
 ## Next agent
 

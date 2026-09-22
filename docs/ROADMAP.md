@@ -379,6 +379,23 @@ Goal: make the `IDE / external-LLM -> bridge -> tool registry -> CompoundCommand
 
 ---
 
+## Phase R22 — Post-R21 Residual Honesty (2026-09-22 audit findings)
+
+Goal: close the 10 verified residual issues from the 2026-09-22 post-R21 audit that R11/R21 left behind. Each task cites its `file:line` evidence. No new features — delete fabrication, wire dead controls, bundle what ships.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R22.1** | **Remove the placeholder caption WGSL from the GPU pipeline + renderer `as any` cleanup.** `caption.wgsl:10` self-declares placeholder yet is concatenated into the compiled pipeline (`webgpuRenderer.ts:78,82`), darkening the caption band 10% and tinting a fake word block while canvas draws the real captions. Delete the shader, its `getWGSLShaderCode` accessor, and the group(3) uniform plumbing; keep the canvas caption path. Drop the 6 `as any` casts in the renderer (R4.1 debt). | `src/engine/webgpuRenderer.ts`, `src/engine/captions/captionEngine.ts`, `src/engine/shaders/caption.wgsl` (delete), `src/engine/captions/__tests__/captionEngine.test.ts`, `scripts/verify-invariants.mjs` | Test: combined pipeline WGSL contains no caption code; canvas kinetic captions render unchanged; `as any` count in renderer is 0; gate fails on any shader self-declaring placeholder. |
+| **R22.2** | **Bundle ONNX/Whisper models + missing-model UX.** `ggml-tiny.en.bin` + `models/silero_vad.onnx` are tracked but `tauri.conf.json` has no `bundle.resources`, so the installed app cannot find them; no download guidance exists in `src/`. | `src-tauri/tauri.conf.json`, `src/components/SilenceTrimmerModal.tsx`, `src/components/TranscriptEditor.tsx` | Installed bundle resolves model paths (or documents why not); STT/VAD error states name the missing file + where to get it. `cargo check` verified or honestly marked unverified. |
+| **R22.3** | **Copilot console honesty: wire the Inspector, guard empty diffs, drop the re-throw.** 7 Inspector inputs are unbound `defaultValue` (`AIPromptConsole.tsx:581-712`); zero-command prompts still create `"Generated 0 timeline edits"` diffs; `failTask` is followed by a bare `throw` (unhandled rejection). | `src/components/AIPromptConsole.tsx` | Test: changing Scale/Position/Opacity/Volume dispatches commands on the selected clip; unknown prompts create no diff card; failed prompts reject without unhandled rejection noise. |
+| **R22.4** | **Correct the R3.3 DAG row to `partial` (tracker honesty, docs-only).** All four `renderGraph/nodes.ts` `process()` methods throw in live mode and the renderer bypasses the graph, but `PROGRESS.md` marks R3.3 `real`. | `PROGRESS.md`, `docs/WORKLOG.md` | Row reads `partial` with evidence naming the missing evaluation; no code change. |
+| **R22.5** | **LUFS: integrated-only API + shared error class.** `measureLUFS()` always throws in live because every path calls the unimplemented true-peak (`loudness.ts:99-117`); the file also duplicates `NotImplementedError` instead of importing it. | `src/engine/loudness.ts`, `src/engine/loudness.test.ts` | Test: integrated measurement returns without true-peak; true-peak-only callers get an explicit error; single shared error class. |
+| **R22.6** | **Serialize durations honestly.** Unparsable durations are invented (`serialize.ts:17-24`); `HH:MM:SS` parsing is claimed in a comment but absent. | `src/core/project/serialize.ts`, `src/core/project/*test*` | Test: round-trip preserves real durations; unparsable durations are omitted (schema-optional), never invented; `HH:MM:SS` parses. |
+
+**Phase exit:** no placeholder shader in the pipeline, shipped app finds its models or says why, every visible control acts or is gone, tracker rows match the code, and the gate covers placeholder shaders.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:
