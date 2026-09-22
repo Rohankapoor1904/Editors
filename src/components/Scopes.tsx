@@ -175,27 +175,115 @@ export const Scopes: React.FC<ScopesProps> = ({ imageData }) => {
 
   }, [imageData]);
 
+  const [scopeMode, setScopeMode] = React.useState<'all' | 'parade' | 'histogram' | 'vectorscope'>('all');
+
   return (
-    <div className="flex flex-col space-y-4 p-4 bg-gray-900 text-white rounded">
-      <h2 className="font-bold">Video Scopes</h2>
-
-      <div className="flex space-x-4">
-        <div>
-          <h3 className="text-sm mb-1 text-gray-400">Histogram</h3>
-          <canvas ref={histogramCanvas} width={256} height={128} className="bg-black rounded border border-gray-700" />
+    <div className="flex flex-col h-full bg-[#0d0f17] text-white select-none">
+      {/* Scope Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.08] bg-dark-950/80 shrink-0">
+        <div className="flex items-center space-x-2">
+          <h2 className="font-semibold text-xs text-neutral-200 tracking-wide">Video Scopes</h2>
+          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-dark-800 text-neutral-400 border border-subtle">
+            REC.709
+          </span>
         </div>
 
-        <div>
-          <h3 className="text-sm mb-1 text-gray-400">RGB Parade</h3>
-          <canvas ref={paradeCanvas} width={384} height={128} className="bg-black rounded border border-gray-700" />
-        </div>
-
-        <div>
-          <h3 className="text-sm mb-1 text-gray-400">Vectorscope</h3>
-          <canvas ref={vectorscopeCanvas} width={128} height={128} className="bg-black rounded border border-gray-700" />
+        {/* Scope Type Tabs */}
+        <div className="flex items-center bg-dark-950 p-0.5 rounded-lg border border-subtle text-[10px]">
+          {(['all', 'parade', 'histogram', 'vectorscope'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setScopeMode(mode)}
+              className={`px-2 py-0.5 rounded transition-all capitalize ${
+                scopeMode === mode
+                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              {mode === 'all' ? 'All 3-Up' : mode === 'parade' ? 'Parade' : mode === 'histogram' ? 'Histogram' : 'Vector'}
+            </button>
+          ))}
         </div>
       </div>
-      {!imageData && <p className="text-xs text-gray-500">No frame data available</p>}
+
+      {/* Scope Visualizer Surface */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* RGB Parade */}
+        {(scopeMode === 'all' || scopeMode === 'parade') && (
+          <div className="rounded-xl border border-white/[0.08] bg-dark-900/60 p-2.5 shadow-sm">
+            <div className="flex items-center justify-between text-[11px] mb-1.5 font-medium text-neutral-400">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                <span className="text-neutral-200">RGB Parade</span>
+              </span>
+              <div className="flex items-center space-x-2 text-[9px] font-mono">
+                <span className="text-red-400 font-bold">R</span>
+                <span className="text-emerald-400 font-bold">G</span>
+                <span className="text-blue-400 font-bold">B</span>
+              </div>
+            </div>
+            <div className="w-full bg-black rounded-lg border border-neutral-800/90 overflow-hidden flex items-center justify-center p-1">
+              <canvas
+                ref={paradeCanvas}
+                width={384}
+                height={128}
+                className="w-full h-auto max-h-[140px] object-contain rounded"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Histogram */}
+        {(scopeMode === 'all' || scopeMode === 'histogram') && (
+          <div className="rounded-xl border border-white/[0.08] bg-dark-900/60 p-2.5 shadow-sm">
+            <div className="flex items-center justify-between text-[11px] mb-1.5 font-medium text-neutral-400">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-purple-400" />
+                <span className="text-neutral-200">Histogram</span>
+              </span>
+              <span className="text-[9px] font-mono text-neutral-500">RGB + Luma</span>
+            </div>
+            <div className="w-full bg-black rounded-lg border border-neutral-800/90 overflow-hidden flex items-center justify-center p-1">
+              <canvas
+                ref={histogramCanvas}
+                width={256}
+                height={128}
+                className="w-full h-auto max-h-[130px] object-contain rounded"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Vectorscope */}
+        {(scopeMode === 'all' || scopeMode === 'vectorscope') && (
+          <div className="rounded-xl border border-white/[0.08] bg-dark-900/60 p-2.5 shadow-sm">
+            <div className="flex items-center justify-between text-[11px] mb-1.5 font-medium text-neutral-400">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-teal-400" />
+                <span className="text-neutral-200">Vectorscope</span>
+              </span>
+              <span className="text-[9px] font-mono text-neutral-500">Hue / Saturation</span>
+            </div>
+            <div className="w-full bg-black rounded-lg border border-neutral-800/90 overflow-hidden flex items-center justify-center p-1">
+              <canvas
+                ref={vectorscopeCanvas}
+                width={160}
+                height={160}
+                className="w-auto h-36 aspect-square object-contain rounded mx-auto"
+              />
+            </div>
+          </div>
+        )}
+
+        {!imageData && (
+          <div className="text-center py-2 px-3 rounded-lg bg-neutral-900/40 border border-neutral-800/50">
+            <p className="text-[10px] text-neutral-500 font-mono">
+              Awaiting video frame — play timeline to inspect real-time scopes
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

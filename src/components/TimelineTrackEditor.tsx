@@ -450,29 +450,39 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
       {/* Track List + Timeline Canvas View */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Track Headers */}
-        <div className="w-60 bg-dark-900 border-r border-subtle flex flex-col divide-y divide-subtle z-10 shadow-xl">
+        <div className="w-64 bg-dark-900 border-r border-subtle flex flex-col divide-y divide-subtle z-10 shadow-xl shrink-0">
           {tracks.map((track) => {
             return (
               <div
                 key={track.id}
                 style={{ height: `${track.height}px` }}
-                className="flex items-center justify-between px-3 bg-dark-900/90 hover:bg-dark-850 transition-colors"
+                className={`flex items-center justify-between px-3 bg-dark-900/90 hover:bg-dark-850/90 transition-colors border-l-2 ${
+                  track.type === 'video' ? 'border-l-indigo-500/70' : 'border-l-teal-500/70'
+                }`}
               >
-                <div className="flex items-center space-x-2 font-semibold text-neutral-300 text-[11px] truncate">
-                  {track.type === 'video' ? (
-                    <Film className="w-3.5 h-3.5 text-indigo-accent shrink-0" />
-                  ) : (
-                    <Music className="w-3.5 h-3.5 text-teal-accent shrink-0" />
-                  )}
-                  <span className="truncate">{track.name}</span>
+                <div className="flex items-center space-x-2 min-w-0 flex-1 mr-2">
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 ${
+                      track.type === 'video'
+                        ? 'bg-indigo-950/80 text-indigo-400 border border-indigo-500/30'
+                        : 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
+                    }`}
+                  >
+                    {track.type === 'video' ? `V${track.index + 1}` : `A${track.index + 1}`}
+                  </span>
+                  <span className="truncate font-medium text-neutral-300 text-[11px]" title={track.name}>
+                    {track.name}
+                  </span>
                 </div>
 
                 {/* Track Controls T/M/S/L */}
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1 shrink-0">
                   <button
                     onClick={() => setTargetTrack(targetTrackId === track.id ? null : track.id)}
-                    className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      targetTrackId === track.id ? 'bg-indigo-600 text-white shadow ring-1 ring-indigo-400' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                    className={`w-5 h-5 rounded text-[10px] font-mono font-bold transition-all ${
+                      targetTrackId === track.id
+                        ? 'bg-indigo-600 text-white shadow ring-1 ring-indigo-400/80'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title={targetTrackId === track.id ? "Active Target Track" : "Set as Target Track"}
                     data-testid={`target-track-${track.id}`}
@@ -481,8 +491,10 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   </button>
                   <button
                     onClick={() => toggleTrackState(track.id, 'muted')}
-                    className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      track.muted ? 'bg-red-600 text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                    className={`w-5 h-5 rounded text-[10px] font-mono font-bold transition-all ${
+                      track.muted
+                        ? 'bg-red-600 text-white shadow ring-1 ring-red-400/80'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title="Mute Track"
                   >
@@ -490,8 +502,10 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   </button>
                   <button
                     onClick={() => toggleTrackState(track.id, 'solo')}
-                    className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      track.solo ? 'bg-amber-500 text-black' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                    className={`w-5 h-5 rounded text-[10px] font-mono font-bold transition-all ${
+                      track.solo
+                        ? 'bg-amber-500 text-black font-extrabold shadow ring-1 ring-amber-300'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title="Solo Track"
                   >
@@ -500,7 +514,9 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   <button
                     onClick={() => toggleTrackState(track.id, 'locked')}
                     className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
-                      track.locked ? 'bg-indigo-accent text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                      track.locked
+                        ? 'bg-indigo-600 text-white shadow ring-1 ring-indigo-400/80'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title="Lock Track"
                   >

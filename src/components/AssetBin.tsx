@@ -294,7 +294,43 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
 
       {/* Asset Grid or List Area */}
       <div className="flex-1 overflow-y-auto p-2 bg-dark-950">
-        {viewMode === 'grid' ? (
+        {filteredAssets.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center p-4 text-center border border-dashed border-subtle/70 hover:border-indigo-500/50 rounded-xl transition-all duration-200 bg-dark-900/30 group">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:border-indigo-400/60 group-hover:shadow-[0_0_20px_rgba(99,102,241,0.25)] transition-all">
+              <Film className="w-6 h-6 text-indigo-400" />
+            </div>
+            <h4 className="text-xs font-semibold text-neutral-200 tracking-wide mb-1">
+              {searchQuery ? 'No Matching Assets' : 'No Media In Project'}
+            </h4>
+            <p className="text-[11px] text-neutral-400 leading-relaxed max-w-[210px] mb-4">
+              {searchQuery
+                ? `No files match "${searchQuery}". Clear filter to view all.`
+                : 'Drag and drop video, audio, or image clips here, or click to import.'}
+            </p>
+            {searchQuery ? (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="px-3 py-1.5 bg-dark-800 hover:bg-dark-750 text-neutral-300 text-[11px] font-medium rounded-lg border border-subtle transition-all"
+              >
+                Clear Search
+              </button>
+            ) : (
+              <button
+                onClick={handleImportMedia}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-[11px] font-medium rounded-lg shadow-lg shadow-indigo-900/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Import Media</span>
+              </button>
+            )}
+            <div className="mt-5 flex items-center gap-1.5 text-[9px] text-neutral-500 font-mono tracking-wider uppercase">
+              <span className="px-1.5 py-0.5 rounded bg-dark-950 border border-subtle/70">ProRes</span>
+              <span className="px-1.5 py-0.5 rounded bg-dark-950 border border-subtle/70">MP4</span>
+              <span className="px-1.5 py-0.5 rounded bg-dark-950 border border-subtle/70">WAV</span>
+              <span className="px-1.5 py-0.5 rounded bg-dark-950 border border-subtle/70">AAC</span>
+            </div>
+          </div>
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 gap-2">
             {filteredAssets.map((asset) => {
               const scrubPct = scrubPosition[asset.id];

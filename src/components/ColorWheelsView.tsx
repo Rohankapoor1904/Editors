@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { RGBColor } from '../engine/colorEngine';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Palette } from 'lucide-react';
 
 interface ColorGradeSettings {
   lift: RGBColor;
@@ -52,26 +52,36 @@ export const ColorWheelsView: React.FC = () => {
 
   if (!selectedVideoClip) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-neutral-900 border border-neutral-800 m-2 rounded-xl h-[400px]">
-        <span className="text-neutral-500 text-sm">Select a video clip to grade</span>
+      <div className="h-full min-h-[160px] flex items-center justify-center p-4 select-none">
+        <div className="flex flex-col items-center justify-center text-center">
+          <Palette className="w-7 h-7 text-neutral-600 mb-2" />
+          <span className="text-neutral-400 text-xs font-semibold">Select a video clip to grade</span>
+          <span className="text-neutral-600 text-[11px] mt-0.5">Click any video clip on the timeline to adjust Lift, Gamma, and Gain color wheels</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col bg-neutral-900 border border-neutral-800 rounded-xl p-4 m-2">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-semibold text-neutral-300">3-Way Color Corrector</h3>
+    <div className="h-full flex flex-col p-3 select-none">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-2">
+          <h3 className="text-xs font-semibold text-neutral-200 tracking-wide uppercase">3-Way Color Corrector</h3>
+          <span className="text-[10px] font-mono text-indigo-400 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-500/30">
+            {selectedVideoClip.name}
+          </span>
+        </div>
         <button
           onClick={handleReset}
-          className="p-1.5 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white transition-colors"
+          className="flex items-center space-x-1 px-2 py-0.5 hover:bg-neutral-800 rounded text-neutral-400 hover:text-white transition-colors text-[11px] border border-neutral-800"
           title="Reset All Wheels"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Reset</span>
         </button>
       </div>
 
-      <div className="flex justify-between space-x-4 flex-wrap">
+      <div className="flex-1 flex justify-around items-center space-x-4">
         <ColorWheel
           title="Lift (Shadows)"
           wheelType="lift"

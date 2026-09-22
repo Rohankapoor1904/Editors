@@ -354,12 +354,15 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
             </div>
 
             {/* Active Model / Status Indicator */}
-            <div className="mt-2.5 pt-2 border-t border-neutral-800/60 flex items-center justify-between text-[10px] text-neutral-400">
-              <span className="flex items-center space-x-1.5 truncate max-w-[200px]" title={activeModel}>
+            <div className="mt-2.5 pt-2 border-t border-neutral-800/60 flex items-center justify-between gap-2 overflow-hidden text-[10px] text-neutral-400">
+              <span className="flex items-center space-x-1.5 min-w-0 flex-1" title={activeModel}>
                 <Bot className="w-3 h-3 text-indigo-400 shrink-0" />
                 <span className="truncate text-neutral-300 font-mono text-[9px]">{activeModel}</span>
               </span>
-              <span className="font-mono text-[9px] text-neutral-500 shrink-0">
+              <span
+                className="font-mono text-[9px] text-neutral-500 shrink-0 max-w-[55%] truncate text-right"
+                title={currentTask?.currentStepLabel || (isConnected ? 'Bridge Active (/api/agent)' : bridgeAvailability === 'unavailable-in-production' ? `Bridge unavailable in production${bridgeUrl ? ` (${bridgeUrl})` : ''} — run npm run dev` : 'Idle')}
+              >
                 {currentTask?.currentStepLabel || (isConnected ? 'Bridge Active (/api/agent)' : bridgeAvailability === 'unavailable-in-production' ? `Bridge unavailable in production${bridgeUrl ? ` (${bridgeUrl})` : ''} — run npm run dev` : 'Idle')}
               </span>
             </div>
