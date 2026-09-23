@@ -39,6 +39,8 @@ function createMockTimelineState(clips: Clip[]): TimelineState {
     targetTrackId: 'track-v1',
     tracks: [track],
     selectedClipIds: [],
+    markers: [],
+    comments: [],
     activeWorkspace: 'edit',
     magneticSnapping: true,
     zoomLevel: 20

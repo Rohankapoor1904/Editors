@@ -412,6 +412,57 @@ Goal: let external IDE/LLM callers reach production builds via a native loopback
 
 ---
 
+## Phase R24 — Pro gap closure: masking, color, audio, stabilization (P0)
+
+Goal: close the 7 gaps that keep CineCraft feeling "basic" vs. Premiere Color Mode / Resolve Color+Fairlight / FCP masking. Every task wires into the existing engines (transforms R3.1, DAG R3.3, color R4, audio R5) — no new model claims without a bundled model + missing-model UX (R22.2 pattern).
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R24.1** | **Auto Mask + point tracker wired to color/effects.** On-device subject select (skin/hair/sky/clothing class output) + point/planar tracker; mask follows subject and feeds color wheels + effects as an alpha input. Replaces dead `engine/tracking/*` stub. | `src/engine/masking/*`, `src/engine/tracking/*`, `src/components/MaskInspector.tsx`, `src/engine/webgpuRenderer.ts` | Test: on a fixture clip with a moving subject, mask IoU stays above threshold across frames and grading applies only inside the mask; no `Math.sin` trajectory remains; live mode throws when the model file is absent. |
+| **R24.2** | **RGB curves + HSL Secondary + Match Color + Auto Color.** Per-channel RGB curves, Hue-vs-Hue/Sat/Luma secondary qualifier, reference-frame Match Color, 1-click Auto Color (temperature + exposure). | `src/engine/colorCurves.ts`, `src/engine/hslSecondary.ts`, `src/engine/colorMatch.ts`, `src/components/ColorWorkspace.tsx`, `src/engine/shaders/color.wgsl` | Test: a known color-chart fixture corrects within tolerance; Match Color brings two shots' histograms closer by a defined delta; curve evaluation matches analytic values within 1e-6. |
+| **R24.3** | **Essential Sound tagging + Dialogue Matcher + dynamics.** Tag clips Dialogue/Music/SFX/Ambience with targeted repair presets; Dialogue Matcher matches tone/level/reverb to a reference; per-clip compressor + de-esser. | `src/engine/essentialSound.ts`, `src/engine/dialogueMatcher.ts`, `src/engine/dynamics.ts`, `src/components/AudioWorkspace.tsx` | Test: noisy dialogue fixture gains measurable SNR without tonal shift; matcher reduces level/tone distance to reference vs. baseline; compressor gain-reduction meter moves only above threshold. |
+| **R24.4** | **Titles / motion-graphics engine + template presets.** Bounding-box text with line-wrap, dynamic titles, intro/outro bumper templates saved + reused across projects. | `src/engine/titles.ts`, `src/components/TitlesPanel.tsx`, `src/core/commands/titleCommands.ts` | Test: creating a title from a template places an editable clip on the timeline; editing text re-renders preview; template round-trips through project JSON. |
+| **R24.5** | **Video stabilization + optical-flow slow-mo (Speed Warp class).** Sub-pixel stabilize (translation + rotation + scale smoothing) and frame-interpolated slow motion with pitch-corrected audio. | `src-tauri/src/stabilize.rs`, `src/engine/stabilizer.ts`, `src/engine/speedWarp.ts` | Test: shaky fixture shows reduced inter-frame motion energy after stabilize; 50% slow-mo doubles duration in rational time with no A/V drift beyond 1 frame. |
+| **R24.6** | **Scene Edit Detection + Paper Edit (transcript assembly).** Split a flattened export back into clips (histogram + audio-transient cut detection); select transcript sentences to assemble a new rough-cut sequence. | `src/engine/sceneDetect.ts`, `src/engine/paperEdit.ts`, `src/components/SourceMonitor.tsx` | Test: a concatenated fixture with 3 hard cuts is split into 3 clips within ±2 frames; selecting 2 transcript sentences creates a sequence containing exactly those ranges. |
+| **R24.7** | **Media bins + metadata + Sequence Index search.** Smart bins, clip metadata (scene/take/rating), transcript search, marker search, spreadsheet-style Sequence Index panel. | `src/store/mediaPool.ts`, `src/components/MediaBins.tsx`, `src/components/SequenceIndex.tsx` | Test: importing 3 labelled clips + searching returns the expected clip; Sequence Index lists every timeline clip and jumping to a row moves the playhead exactly. |
+
+**Phase exit:** a talking-head project can be masked, graded with curves + match, mixed by role, titled, stabilized, and re-cut from transcript or from a flattened file — all verified by behavioural tests.
+
+---
+
+## Phase R25 — Creator AI parity: auto-edit, script-to-video, voice, templates (P1)
+
+Goal: match the CapCut retention drivers — speed from raw footage to published short. Builds on Whisper/VAD (R6/R11.1), captions (R16.1), reframe (R16.2), beat detection (R16.3). No cloud dependency on the main path; generative steps stay explicitly labelled by model.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R25.1** | **AI Auto-Edit full assembly.** `scene recognition → transcription → quality scoring (sharpness/lighting/audio) → ordered rough cut` with auto color/audio/transitions applied as editable commands. | `src/engine/autoEdit/*`, `src/components/AutoEditPanel.tsx`, `src/services/agentOrchestrator.ts` | Test: on a labelled 5-clip fixture with 1 bad take, auto-edit produces an ordered sequence excluding the bad take; the whole run is one undoable `CompoundCommand`. |
+| **R25.2** | **Script-to-video draft + Paper Edit wiring.** Paste script → draft timeline with scenes, scratch voiceover, and music bed; editable before publishing. | `src/engine/scriptToVideo.ts`, `src/components/ScriptToVideoPanel.tsx` | Test: a 3-scene script creates 3 ordered clips with scratch VO durations matching TTS lengths; deleting a scene ripples correctly. |
+| **R25.3** | **TTS / AI voiceover + voice enhancement.** On-device or explicitly-labelled-service TTS voices + voice-clone slot; voice enhancement (noise cleanup) on VO tracks. | `src-tauri/src/tts.rs`, `src/services/voiceover.ts`, `src/components/VoiceoverPanel.tsx` | Test: generating VO from 1 sentence yields an audio asset placed on the timeline with matching duration; enhancement improves fixture SNR by a defined threshold. |
+| **R25.4** | **Template library + Beat-Sync auto-cut.** Trend-matched editable templates (hook + body + outro) + 1-click beat-synced cuts to music. | `src/engine/templates/*`, `src/engine/beatDetector.ts`, `src/components/TemplateBrowser.tsx` | Test: applying a template to 3 clips reproduces hook/caption/reframe settings; beat-sync places cuts within ±1 beat window of detected peaks. |
+| **R25.5** | **One-tap background remover (no green screen).** Person/subject segmentation producing an alpha matte usable with custom backgrounds + effects. | `src-tauri/src/bg_remove.rs`, `src/engine/bgRemove.ts`, `src/components/ProgramMonitor.tsx` | Test: fixture portrait yields a non-empty matte with edge continuity across frames; disabling the effect restores the original frame exactly. |
+| **R25.6** | **Caption sidecar export + AI Music Editor.** Export SRT/VTT sidecars alongside burn-in; single-word timing preserved; auto-edit music bed to target duration (loop/cut, no pitch shift artifacts). | `src/engine/captions/sidecar.ts`, `src/engine/musicEditor.ts`, `src/components/ExportModal.tsx` | Test: exporting captions writes a parseable SRT whose timings match the transcript within tolerance; a 60s bed edited to 30s measures 30s ±1 frame. |
+
+**Phase exit:** raw phone footage → auto rough cut → styled single-word captions → vertical reframe → template + music → SRT + publish-ready export, in one sitting.
+
+---
+
+## Phase R26 — Pro polish: structure, immersive audio, HDR, media engine, collab (P2)
+
+Goal: the last mile to "standard and production level" — project structure, broadcast audio, color pipeline depth, ingest performance, and review collaboration.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R26.1** | **Nested sequences + adjustment layers.** Timeline-inside-timeline (compound clips) with playhead-matched open; adjustment layer applying grade/effects across a span non-destructively. | `src/types/timeline.ts`, `src/core/commands/nest.ts`, `src/components/TimelineTrackEditor.tsx` | Test: nesting 2 clips creates a compound clip that opens at the same playhead; a grade on the adjustment layer renders identically to per-clip grades. |
+| **R26.2** | **Audio automation lanes + 5.1/immersive prep.** Per-track volume/pan keyframe lanes (snap/latch/trim modes), loudness-normalized master, 5.1 bus routing scaffold. | `src/engine/automation.ts`, `src/components/AutomationLane.tsx`, `src/engine/audioGraph.ts` | Test: a 2-point volume ramp renders the expected gain curve; switching automation mode mid-pass preserves prior values; 5.1 downmix measures correct channel gains. |
+| **R26.3** | **HDR + ACES/OCIO + comparison view.** Working-space select, display transform, HDR scopes/report, side-by-side and split comparison view in the Color workspace. | `src/engine/colorManagement.ts`, `src/components/ComparisonView.tsx`, `src/components/Scopes.tsx` | Test: round-trip through two spaces returns within tolerance; HDR report lists MaxFALL/MaxCLL for a fixture; comparison view renders both grades without cross-talk. |
+| **R26.4** | **Proxy v2 + smart cache + pro format support.** Background proxy presets (resolution/codec), render cache management, GPU 4:2:2 10-bit decode path, XAVC/ProRes RAW ingest probe coverage. | `src-tauri/src/proxy_engine.rs`, `src/engine/cacheManager.ts`, `src-tauri/src/ffmpeg_demuxer.rs` | Test: importing 4K triggers a proxy job and preview toggles proxy/master; cache eviction respects budget; probe fixture reports correct codec/dimensions for each format. |
+| **R26.5** | **Review + collaboration + quick publish.** Shareable review link flow (timeline comments anchored to timecode), project versioning, 1-click publish to YouTube/Vimeo/X with platform-safe export check. | `src/services/reviewShare.ts`, `src/components/ReviewPanel.tsx`, `src/engine/exportPresets.ts` | Test: adding a comment at a timecode round-trips through project JSON and seeks on click; publish check rejects a vertical master for a landscape-only preset with a typed error. |
+
+**Phase exit:** multi-editor review, versioned projects, HDR-graded masters, and cached 4K timelines export cleanly to platform targets.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:

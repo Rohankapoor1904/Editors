@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { audioEngine } from '../engine/audioEngine';
 import { Track } from '../types/timeline';
+import { AutomationLaneEditor } from './AutomationLane';
 
 // A helper to map dB to a height percentage (assuming -48dB to +12dB range)
 const dbToPercent = (db: number) => {
@@ -125,7 +126,21 @@ const TrackStrip: React.FC<{ track: Track }> = ({ track }) => {
 
 export const AudioMixer: React.FC = () => {
   const tracks = useTimelineStore((state) => state.tracks);
+  const setTrackAutomation = useTimelineStore((state) => state.setTrackAutomation);
   const audioTracks = tracks.filter((t) => t.type === 'audio');
+  const [laneTrackId, setLaneTrackId] = React.useState<string | null>(null);
+  const [laneParam, setLaneParam] = React.useState<'volume' | 'pan'>('volume');
+
+  const laneTrack = audioTracks.find((t) => t.id === laneTrackId) ?? audioTracks[0] ?? null;
+  const laneDuration = React.useMemo(() => {
+    let end = 0;
+    for (const t of tracks) {
+      for (const c of t.clips ?? []) {
+        end = Math.max(end, c.startOffset.value / c.startOffset.rate + c.duration.value / c.duration.rate);
+      }
+    }
+    return Math.max(10, end);
+  }, [tracks]);
 
   return (
     <div className="bg-neutral-900 p-4 rounded-md border border-neutral-800 flex-1 overflow-x-auto">
@@ -135,6 +150,40 @@ export const AudioMixer: React.FC = () => {
           <TrackStrip key={track.id} track={track} />
         ))}
       </div>
+
+      {/* R26.2: automation lane editor for one audio track at a time */}
+      {laneTrack && (
+        <div className="mt-4 border-t border-neutral-800 pt-3 space-y-2">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-neutral-400 font-semibold">Automation</span>
+            <select
+              aria-label="Automation track"
+              value={laneTrack.id}
+              onChange={(e) => setLaneTrackId(e.target.value)}
+              className="bg-neutral-800 text-neutral-200 text-[11px] rounded px-1.5 py-0.5 border border-neutral-700"
+            >
+              {audioTracks.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Automation parameter"
+              value={laneParam}
+              onChange={(e) => setLaneParam(e.target.value as 'volume' | 'pan')}
+              className="bg-neutral-800 text-neutral-200 text-[11px] rounded px-1.5 py-0.5 border border-neutral-700"
+            >
+              <option value="volume">Volume (dB)</option>
+              <option value="pan">Pan (L/R)</option>
+            </select>
+          </div>
+          <AutomationLaneEditor
+            lane={laneTrack.automation?.[laneParam] ?? { points: [], mode: 'snap' }}
+            param={laneParam}
+            durationSec={laneDuration}
+            onChange={(lane) => setTrackAutomation(laneTrack.id, laneParam, lane)}
+          />
+        </div>
+      )}
     </div>
   );
 };

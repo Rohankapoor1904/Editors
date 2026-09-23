@@ -37,9 +37,50 @@ pub struct MediaProbeInfo {
     pub height: u32,
     pub fps: f64,
     pub codec: String,
+    /// R26.4: human pro-format label (e.g. "ProRes 422 HQ", "XAVC").
+    pub codec_display: String,
+    /// R26.4: raw pixel format from ffprobe (e.g. "yuv420p", "yuv422p10le").
+    pub pix_fmt: Option<String>,
     pub has_audio: bool,
     pub sample_rate: Option<u32>,
     pub thumbnail_data_url: Option<String>,
+}
+
+/// R26.4 — canonical pro-format classification from ffprobe values.
+///
+/// XAVC is identified by its codec tag (real XAVC essence carries it);
+/// plain H.264 in MXF is reported as H.264, never upgraded to XAVC.
+/// ProRes variants key off the profile string; anything unrecognized
+/// passes the raw codec name through instead of inventing a label.
+pub fn classify_pro_codec(codec_name: &str, profile: Option<&str>, codec_tag: Option<&str>) -> String {
+    let tag = codec_tag.unwrap_or("").to_ascii_uppercase();
+    if tag.contains("XAVC") {
+        return "XAVC".to_string();
+    }
+    let profile_upper = profile.unwrap_or("").to_ascii_uppercase();
+    match codec_name.to_ascii_lowercase().as_str() {
+        "prores" => {
+            if profile_upper.contains("RAW") {
+                "ProRes RAW".to_string()
+            } else if profile_upper.contains("4444") {
+                "ProRes 4444".to_string()
+            } else if profile_upper.contains("HQ") {
+                "ProRes 422 HQ".to_string()
+            } else if profile_upper.contains("PROXY") {
+                "ProRes Proxy".to_string()
+            } else if profile_upper.contains("LT") {
+                "ProRes LT".to_string()
+            } else {
+                "ProRes 422".to_string()
+            }
+        }
+        "h264" | "avc" => "H.264".to_string(),
+        "hevc" | "h265" => "HEVC".to_string(),
+        "av1" => "AV1".to_string(),
+        "vp9" => "VP9".to_string(),
+        "mpeg2video" => "MPEG-2".to_string(),
+        other => other.to_string(),
+    }
 }
 
 pub struct FFmpegDemuxerEngine;
@@ -143,6 +184,13 @@ impl FFmpegDemuxerEngine {
         let width = video["width"].as_u64().unwrap_or(0) as u32;
         let height = video["height"].as_u64().unwrap_or(0) as u32;
         let codec = video["codec_name"].as_str().unwrap_or("unknown").to_string();
+        // R26.4: pro-format label + raw pixel format for 4:2:2/10-bit awareness.
+        let codec_display = classify_pro_codec(
+            &codec,
+            video["profile"].as_str(),
+            video["codec_tag_string"].as_str(),
+        );
+        let pix_fmt = video["pix_fmt"].as_str().map(|s| s.to_string());
 
         let mut fps = 0.0;
         if let Some(r_frame_rate) = video["r_frame_rate"].as_str() {
@@ -189,6 +237,8 @@ impl FFmpegDemuxerEngine {
             height,
             fps,
             codec,
+            codec_display,
+            pix_fmt,
             has_audio,
             sample_rate,
             thumbnail_data_url,
@@ -305,5 +355,47 @@ mod tests {
 
         let sum: u64 = mid_frame_bytes.iter().map(|&b| b as u64).sum();
         assert!(sum > 0);
+    }
+
+    #[test]
+    fn test_classify_pro_codec() {
+        assert_eq!(classify_pro_codec("prores", Some("HQ"), None), "ProRes 422 HQ");
+        assert_eq!(classify_pro_codec("prores", Some("4444"), None), "ProRes 4444");
+        assert_eq!(classify_pro_codec("prores", Some("RAW"), None), "ProRes RAW");
+        assert_eq!(classify_pro_codec("prores", Some("High"), None), "ProRes 422");
+        assert_eq!(classify_pro_codec("h264", None, Some("xavc")), "XAVC");
+        // Plain h264 in MXF must not be upgraded to XAVC
+        assert_eq!(classify_pro_codec("h264", None, Some("avc1")), "H.264");
+        assert_eq!(classify_pro_codec("hevc", None, None), "HEVC");
+        assert_eq!(classify_pro_codec("av1", None, None), "AV1");
+        assert_eq!(classify_pro_codec("unknowncodec", None, None), "unknowncodec");
+    }
+
+    #[test]
+    fn test_probe_pix_fmt_and_codec_display() {
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let path = temp_file.path().to_str().unwrap().to_string();
+
+        let output = silent_command("ffmpeg")
+            .args(&[
+                "-y",
+                "-f", "lavfi",
+                "-i", "testsrc=size=64x64:rate=30",
+                "-t", "1",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-f", "mp4",
+                &path,
+            ])
+            .output()
+            .expect("Failed to generate test video");
+
+        assert!(output.status.success(), "ffmpeg generation failed: {}", String::from_utf8_lossy(&output.stderr));
+
+        let info = FFmpegDemuxerEngine::probe_file(&path).expect("probe_file failed");
+        // Synthetic fixture is plain H.264, not XAVC
+        assert_eq!(info.codec_display, "H.264");
+        assert!(info.pix_fmt.is_some(), "pix_fmt should be reported");
+        assert_eq!(info.pix_fmt.unwrap(), "yuv420p");
     }
 }

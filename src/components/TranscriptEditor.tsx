@@ -3,9 +3,10 @@ import { whisperService, WordTimestamp } from '../services/whisperTranscriber';
 import { useTimelineStore } from '../store/timelineStore';
 import { useMediaPoolStore } from '../store/mediaPool';
 import { rationalToSeconds, secondsToRational } from '../types/time';
-import { FileText, Trash2, Play, AlertCircle, Loader2 } from 'lucide-react';
+import { FileText, Trash2, Play, AlertCircle, Loader2, Scissors } from 'lucide-react';
 import { deleteWordsFromTimeline } from '../services/alignment';
 import { formatModelError } from '../services/modelErrors';
+import { selectedRanges, planPaperEditInsert, paperEditTransaction } from '../engine/paperEdit';
 
 export const TranscriptEditor: React.FC = () => {
   const [words, setWords] = useState<WordTimestamp[]>([]);
@@ -13,7 +14,7 @@ export const TranscriptEditor: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { playheadPosition, setPlayheadPosition, rippleDelete, selectedClipIds, tracks } = useTimelineStore();
+  const { playheadPosition, setPlayheadPosition, rippleDelete, selectedClipIds, tracks, metadata, executeCommand } = useTimelineStore();
   const { assets } = useMediaPoolStore();
 
   const activeAssetPath = useMemo(() => {
@@ -90,6 +91,35 @@ export const TranscriptEditor: React.FC = () => {
     setLastClickedIndex(null);
   };
 
+  // R24.6 — Paper Edit: assemble the selected word ranges as subclips at
+  // the playhead in a single undoable transaction.
+  const handleAssembleSelected = () => {
+    if (selectedWordIds.length === 0 || selectedClipIds.length === 0) return;
+    let clip = null;
+    let track = null;
+    for (const t of tracks) {
+      const found = t.clips.find((c) => c.id === selectedClipIds[0]);
+      if (found) {
+        clip = found;
+        track = t;
+        break;
+      }
+    }
+    if (!clip || !track) return;
+    const paperWords = words.map((w) => ({ id: w.id, word: w.word, startSec: w.startTime, endSec: w.endTime }));
+    const segments = selectedRanges(paperWords, selectedWordIds);
+    if (segments.length === 0) return;
+    const rate = Math.max(1, Math.round(metadata.fps));
+    const cmds = planPaperEditInsert(segments, {
+      assetId: clip.assetId,
+      trackId: track.id,
+      startAtSec: rationalToSeconds(playheadPosition),
+      rate,
+      namePrefix: 'PaperEdit',
+    });
+    executeCommand(paperEditTransaction(cmds));
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.key === 'Backspace' || e.key === 'Delete') && selectedWordIds.length > 0) {
@@ -111,13 +141,23 @@ export const TranscriptEditor: React.FC = () => {
           <span>Text-Based Script Editor</span>
         </div>
         {selectedWordIds.length > 0 && (
-          <button
-            onClick={handleDeleteSelected}
-            className="flex items-center space-x-1 px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[11px] font-medium"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Selection ({selectedWordIds.length})</span>
-          </button>
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={handleAssembleSelected}
+              title="Insert the selected transcript ranges as subclips at the playhead (one undo)"
+              className="flex items-center space-x-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-medium"
+            >
+              <Scissors className="w-3.5 h-3.5" />
+              <span>Assemble ({selectedWordIds.length})</span>
+            </button>
+            <button
+              onClick={handleDeleteSelected}
+              className="flex items-center space-x-1 px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[11px] font-medium"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Selection ({selectedWordIds.length})</span>
+            </button>
+          </div>
         )}
       </div>
 

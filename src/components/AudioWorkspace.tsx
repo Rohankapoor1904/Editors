@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { ParametricEqView } from './ParametricEqView';
 import { AudioMixer } from './AudioMixer';
+import { EssentialSoundPanel } from './EssentialSoundPanel';
 import { useTimelineStore } from '../store/timelineStore';
 import { audioEngine } from '../engine/audioEngine';
 
@@ -129,6 +130,9 @@ export const AudioWorkspace: React.FC = () => {
           </span>
         </h2>
       </div>
+
+      {/* Essential Sound role tagging + dynamics (R24.3) */}
+      <EssentialSoundPanel />
 
       {/* AI Neural Audio Finishing & Sidechain Ducking Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

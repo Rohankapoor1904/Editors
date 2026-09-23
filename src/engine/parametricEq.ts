@@ -5,11 +5,14 @@ export interface EqBand {
   type: BiquadFilterType;
 }
 
+/** R24.3 — canonical 10-band frequencies shared with role presets. */
+export const STANDARD_EQ_FREQUENCIES = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
 export class ParametricEqEngine {
   private filters: BiquadFilterNode[] = [];
 
   init(ctx: AudioContext, bands?: EqBand[]): BiquadFilterNode[] {
-    const defaultFrequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    const defaultFrequencies = STANDARD_EQ_FREQUENCIES;
 
     let eqBands = bands;
     if (!eqBands) {

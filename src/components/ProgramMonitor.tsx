@@ -378,6 +378,8 @@ export const ProgramMonitor: React.FC = () => {
           timecode: rationalToSeconds(playheadPosition),
           transform: activeClip.transform,
           colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
+          // R24.1: first clip mask gates the whole grade on the GPU.
+          mask: activeClip.masks?.[0],
           captionData: {
             words: transcriptWords
           },

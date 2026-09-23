@@ -23,6 +23,72 @@ pub struct ProxyProgressNative {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProxyPreset {
+    pub id: String,
+    pub name: String,
+    pub target_height: u32,
+    pub codec: String,
+    pub description: String,
+}
+
+/// R26.4 — curated proxy presets (resolution + codec pairs the UI offers).
+pub fn proxy_presets() -> Vec<ProxyPreset> {
+    vec![
+        ProxyPreset {
+            id: "proxy-720p-h264".to_string(),
+            name: "720p H.264".to_string(),
+            target_height: 720,
+            codec: "h264".to_string(),
+            description: "Default: small files, universal playback".to_string(),
+        },
+        ProxyPreset {
+            id: "proxy-540p-h264".to_string(),
+            name: "540p H.264".to_string(),
+            target_height: 540,
+            codec: "h264".to_string(),
+            description: "Lighter previews for long timelines".to_string(),
+        },
+        ProxyPreset {
+            id: "proxy-360p-h264".to_string(),
+            name: "360p H.264".to_string(),
+            target_height: 360,
+            codec: "h264".to_string(),
+            description: "Minimal preview size, fastest scrub".to_string(),
+        },
+        ProxyPreset {
+            id: "proxy-720p-prores".to_string(),
+            name: "720p ProRes Proxy".to_string(),
+            target_height: 720,
+            codec: "prores".to_string(),
+            description: "Edit-friendly intra-frame proxy (larger files)".to_string(),
+        },
+    ]
+}
+
+/// R26.4 — allowlist for proxy codecs. Unknown codecs are rejected loudly;
+/// the old silent fallback to h264 is gone.
+pub fn validate_proxy_codec(codec: &str) -> Result<&str, String> {
+    if codec.eq_ignore_ascii_case("h264") {
+        Ok("h264")
+    } else if codec.eq_ignore_ascii_case("prores") {
+        Ok("prores")
+    } else {
+        Err(format!(
+            "Unsupported proxy codec '{}' (expected 'h264' or 'prores')",
+            codec
+        ))
+    }
+}
+
+pub fn proxy_extension(codec: &str) -> &str {
+    if codec.eq_ignore_ascii_case("prores") {
+        "mov"
+    } else {
+        "mp4"
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProxyTaskConfig {
     pub input_path: String,
@@ -75,10 +141,15 @@ impl ProxyEngine {
 
     /// Determines the standard proxy output path if none is supplied
     pub fn default_proxy_path(input_path: &str) -> String {
+        Self::default_proxy_path_for(input_path, "h264")
+    }
+
+    /// R26.4 — codec-aware default path (.mp4 for h264, .mov for prores).
+    pub fn default_proxy_path_for(input_path: &str, codec: &str) -> String {
         let path = Path::new(input_path);
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("media");
         let parent = path.parent().and_then(|p| p.to_str()).unwrap_or(".");
-        format!("{}/{}.proxy.mp4", parent, stem)
+        format!("{}/{}.proxy.{}", parent, stem, proxy_extension(codec))
     }
 
     /// Launches an asynchronous background proxy generation task
@@ -92,10 +163,11 @@ impl ProxyEngine {
         }
 
         let target_height = config.target_height.unwrap_or(720);
-        let codec = config.codec.unwrap_or_else(|| "h264".to_string());
+        let codec_raw = config.codec.clone().unwrap_or_else(|| "h264".to_string());
+        let codec = validate_proxy_codec(&codec_raw)?.to_string();
         let output_path = config
             .output_path
-            .unwrap_or_else(|| Self::default_proxy_path(&config.input_path));
+            .unwrap_or_else(|| Self::default_proxy_path_for(&config.input_path, &codec));
 
         let task_id = Uuid::new_v4().to_string();
 
@@ -191,5 +263,64 @@ impl ProxyEngine {
             Some(task) => Ok(task.clone()),
             None => Err(format!("Proxy task {} not found", task_id)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_proxy_presets() {
+        let presets = proxy_presets();
+        assert_eq!(presets.len(), 4);
+        assert_eq!(presets[0].id, "proxy-720p-h264");
+        assert_eq!(presets[3].codec, "prores");
+        for p in &presets {
+            assert!(validate_proxy_codec(&p.codec).is_ok(), "preset codec {} must validate", p.codec);
+        }
+    }
+
+    #[test]
+    fn test_validate_proxy_codec() {
+        assert_eq!(validate_proxy_codec("h264").unwrap(), "h264");
+        assert_eq!(validate_proxy_codec("H264").unwrap(), "h264");
+        assert_eq!(validate_proxy_codec("prores").unwrap(), "prores");
+        assert!(validate_proxy_codec("hevc").is_err());
+        assert!(validate_proxy_codec("").is_err());
+    }
+
+    #[test]
+    fn test_default_proxy_path_extension() {
+        assert_eq!(ProxyEngine::default_proxy_path_for("/media/foo/bar.mp4", "h264"), "/media/foo/bar.proxy.mp4");
+        assert_eq!(ProxyEngine::default_proxy_path_for("/media/foo/bar.mp4", "prores"), "/media/foo/bar.proxy.mov");
+        assert_eq!(ProxyEngine::default_proxy_path("/media/foo/bar.mp4"), "/media/foo/bar.proxy.mp4");
+    }
+
+    #[test]
+    fn test_build_proxy_args_prores_and_h264() {
+        let h264 = ProxyEngine::build_proxy_args("/in.mp4", "/out.mp4", 720, "h264");
+        assert!(h264.contains(&"libx264".to_string()));
+        assert!(h264.contains(&"scale=-2:720".to_string()));
+        let prores = ProxyEngine::build_proxy_args("/in.mp4", "/out.mov", 720, "prores");
+        assert!(prores.contains(&"prores_ks".to_string()));
+    }
+
+    #[test]
+    fn test_start_proxy_task_rejects_unknown_codec() {
+        // Use a real temp file path to pass existence check, then invalid codec
+        let tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        let path = tmp.path().to_str().unwrap().to_string();
+        // Ensure file exists
+        std::fs::write(&path, b"dummy").unwrap();
+        let cfg = ProxyTaskConfig {
+            input_path: path,
+            output_path: None,
+            target_height: Some(360),
+            codec: Some("hevc".to_string()),
+        };
+        let res = ProxyEngine::start_proxy_task(cfg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Unsupported proxy codec"));
     }
 }

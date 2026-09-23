@@ -21,6 +21,20 @@ Format:
 
 ---
 
+## ADR-010: R24–R26 enhancement roadmap (pro gap + creator parity + polish)
+- **Date:** 2026-09-23
+- **Status:** proposed
+- **Task:** R24.1–R26.5
+- **Context:** R23 closed the bridge/honesty program, but the app still reads as a basic NLE vs. Premiere 26.5 (Generative Media, Paper Edit, Color Mode), Resolve 20 (Magic Mask v2, Dialogue Matcher, Audio Assistant, IntelliCut, Music Editor), FCP (Generate Captions, Edit Detection, Auto Mask), and CapCut (Auto-Edit assembly, script-to-video, TTS, templates, background remover). User requested tasks for all enhancements.
+- **Options considered:**
+  - One giant phase — rejected: 18 tasks in one phase hides the critical path and breaks the 1–3h atomic sizing rule.
+  - R24 pro-gap / R25 creator-AI / R26 polish split — chosen: P0 first (masking, curves, sound tagging, titles, stabilize, scene-detect, bins), then retention drivers (auto-edit, script-to-video, TTS, templates, bg-remove, sidecar), then structure/HDR/cache/collab.
+  - Cloud-service AI now — rejected: violates on-device-first invariant; generative/service steps stay explicitly labelled with missing-model UX per R22.2.
+- **Decision:** Add Phases R24 (7 tasks), R25 (6 tasks), R26 (5 tasks) to `docs/ROADMAP.md` with falsifiable acceptance per task; register all 18 rows as `missing`/`todo` in `PROGRESS.md`; lowest claimable next is R24.1.
+- **Consequences:** Agents gain a claimable queue without touching R0–R23 history. Scope is large; each task still needs its own test + ADR if it adds a model, IPC boundary, or schema change.
+
+---
+
 ## ADR-009: Native loopback sidecar for the agent bridge (axum, OS port, token)
 
 - **Date:** 2026-09-22

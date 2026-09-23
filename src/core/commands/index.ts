@@ -7,6 +7,9 @@ export interface Command {
 }
 
 export * from './edits';
+export * from './masking';
+export * from './titleCommands';
+export * from './nest';
 export { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand, SetMetadataCommand } from './storeCommands';
 export * from './audio';
 export * from './multicam';

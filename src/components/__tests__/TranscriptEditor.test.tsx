@@ -4,7 +4,7 @@ import { TranscriptEditor } from '../TranscriptEditor';
 import { useTimelineStore } from '../../store/timelineStore';
 import { useMediaPoolStore } from '../../store/mediaPool';
 import { whisperService } from '../../services/whisperTranscriber';
-import { secondsToRational } from '../../types/time';
+import { secondsToRational, rationalToSeconds } from '../../types/time';
 
 describe('TranscriptEditor Descript-Style Editing (Task R13.3)', () => {
   beforeEach(() => {
@@ -94,5 +94,42 @@ describe('TranscriptEditor Descript-Style Editing (Task R13.3)', () => {
 
     // Assert rippleDelete was executed
     expect(rippleSpy).toHaveBeenCalled();
+  });
+
+  it('assembles selected transcript ranges as subclips in one undo (R24.6)', async () => {
+    vi.spyOn(whisperService, 'transcribe').mockResolvedValueOnce({
+      fullText: 'Hello world welcome to cinecraft',
+      words: [
+        { id: 'w1', word: 'Hello', startTime: 0.5, endTime: 1.0, confidence: 0.95 },
+        { id: 'w2', word: 'world', startTime: 1.1, endTime: 1.6, confidence: 0.92 },
+        { id: 'w3', word: 'welcome', startTime: 2.5, endTime: 3.0, confidence: 0.88 },
+      ],
+    });
+
+    render(<TranscriptEditor />);
+    fireEvent.click(screen.getByText('Generate Transcript'));
+    await waitFor(() => {
+      expect(screen.getByText('Hello')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Hello'));
+    fireEvent.click(screen.getByText('world'), { shiftKey: true });
+    fireEvent.click(screen.getByText(/Assemble \(2\)/));
+
+    // Clicking Hello scrubbed the playhead to 0.5s, so assembly splits
+    // clip_01 there: [0–0.5] + paper [0.5–1.6] + pushed remainder.
+    const clips = useTimelineStore.getState().tracks[0].clips;
+    expect(clips).toHaveLength(3);
+    const paper = clips.find((c) => c.id.startsWith('paper_'))!;
+    expect(paper.assetId).toBe('asset_01');
+    expect(rationalToSeconds(paper.duration)).toBeCloseTo(1.1, 6);
+    expect(rationalToSeconds(paper.sourceIn)).toBeCloseTo(0.5, 6);
+    expect(rationalToSeconds(paper.startOffset)).toBeCloseTo(0.5, 6);
+    const head = clips.find((c) => c.id === 'clip_01')!;
+    expect(rationalToSeconds(head.duration)).toBeCloseTo(0.5, 6);
+
+    // One undo reverts the whole assembly (split + insert).
+    useTimelineStore.getState().undo();
+    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1);
   });
 });

@@ -105,6 +105,74 @@ export function getPresetById(id: string): SocialPreset | undefined {
 }
 
 /**
+ * R26.5 — typed publish-compatibility error.
+ * Raised when a master's aspect/frame geometry is unsafe for the target preset.
+ */
+export class PublishCompatibilityError extends Error {
+  readonly code: 'ASPECT_MISMATCH' | 'SIZE_MISMATCH';
+  readonly master: { width: number; height: number };
+  readonly presetId: string;
+  readonly presetAspect: string;
+
+  constructor(
+    code: 'ASPECT_MISMATCH' | 'SIZE_MISMATCH',
+    master: { width: number; height: number },
+    preset: SocialPreset,
+    message: string
+  ) {
+    super(message);
+    this.name = 'PublishCompatibilityError';
+    this.code = code;
+    this.master = master;
+    this.presetId = preset.id;
+    this.presetAspect = preset.aspectRatio;
+  }
+}
+
+function aspectBucket(width: number, height: number): '16:9' | '9:16' | 'square' | 'other' {
+  if (width <= 0 || height <= 0) return 'other';
+  const r = width / height;
+  if (Math.abs(r - 16 / 9) < 0.02) return '16:9';
+  if (Math.abs(r - 9 / 16) < 0.02) return '9:16';
+  if (Math.abs(r - 1) < 0.02) return 'square';
+  return 'other';
+}
+
+/**
+ * R26.5 — 1-click publish gate: rejects a vertical master for a landscape-only
+ * preset (and the inverse) with a typed PublishCompatibilityError before any
+ * encode work starts. Square masters are allowed into either bucket (safe
+ * crop/pad is a downstream transform, not a silent aspect lie).
+ */
+export function assertPublishCompatible(
+  master: { width: number; height: number },
+  preset: SocialPreset
+): void {
+  if (!master || !Number.isFinite(master.width) || !Number.isFinite(master.height) || master.width <= 0 || master.height <= 0) {
+    throw new PublishCompatibilityError(
+      'SIZE_MISMATCH',
+      master ?? { width: 0, height: 0 },
+      preset,
+      `Master has invalid geometry ${master?.width}x${master?.height}`
+    );
+  }
+  const masterAspect = aspectBucket(master.width, master.height);
+  if (masterAspect === 'square' || masterAspect === 'other') return;
+
+  const presetIsLandscape = preset.aspectRatio === '16:9';
+  const masterIsLandscape = masterAspect === '16:9';
+  if (presetIsLandscape !== masterIsLandscape) {
+    throw new PublishCompatibilityError(
+      'ASPECT_MISMATCH',
+      master,
+      preset,
+      `Master ${master.width}x${master.height} (${masterAspect}) is incompatible with preset ` +
+        `'${preset.name}' (${preset.aspectRatio}). Choose a matching-aspect preset or reframe first.`
+    );
+  }
+}
+
+/**
  * Builds standard FFmpeg arguments for colorimetry and audio loudness normalization
  */
 export function buildColorAndAudioFFmpegArgs(preset: SocialPreset): string[] {

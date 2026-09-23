@@ -9,6 +9,9 @@ import { computeTransformMatrix } from './transforms';
 
 import { captionEngine, CaptionTrackData } from './captions/captionEngine';
 import { ColorGradeSettings, colorEngine } from './colorEngine';
+import { bakeCurveLut, curvesEnabled, CURVE_LUT_SIZE } from './colorCurves';
+import { validateMask } from './masking/maskTypes';
+import { ClipMask } from '../types/timeline';
 import { transitionEngine, TransitionEngine, TransitionType, TransitionRenderOptions } from './transitions/transitionEngine';
 
 export { TransitionType, type TransitionRenderOptions };
@@ -18,6 +21,8 @@ export interface RenderOptions {
   height: number;
   timecode: number;
   colorSettings?: ColorGradeSettings;
+  /** R24.1: first clip mask gates the whole grade (inside only). */
+  mask?: ClipMask;
   captionData?: CaptionTrackData;
   transform?: Transform;
   yuvData?: {
@@ -81,7 +86,7 @@ export class WebGPURendererEngine {
         // deliberately NOT part of the compiled pipeline.
         const combinedShaderCode = yuvToRgbWgsl.replace(
           'return vec4<f32>(r, g, b, uniforms.opacity);',
-          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b));\n    return vec4<f32>(graded, uniforms.opacity);'
+          'let graded = apply3WayColorGrade(vec3<f32>(r, g, b), in.uv);\n    return vec4<f32>(graded, uniforms.opacity);'
         ) + '\n' + colorWgslSource;
 
         const shaderModule = this.device.createShaderModule({
@@ -347,20 +352,25 @@ export class WebGPURendererEngine {
         });
       }
 
-      // std140 layout for ColorGradeUniforms (128 bytes total):
+      // std140 layout for ColorGradeUniforms (316 floats = 1264 bytes):
       // vec3 lift (12 bytes) + pad (4 bytes) -> floats 0-3
       // vec3 gamma (12 bytes) + pad (4 bytes) -> floats 4-7
       // vec3 gain (12 bytes) + pad (4 bytes) -> floats 8-11
       // vec3 offset (12 bytes) + pad (4 bytes) -> floats 12-15
       // vec4 params (16 bytes) -> floats 16-19
       // vec2 lutParams (8 bytes) + pad (8 bytes) -> floats 20-23
+      // R24.2: curveLut 64x vec4 (1024 bytes) -> floats 24-279
+      // R24.2: curveParams vec4 -> floats 280-283 (x: enabled)
+      // R24.2: secA/secB/secC vec4 -> floats 284-295
+      // R24.2: secLift vec3+pad, secGain vec3+pad -> floats 296-303
+      // R24.1: maskA/maskB/maskC vec4 -> floats 304-315
 
       colorUniformBuffer = this.device.createBuffer({
-        size: 256, // Must be multiple of 256 or simply pad to enough capacity. Actually size 96 or 128 is fine, but padding to 256 satisfies minUniformBufferOffsetAlignment if used with offsets, we just use 0. WebGPU standard uniform buffers size can be anything > needed, min 16 byte aligned.
+        size: 2048, // 1264 bytes used; over-provisioned with 16-byte alignment.
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
-      const colorData = new Float32Array(24);
+      const colorData = new Float32Array(316);
 
       // Defaults
       const lift = settings?.lift || {r:0, g:0, b:0};
@@ -380,6 +390,46 @@ export class WebGPURendererEngine {
 
       colorData[20] = lutSize;
       colorData[21] = hasLut ? (settings.lutIntensity ?? 1.0) : 0.0;
+
+      // R24.2: baked 1D curves. Always baked (identity when absent) but only
+      // sampled when enabled, so legacy grades render exactly as before.
+      const baked = bakeCurveLut(settings ?? {}, CURVE_LUT_SIZE);
+      colorData.set(baked, 24);
+      colorData[280] = settings && curvesEnabled(settings) ? 1 : 0;
+
+      // R24.2: HSL secondary qualifier + isolated grade.
+      const secOn = settings?.secondarySelection && settings?.secondaryGrade ? 1 : 0;
+      const sel = settings?.secondarySelection;
+      const secGrade = settings?.secondaryGrade;
+      colorData[284] = sel?.hueCenter ?? 0;
+      colorData[285] = sel?.hueWidth ?? 0;
+      colorData[286] = sel?.hueSoftness ?? 0;
+      colorData[287] = secOn;
+      colorData[288] = sel?.satMin ?? 0;
+      colorData[289] = sel?.satMax ?? 1;
+      colorData[290] = sel?.lumaMin ?? 0;
+      colorData[291] = sel?.lumaMax ?? 1;
+      colorData[292] = sel?.boxSoftness ?? 0;
+      colorData[296] = secGrade?.lift.r ?? 0;
+      colorData[297] = secGrade?.lift.g ?? 0;
+      colorData[298] = secGrade?.lift.b ?? 0;
+      colorData[300] = secGrade?.gain.r ?? 1;
+      colorData[301] = secGrade?.gain.g ?? 1;
+      colorData[302] = secGrade?.gain.b ?? 1;
+
+      // R24.1: whole-grade mask gate. Invalid masks throw here (fail loudly)
+      // rather than uploading garbage geometry to the GPU.
+      const mask = _options.mask;
+      if (mask) validateMask(mask);
+      colorData[304] = mask?.centerX ?? 0;
+      colorData[305] = mask?.centerY ?? 0;
+      colorData[306] = mask?.sizeX ?? 0;
+      colorData[307] = mask?.sizeY ?? 0;
+      colorData[308] = mask?.rotation ?? 0;
+      colorData[309] = mask?.feather ?? 0;
+      colorData[310] = mask?.invert ? 1 : 0;
+      colorData[311] = mask ? 1 : 0;
+      colorData[312] = mask?.shape === 'ellipse' ? 1 : 0;
 
       this.device!.queue.writeBuffer(colorUniformBuffer, 0, colorData as any);
 

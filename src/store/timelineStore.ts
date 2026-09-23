@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { TimelineState, Track, Clip, Transform, Keyframe } from '../types/timeline';
+import { TimelineState, Track, Clip, Transform, Keyframe, ClipMask, AudioRole, TitleSpec, SequenceMarker, TimelineComment, AutomationLane } from '../types/timeline';
 import { secondsToRational, rationalToSeconds, compareRational, RationalTime } from '../types/time';
 import { Command } from '../core/commands';
 import { AddTrackCommand, AddClipCommand, RemoveClipCommand, ToggleTrackStateCommand } from '../core/commands/storeCommands';
@@ -17,12 +17,18 @@ import {
   RealignSyncCommand,
   UpdateTransformCommand,
   UpdateClipEffectCommand,
+  ToggleClipEffectCommand,
   UpdateClipVolumeCommand,
   SetKeyframeCommand,
   RemoveKeyframeCommand,
   ApplySpeedRampCommand,
   ApplyAutoReframeCommand
 } from '../core/commands/edits';
+import { AddMaskCommand, UpdateMaskCommand, RemoveMaskCommand } from '../core/commands/masking';
+import { SetClipAudioRoleCommand, UpsertClipAudioEffectCommand } from '../core/commands/audio';
+import { AddTitleClipCommand, UpdateTitleCommand } from '../core/commands/titleCommands';
+import { NestClipsCommand, UnnestCompoundCommand } from '../core/commands/nest';
+import { validateLane } from '../engine/automation';
 import { SpeedRampConfig } from '../types/timeline';
 import { autoReframeEngine } from '../engine/autoReframe';
 import { nativeBridge } from '../services/nativeBridge';
@@ -64,8 +70,25 @@ interface TimelineStoreActions {
   updateClipTransform: (clipId: string, transform: Transform) => void;
   updateClipVolume: (clipId: string, volumeDb: number) => void;
   updateClipEffect: (clipId: string, effectId: string, effectType: string, params: Record<string, unknown>) => void;
+  toggleClipEffect: (clipId: string, effectId: string) => void;
   setClipKeyframe: (clipId: string, property: string, keyframe: Keyframe) => void;
   removeClipKeyframe: (clipId: string, property: string, time: RationalTime) => void;
+  addClipMask: (clipId: string, mask: ClipMask) => void;
+  updateClipMask: (clipId: string, maskId: string, patch: Omit<Partial<ClipMask>, 'id'>) => void;
+  removeClipMask: (clipId: string, maskId: string) => void;
+  setClipAudioRole: (clipId: string, role: AudioRole) => void;
+  upsertClipAudioEffect: (clipId: string, effectId: string, effectType: string, params: Record<string, unknown>) => void;
+  addTitleClip: (trackId: string, clipId: string, spec: TitleSpec, startOffset: RationalTime, duration: RationalTime) => void;
+  updateTitleClip: (clipId: string, patch: Partial<TitleSpec>) => void;
+  nestClips: (trackId: string, clipIds: string[], name?: string) => void;
+  unnestCompound: (clipId: string) => void;
+  setTrackAutomation: (trackId: string, param: 'volume' | 'pan', lane: AutomationLane) => void;
+  addMarker: (name?: string, color?: string) => void;
+  removeMarker: (markerId: string) => void;
+  /** R26.5: timecoded review comments. */
+  addComment: (body: string, author?: string) => void;
+  removeComment: (commentId: string) => void;
+  resolveComment: (commentId: string, resolved: boolean) => void;
   applySpeedRamp: (clipId: string, speedConfig: SpeedRampConfig) => void;
   autoReframeClipToAspect: (
     clipId: string,
@@ -101,6 +124,8 @@ const initialTimelineState: TimelineState & UndoState = {
   magneticSnapping: true,
   zoomLevel: 20, // 20 pixels per second
   selectedClipIds: [],
+  markers: [],
+  comments: [],
   tracks: [
     {
       id: 'track_v2',
@@ -319,11 +344,95 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   updateClipEffect: (clipId, effectId, effectType, params) => {
     get().executeCommand(new UpdateClipEffectCommand(clipId, effectId, effectType, params));
   },
+  toggleClipEffect: (clipId, effectId) => {
+    get().executeCommand(new ToggleClipEffectCommand(clipId, effectId));
+  },
   setClipKeyframe: (clipId, property, keyframe) => {
     get().executeCommand(new SetKeyframeCommand(clipId, property, keyframe));
   },
   removeClipKeyframe: (clipId, property, time) => {
     get().executeCommand(new RemoveKeyframeCommand(clipId, property, time));
+  },
+  addClipMask: (clipId, mask) => {
+    get().executeCommand(new AddMaskCommand(clipId, mask));
+  },
+  updateClipMask: (clipId, maskId, patch) => {
+    get().executeCommand(new UpdateMaskCommand(clipId, maskId, patch));
+  },
+  removeClipMask: (clipId, maskId) => {
+    get().executeCommand(new RemoveMaskCommand(clipId, maskId));
+  },
+  setClipAudioRole: (clipId, role) => {
+    get().executeCommand(new SetClipAudioRoleCommand(clipId, role));
+  },
+  upsertClipAudioEffect: (clipId, effectId, effectType, params) => {
+    get().executeCommand(new UpsertClipAudioEffectCommand(clipId, effectId, effectType, params));
+  },
+  addTitleClip: (trackId, clipId, spec, startOffset, duration) => {
+    get().executeCommand(new AddTitleClipCommand(trackId, clipId, spec, startOffset, duration));
+  },
+  updateTitleClip: (clipId, patch) => {
+    get().executeCommand(new UpdateTitleCommand(clipId, patch));
+  },
+  nestClips: (trackId, clipIds, name) => {
+    get().executeCommand(new NestClipsCommand(trackId, clipIds, `compound_${Date.now()}`, name));
+  },
+  unnestCompound: (clipId) => {
+    get().executeCommand(new UnnestCompoundCommand(clipId));
+  },
+  setTrackAutomation: (trackId, param, lane) => {
+    validateLane(lane);
+    if (param !== 'volume' && param !== 'pan') {
+      throw new Error(`setTrackAutomation: param must be 'volume' or 'pan'`);
+    }
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        t.id !== trackId
+          ? t
+          : {
+              ...t,
+              automation: {
+                volume: { points: [], mode: 'snap' },
+                pan: { points: [], mode: 'snap' },
+                ...t.automation,
+                [param]: { mode: lane.mode, points: lane.points.map((p) => ({ ...p })) },
+              },
+            }
+      ),
+    }));
+  },
+  addMarker: (name, color) => {
+    const marker: SequenceMarker = {
+      id: `marker_${Date.now()}`,
+      time: { ...get().playheadPosition },
+      name: name && name.length > 0 ? name : `Marker ${get().markers.length + 1}`,
+      color: color ?? '#6366f1',
+    };
+    set((state) => ({ markers: [...state.markers, marker] }));
+  },
+  removeMarker: (markerId) => {
+    set((state) => ({ markers: state.markers.filter((m) => m.id !== markerId) }));
+  },
+  addComment: (body, author) => {
+    const text = body.trim();
+    if (text.length === 0) return;
+    const comment: TimelineComment = {
+      id: `comment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      time: { ...get().playheadPosition },
+      author: author && author.length > 0 ? author : 'Local',
+      body: text,
+      resolved: false,
+      createdAt: new Date().toISOString(),
+    };
+    set((state) => ({ comments: [...state.comments, comment] }));
+  },
+  removeComment: (commentId) => {
+    set((state) => ({ comments: state.comments.filter((c) => c.id !== commentId) }));
+  },
+  resolveComment: (commentId, resolved) => {
+    set((state) => ({
+      comments: state.comments.map((c) => (c.id === commentId ? { ...c, resolved } : c)),
+    }));
   },
   applySpeedRamp: (clipId, speedConfig) => {
     get().executeCommand(new ApplySpeedRampCommand(clipId, speedConfig));

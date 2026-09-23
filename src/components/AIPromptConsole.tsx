@@ -2,10 +2,17 @@ import React, { useState } from 'react';
 import {
   Sparkles, Send, Bot, Sliders, Scissors, Captions, VolumeX, Palette, Wand2,
   CheckCircle2, Undo2, ChevronDown, ChevronRight, Slash, Check,
-  RefreshCw, Volume2, Sun, Layers, AlertCircle
+  RefreshCw, Volume2, Sun, Layers, AlertCircle, Type, ScrollText, Mic, LayoutTemplate,
+  MessageSquare
 } from 'lucide-react';
 import { SilenceTrimmerModal } from './SilenceTrimmerModal';
+import { TitlesPanel } from './TitlesPanel';
+import { AutoEditPanel } from './AutoEditPanel';
+import { ScriptToVideoPanel } from './ScriptToVideoPanel';
+import { VoiceoverPanel } from './VoiceoverPanel';
+import { TemplateBrowser } from './TemplateBrowser';
 import { BridgePanel } from './BridgePanel';
+import { ReviewPanel } from './ReviewPanel';
 import { useTimelineStore } from '../store/timelineStore';
 import { agentOrchestrator } from '../services/agentOrchestrator';
 import { useAgentStore, ActionDiff } from '../store/agentStore';
@@ -19,7 +26,7 @@ export interface AIPromptConsoleProps {
 }
 
 export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, className = '', style }) => {
-  const [activeTab, setActiveTab] = useState<'copilot' | 'inspector'>('copilot');
+  const [activeTab, setActiveTab] = useState<'copilot' | 'inspector' | 'titles' | 'autoedit' | 'script' | 'voice' | 'templates' | 'review'>('copilot');
   const [prompt, setPrompt] = useState('');
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [showSilenceModal, setShowSilenceModal] = useState(false);
@@ -52,6 +59,7 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
     transform: true,
     audio: true,
     color: true,
+    effects: true,
   });
 
   const selectedClipIds = useTimelineStore(s => s.selectedClipIds);
@@ -127,6 +135,35 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
     updateClipEffect(inspectorClip.id, inspectorColorEffectId, 'colorGrade', {
       temperature: v / 100,
     });
+  };
+
+  // ---- R25.5 Background Remove: strategy + key controls write an honest
+  // `bg_remove` effect entry (undoable). The neural entry point throws
+  // (no bundled model), so only chroma/difference strategies are offered.
+  const BG_REMOVE_EFFECT_ID = 'bg_remove_effect';
+  const [bgStrategy, setBgStrategy] = useState<'chroma' | 'difference'>('chroma');
+  const [bgKeyColor, setBgKeyColor] = useState('#00ff00');
+  const [bgTolerance, setBgTolerance] = useState(25);
+  const toggleClipEffect = useTimelineStore(s => s.toggleClipEffect);
+  const bgRemoveEffect = inspectorClip?.effects?.find(e => e.type === 'bg_remove');
+
+  const handleBgApply = () => {
+    if (!inspectorClip) return;
+    const hex = bgKeyColor.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    if (![r, g, b].every((v) => Number.isFinite(v))) return;
+    updateClipEffect(inspectorClip.id, BG_REMOVE_EFFECT_ID, 'bg_remove', {
+      strategy: bgStrategy,
+      keyColor: { r, g, b },
+      tolerance: bgTolerance / 100,
+    });
+  };
+
+  const handleBgToggle = () => {
+    if (!inspectorClip || !bgRemoveEffect) return;
+    toggleClipEffect(inspectorClip.id, BG_REMOVE_EFFECT_ID);
   };
 
   const slashCommands = [
@@ -239,7 +276,7 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
     });
   };
 
-  const toggleInspectorSection = (section: 'transform' | 'audio' | 'color') => {
+  const toggleInspectorSection = (section: 'transform' | 'audio' | 'color' | 'effects') => {
     setInspectorSections((prev) => ({
       ...prev,
       [section]: !prev[section],
@@ -256,31 +293,104 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
       }}
       className={`bg-dark-900 border-l border-subtle flex flex-col h-full select-none text-xs mesh-glow shrink-0 ${!width ? 'w-96' : ''} ${className}`}
     >
-      {/* Header Tabs */}
+      {/* Header Tabs: 8 tabs in a 4-col grid so labels never overflow on
+          narrow panels (flex-1 single row crushed icons and clipped tabs). */}
       <div className="flex items-center justify-between border-b border-subtle px-3 py-2.5 bg-dark-950/60">
-        <div className="flex space-x-1 bg-dark-950 p-1 rounded-panel border border-subtle w-full">
+        <div className="grid grid-cols-4 gap-1 bg-dark-950 p-1 rounded-panel border border-subtle w-full">
           <button
             onClick={() => setActiveTab('copilot')}
-            className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
               activeTab === 'copilot'
                 ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
                 : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-            <span>AI Copilot</span>
+            <Sparkles className="w-3.5 h-3.5 shrink-0 text-indigo-300" />
+            <span className="truncate">AI Copilot</span>
           </button>
 
           <button
             onClick={() => setActiveTab('inspector')}
-            className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
               activeTab === 'inspector'
                 ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
                 : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5 text-purple-300" />
-            <span>Inspector</span>
+            <Sliders className="w-3.5 h-3.5 shrink-0 text-purple-300" />
+            <span className="truncate">Inspector</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('titles')}
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+              activeTab === 'titles'
+                ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+            }`}
+          >
+            <Type className="w-3.5 h-3.5 shrink-0 text-cyan-300" />
+            <span className="truncate">Titles</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('autoedit')}
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+              activeTab === 'autoedit'
+                ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+            }`}
+          >
+            <Wand2 className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
+            <span className="truncate">Auto-Edit</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('script')}
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+              activeTab === 'script'
+                ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+            }`}
+          >
+            <ScrollText className="w-3.5 h-3.5 shrink-0 text-amber-300" />
+            <span className="truncate">Script</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('voice')}
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+              activeTab === 'voice'
+                ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+            }`}
+          >
+            <Mic className="w-3.5 h-3.5 shrink-0 text-rose-300" />
+            <span className="truncate">Voice</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+              activeTab === 'templates'
+                ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+            }`}
+          >
+            <LayoutTemplate className="w-3.5 h-3.5 shrink-0 text-amber-300" />
+            <span className="truncate">Templates</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('review')}
+            className={`min-w-0 flex items-center justify-center gap-1.5 px-1 py-1.5 rounded-md font-medium text-[11px] transition-all ${
+              activeTab === 'review'
+                ? 'bg-gradient-to-r from-indigo-accent to-purple-600 text-white font-semibold shadow-md shadow-indigo-500/20'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 shrink-0 text-teal-300" />
+            <span className="truncate">Review</span>
           </button>
         </div>
       </div>
@@ -625,6 +735,30 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
             </form>
           </div>
         </div>
+      ) : activeTab === 'titles' ? (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <TitlesPanel />
+        </div>
+      ) : activeTab === 'autoedit' ? (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <AutoEditPanel />
+        </div>
+      ) : activeTab === 'script' ? (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <ScriptToVideoPanel />
+        </div>
+      ) : activeTab === 'voice' ? (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <VoiceoverPanel />
+        </div>
+      ) : activeTab === 'templates' ? (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <TemplateBrowser />
+        </div>
+      ) : activeTab === 'review' ? (
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <ReviewPanel />
+        </div>
       ) : (
         /* Smooth Collapsible Inspector Accordions Tab */
         <div className="flex-1 p-3 overflow-y-auto space-y-3 bg-dark-950 text-neutral-300">
@@ -825,6 +959,90 @@ export const AIPromptConsole: React.FC<AIPromptConsoleProps> = ({ width, classNa
                     onChange={(e) => handleInspectorContrast(parseFloat(e.target.value))}
                     className="w-full accent-purple-500 h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
                   />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Background Remove Accordion (R25.5) */}
+          <div className="border border-subtle rounded-panel bg-dark-900 overflow-hidden">
+            <button
+              onClick={() => toggleInspectorSection('effects')}
+              className="w-full px-3 py-2.5 bg-dark-900 hover:bg-dark-850 flex items-center justify-between text-left transition-colors"
+            >
+              <div className="flex items-center space-x-2">
+                <Layers className="w-3.5 h-3.5 text-teal-400" />
+                <span className="font-semibold text-xs text-neutral-200">Background Remove</span>
+              </div>
+              {inspectorSections.effects ? (
+                <ChevronDown className="w-4 h-4 text-neutral-400" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-neutral-400" />
+              )}
+            </button>
+
+            {inspectorSections.effects && (
+              <div className="p-3 border-t border-subtle space-y-3 bg-dark-950/60 text-xs">
+                <div className="flex items-center space-x-2">
+                  <span className="text-neutral-400 w-16">Strategy</span>
+                  <select
+                    aria-label="Background strategy"
+                    value={bgStrategy}
+                    onChange={(e) => setBgStrategy(e.target.value as 'chroma' | 'difference')}
+                    disabled={!inspectorClip}
+                    className="flex-1 bg-dark-950 text-neutral-200 rounded px-2 py-1 border border-subtle disabled:opacity-40"
+                  >
+                    <option value="chroma">Chroma key</option>
+                    <option value="difference">Difference (static cam)</option>
+                  </select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-neutral-400 w-16">Key color</span>
+                  <input
+                    type="color"
+                    aria-label="Key color"
+                    value={bgKeyColor}
+                    onChange={(e) => setBgKeyColor(e.target.value)}
+                    disabled={!inspectorClip}
+                    className="w-10 h-6 bg-dark-950 rounded border border-subtle disabled:opacity-40"
+                  />
+                  <span className="text-neutral-400 w-16">Tolerance</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="60"
+                    step="1"
+                    aria-label="Key tolerance"
+                    value={bgTolerance}
+                    onChange={(e) => setBgTolerance(Number(e.target.value))}
+                    disabled={!inspectorClip}
+                    className="flex-1 accent-teal-500 h-1 bg-neutral-800 rounded cursor-pointer disabled:opacity-40"
+                  />
+                  <span className="font-mono text-teal-400 font-semibold tabular-nums w-10 text-right">
+                    {bgTolerance}%
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleBgApply}
+                    disabled={!inspectorClip}
+                    className="flex-1 px-2 py-1 rounded bg-teal-700 hover:bg-teal-600 text-white font-semibold transition-colors disabled:opacity-40"
+                  >
+                    Apply background remove
+                  </button>
+                  <button
+                    onClick={handleBgToggle}
+                    disabled={!inspectorClip || !bgRemoveEffect}
+                    title={bgRemoveEffect?.enabled === false ? 'Re-enable background remove' : 'Disable (restores the frame)'}
+                    className="px-2 py-1 rounded border border-subtle text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                  >
+                    {bgRemoveEffect?.enabled === false ? 'Enable' : 'Disable'}
+                  </button>
+                </div>
+                <div className="text-[11px] text-neutral-500">
+                  {bgRemoveEffect
+                    ? `Active: ${String((bgRemoveEffect.params as { strategy?: string }).strategy ?? 'chroma')} (${bgRemoveEffect.enabled === false ? 'disabled' : 'enabled'})`
+                    : 'No background effect on this clip.'}
                 </div>
               </div>
             )}

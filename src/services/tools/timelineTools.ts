@@ -5,8 +5,10 @@ import { whisperService } from '../whisperTranscriber';
 import { sileroVadService } from '../sileroVad';
 import { Command } from '../../core/commands';
 import { AddClipCommand } from '../../core/commands/storeCommands';
-import { secondsToRational } from '../../types/time';
+import { secondsToRational, rationalToSeconds } from '../../types/time';
 import { Clip } from '../../types/timeline';
+import { runAutoEdit, defaultPerceptionServices, RawFootage } from '../../engine/autoEdit/autoEditPipeline';
+import { parseAssetDuration } from '../../core/project/serialize';
 
 /**
  * Resolves an asset id / name / path to a real on-disk audio path via the
@@ -292,4 +294,105 @@ export async function cut_and_arrange_timeline_executor(args: {
     edits_count: args.edits.length,
     commands,
   };
+}
+
+export const auto_edit_assembly_def = {
+  name: 'auto_edit_assembly',
+  description: 'Assembles a rough cut from raw footage: transcribes, scores takes by speech density and silence, drops bad takes, and inserts keepers as one undoable transaction.',
+  parameters: {
+    type: 'object' as const,
+    properties: {
+      asset_ids: {
+        type: 'array' as const,
+        items: { type: 'string' as const },
+      },
+      track_id: { type: 'string' as const },
+      quality_threshold: { type: 'number' as const, default: 40 },
+      start_at_sec: { type: 'number' as const },
+    },
+    required: ['asset_ids'],
+  },
+};
+
+/**
+ * R25.1 — executes the Auto-Edit pipeline through the real on-device
+ * perception services. Unresolvable assets, unparsable durations and
+ * perception failures all return typed errors — the executor never
+ * invents takes, words, or silence windows (R21.3, invariant §5.5).
+ */
+export async function auto_edit_assembly_executor(args: {
+  asset_ids: string[];
+  track_id?: string;
+  quality_threshold?: number;
+  start_at_sec?: number;
+}) {
+  const store = useTimelineStore.getState();
+  const poolAssets = useMediaPoolStore.getState().assets;
+  const fps = store.metadata?.fps || 30;
+  const rate = Math.max(1, Math.round(fps));
+
+  if (!Array.isArray(args.asset_ids) || args.asset_ids.length === 0) {
+    return {
+      error: 'no_footage',
+      details: 'auto_edit_assembly needs at least one asset_id; nothing was assembled.',
+    };
+  }
+
+  const trackId =
+    args.track_id || store.tracks.find((t) => t.type === 'video')?.id || store.tracks[0]?.id;
+  if (!trackId) {
+    return { error: 'no_track', details: 'No timeline track available for the assembly.' };
+  }
+
+  const footage: RawFootage[] = [];
+  for (const assetId of args.asset_ids) {
+    const mediaPath = resolveAssetAudioPath(assetId);
+    if (!mediaPath) {
+      return {
+        error: 'unknown_asset',
+        details: `Cannot assemble "${assetId}": no resolvable media file in the pool or timeline.`,
+      };
+    }
+    const poolAsset = poolAssets.find((a) => a.id === assetId || a.name === assetId || a.path === assetId);
+    const parsed = poolAsset ? parseAssetDuration(poolAsset.duration, fps) : undefined;
+    if (!parsed) {
+      return {
+        error: 'unknown_duration',
+        details: `Cannot assemble "${assetId}": duration "${poolAsset?.duration ?? 'missing'}" is not parseable — refusing to invent a take length.`,
+      };
+    }
+    footage.push({
+      assetId: poolAsset?.id ?? assetId,
+      assetName: poolAsset?.name ?? assetId,
+      mediaPath,
+      durationSec: parsed.value / parsed.rate,
+    });
+  }
+
+  try {
+    const result = await runAutoEdit(footage, defaultPerceptionServices, {
+      trackId,
+      startAtSec: args.start_at_sec ?? rationalToSeconds(store.playheadPosition),
+      rate,
+      qualityThreshold: args.quality_threshold,
+    });
+    return {
+      success: true,
+      track_id: trackId,
+      kept: result.kept,
+      dropped: result.dropped,
+      takes: result.takes.map((t) => ({
+        asset_id: t.assetId,
+        score: t.score.score,
+        verdict: t.score.verdict,
+        reasons: t.score.reasons,
+      })),
+      commands: [result.transaction],
+    };
+  } catch (e: unknown) {
+    return {
+      error: 'auto_edit_failed',
+      details: e instanceof Error ? e.message : String(e),
+    };
+  }
 }

@@ -11,6 +11,8 @@ describe('Audio Commands', () => {
         inPoint: null,
         outPoint: null,
         selectedClipIds: [],
+        markers: [],
+    comments: [],
         activeWorkspace: 'audio',
         magneticSnapping: true,
         zoomLevel: 100,

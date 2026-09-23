@@ -29,8 +29,8 @@ describe('ExportModal R8.2', () => {
       expect(screen.getByText('VideoToolbox (Apple)')).toBeInTheDocument();
     });
 
-    // Check that both options are present
-    const select = screen.getByRole('combobox');
+    // Encoder select specifically (ExportModal also has a sidecar-format combobox, R25.6).
+    const select = screen.getByTestId('encoder-select');
     expect(select).toBeInTheDocument();
     expect(select.children.length).toBe(2);
     expect(select.children[0].textContent).toBe('Software x264');

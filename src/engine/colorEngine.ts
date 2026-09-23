@@ -1,4 +1,6 @@
 import colorWgsl from './shaders/color.wgsl?raw';
+import { applyCurvesToRgb, RGBCurves } from './colorCurves';
+import { applySecondaryGrade, HSLSecondarySelection, SecondaryGrade } from './hslSecondary';
 export interface RGBColor {
   r: number;
   g: number;
@@ -17,6 +19,11 @@ export interface ColorGradeSettings {
   lutFilePath?: string;
   lutIntensity?: number;// 0.0 to 1.0
   lutData?: CubeLUTData;
+  /** R24.2: 1D tone curves, applied after gamma. Absent = no-op. */
+  curves?: RGBCurves;
+  /** R24.2: HSL secondary qualifier + isolated grade, applied after curves. */
+  secondarySelection?: HSLSecondarySelection;
+  secondaryGrade?: SecondaryGrade;
 }
 
 export interface CubeLUTData {
@@ -83,6 +90,11 @@ export class ColorGradingEngine {
 
   /**
    * Generates WebGPU WGSL fragment shader code for 32-bit Float 3-Way Color Wheels & 3D LUT Evaluation
+   *
+   * R24.2/R24.1 GPU parity: `color.wgsl` implements curves (baked 64-entry
+   * 1D LUT uniform), the HSL secondary qualifier, and whole-grade mask
+   * gating alongside lift/gamma/gain/LUT. `evaluateColorOnCPU` is the
+   * conformance oracle for all three stages.
    */
   getWGSLShaderCode(_settings?: ColorGradeSettings): string {
     return colorWgsl;
@@ -105,6 +117,22 @@ export class ColorGradingEngine {
     r = Math.pow(r, 1.0 / Math.max(0.01, settings.gamma.r));
     g = Math.pow(g, 1.0 / Math.max(0.01, settings.gamma.g));
     b = Math.pow(b, 1.0 / Math.max(0.01, settings.gamma.b));
+
+    // R24.2 Curves (master, then per-channel). Absent = identity.
+    if (settings.curves) {
+      const curved = applyCurvesToRgb({ r, g, b }, settings.curves);
+      r = curved.r;
+      g = curved.g;
+      b = curved.b;
+    }
+
+    // R24.2 HSL secondary (isolated lift/gain by qualifier weight).
+    if (settings.secondarySelection && settings.secondaryGrade) {
+      const seconded = applySecondaryGrade({ r, g, b }, settings.secondarySelection, settings.secondaryGrade);
+      r = seconded.r;
+      g = seconded.g;
+      b = seconded.b;
+    }
 
     // Gain & Offset
     r = r * settings.gain.r + settings.offset.r;

@@ -1,3 +1,366 @@
+## 2026-09-23 — opencode — ruler wheel-zoom (user request)
+- **Did:**
+  - `TimelineTrackEditor.tsx`: wheel over the seconds ruler now zooms the timeline (up = in, down = out), exponential step, clamped to the 5..100 slider range, anchored at the cursor (time under pointer stays put via scrollLeft compensation). Ruler gets `cursor-ew-resize` + "Scroll to zoom in/out" title. Counts as manual zoom, so auto-fit never overrides it.
+  - Tests: wheel-up zooms in / wheel-down zooms out / zero-delta no-op. Full suite 143 files/640 pass/1 skip.
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 143 files / 640 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** visual confirmation (no headless browser in this env).
+- **Next:** Rebuild/restart the app to use it. No roadmap rows affected (bugfix, no PROGRESS change).
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — clip-box layout: docked label bar + full-box filmstrip (user follow-up)
+- **Did:**
+  - Root cause: video clip interior was one centered flex row — name/badges sat mid-box on top of the frames, so previews never read as full-box. Restructured (`TimelineTrackEditor.tsx`): filmstrip owns `inset-0`; new docked top label bar (icon + name + meta pills, scrim gradient, `pointer-events-none` so select/drag fall through); shared `ClipMetaBadges` component (speed/rev/sync/duration, incl. `sync-offset-badge` testid preserved). Audio clips keep the centered single-row header unchanged.
+  - Tests: top bar contains name + `46.0s` pill and is `absolute`; filmstrip still 8 poster tiles; audio header untouched. Full suite 143 files/638 pass/1 skip.
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 143 files / 638 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** visual screenshot confirmation (no headless browser in this env).
+- **Next:** User must rebuild/restart the app to see it. Await visual confirmation.
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — timeline auto-fill + distinct filmstrip frames (user follow-up)
+- **Did:**
+  - Diagnosis from the new screenshot: tiles repeated one identical frame because the Tauri asset carries a single native poster (`thumbnailDataUrl`) while its media (via `convertFileSrc`) was never sampled. Fix: `FilmstripPreview` now always live-captures distinct frames when playable — the poster is only an instant placeholder/fallback, replaced when ≥1 real frame arrives.
+  - `thumbnails.ts`: seek verification after every `seeked` (`|currentTime − target| > 0.3s` → drop the frame, honest hole instead of a duplicated frame 8×).
+  - Full-space: timeline auto-fits on mount and on clip add/remove/nest/undo (`clipSignature` effect). Manual zoom is never overridden (guarded by last-auto-fit baseline); trim/drag never refits mid-gesture. New exported pure `computeFitZoom()` (null when unmeasurable); Fit button kept as explicit control.
+  - Tests: `computeFitZoom` math + null cases; mount auto-fit (mocked viewport → zoom 16); manual-zoom-survives-content-change; event-path capture resolving honest nulls. Full suite 143 files/636 pass/1 skip.
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 143 files / 636 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** posters session-side (not in project JSON); speed-ramp clips sample linearly (no envelope mapping); visual screenshot confirmation (no headless browser in this env).
+- **Next:** User must rebuild/restart the desktop app (or `npm run dev`) to see it — old build still shows repeated poster tiles. Await visual confirmation.
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — timeline full-width + real clip previews (user screenshot)
+- **Did:**
+  - Root cause A: `totalDuration = 60` hardcoded (`TimelineTrackEditor.tsx:190`) — 46s clip ke baad 14s dead ruler; lambe content par ruler truncate. Ab view window content se banta hai (longest clip end + 5s tail, floor 30s) + zoom cluster me Fit button (`data-testid="fit-zoom"`) jo sequence ko lane viewport me scale karta hai.
+  - Root cause B: `FilmstripPreview` 8 nakli gradient boxes dikhata tha. Ab asset ke asli frames: naya `src/engine/thumbnails.ts` (seek+canvas capture, cached, har failure `null` — kabhi fabricated pixels nahi) + web import par asli poster capture (`AssetBin` → `thumbnailUrl`); native `thumbnailDataUrl` wahi path use karta hai. Poster tiles sync render; bina poster ke playable media par lazy live capture (blob/http/data + Tauri `getAssetUrl`); kuch na mile to neutral empty (fake boxes deleted).
+  - Tests: `thumbnails.test.ts` 8/8 (spacing math, URL class, cache dedupe, timeout/honest-null paths); `TimelineViewport.test.tsx` 5/5 (46s→51 ruler cells, empty→30, fit 800px→zoom16, poster tiles, no-poster→no strip). Full suite 143 files/631 pass/1 skip.
+  - Fix during green-up: naya `clip.sourceIn` read purane `as any` fixtures (bina sourceIn) par crash → call site par media-start fallback (real clips me hamesha hota hai).
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 143 files / 631 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** posters session-side hain (project JSON me persist nahi — blob URLs waise bhi reload par invalid; note); multi-frame sampling sirf live-capture path par, poster single-frame repeat hota hai; visual screenshot check (no headless browser in this env).
+- **Next:** Await user confirmation on visuals; no roadmap rows affected (bugfix, no PROGRESS change).
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — Project Bin polish (user screenshot)
+- **Did:**
+  - `src/components/MediaBins.tsx`: inactive bins are real chips now (bordered pill, hover ring) instead of plain text; counts in muted mono; edge scroll-fade shown only while overflow exists (scroll/resize/asset-aware); New-bin row aligned (`rounded-md`, `py-1`), bordered + button with real hit area, Enter key adds the bin.
+  - `src/components/AssetBin.tsx`: search gets a clear (×) button when a query is present (icon `pointer-events-none` so it never blocks typing).
+  - Titles/counts untouched (`${name} (${count})` + `name · count` text preserved) — existing bin tests pass unmodified.
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 141 files / 618 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** visual screenshot confirmation (no headless browser in this env).
+- **Next:** Await user confirmation on visuals; no roadmap rows affected (bugfix, no PROGRESS change).
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — Project Bin double-tags consolidation (user screenshot)
+- **Did:**
+  - Root cause: two overlapping taxonomies — old type pills (All/Video/Audio/✨ AI Generated, `AssetBin.tsx:336-350`) AND the R24.7 bins strip (All Media/Video/Audio/Offline/Favorites, `MediaBins.tsx`) — AND-stacked, so Video/Audio/All appeared twice.
+  - Fix (single taxonomy = bins strip): removed the pill row + `filter` state from `AssetBin.tsx` (filtering is now bin + search only); added builtin `bin-ai` "AI Generated" (`type eq 'ai'`) to `BUILTIN_BINS` so the pill's only unique filter survives with a live count.
+  - Tests: `mediaBins.test.ts` built-ins assertion rewritten id-based + order-proof (covers new `bin-ai`); new `AssetBinSearch` test asserts no bare All/Video/Audio buttons remain and the AI bin filters. Full suite 141 files/618 pass/1 skip.
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 141 files / 618 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** visual screenshot confirmation (no headless browser in this env).
+- **Next:** Await user confirmation on visuals; no roadmap rows affected (bugfix, no PROGRESS change).
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — timeline header/lane alignment fix (user screenshot)
+- **Did:**
+  - Root cause: right canvas starts with an `h-6` timecode ruler (`TimelineTrackEditor.tsx:677`) but the left header column had no matching spacer → every lane sat 24px lower than its header (V2 header aligned with the ruler in the screenshot). Second drift source: right lanes carried both `divide-y` top borders and their own `border-b` (2px separators) while headers had only 1px → +1px drift per track.
+  - Fix: `h-6 border-b` ruler spacer (`data-testid="ruler-spacer"`) as first child of the header column; header rows use `border-b border-subtle` instead of container `divide-y`; removed `divide-y` from the lane container (lanes keep `border-b`, drop-target test selector untouched). Both stacks are now identically `25px + Σ(height + 1px)`.
+  - New `src/components/__tests__/TimelineAlignment.test.tsx` 2/2 (spacer present with `h-6`+`border-b`; all 4 header heights equal their lanes).
+- **Verified:** `npm run build` clean | `npm run lint` clean | `npm test`: gate clean + 141 files / 617 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** visual screenshot confirmation (no headless browser in this env).
+- **Next:** Await user confirmation on visuals; no roadmap rows affected (bugfix, no PROGRESS change).
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — UI resize/tab overflow fixes (user-reported)
+- **Did:**
+  - `src/components/AIPromptConsole.tsx`: 8-tab header `flex space-x-1` → `grid grid-cols-4` (2 rows); buttons `flex-1` → `min-w-0` + `truncate` labels + `shrink-0` icons. Root cause of hidden tabs + shrunken icons: ~38px/tab vs ~75px needed, row overflowed 2x into `App` `overflow-hidden`.
+  - `src/App.tsx`: dual monitors `min-w-[240px]` → `min-w-0` (flex instead of clip); TranscriptEditor `w-96 shrink-0` → `w-96 max-w-[45%] min-w-0`; export workspace parent → scrollable + safe-center (`m-auto` on `ExportModal` root).
+  - `src/store/layoutStore.ts`: new `clampWidthsToViewport()` + `clampPanelsToViewport()` (center keeps ≥320px, right shrinks first); applied on stored-state load (stale localStorage in new tabs) and on window `resize` via new `App` listener. Zero resize handling existed before (single `innerWidth` read).
+  - New `src/store/__tests__/layoutViewport.test.ts` 5/5 (untouched fit, right-first shrink, center guard 640–1600px, live re-clamp, stale-localStorage new-tab load).
+  - Housekeeping: moved untracked `crash.log` (Tauri `tao` event-loop crash dump, 209B) out of repo root to temp — it was failing the invariant gate (Root Clutter).
+- **Verified:** `npm run build` clean (1645 modules) | `npm run lint` clean | `npm test`: gate clean + 140 files / 615 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** visual screenshot check (no headless browser in this env — Jules sandbox can confirm); TopBar/ProgramMonitor toolbars already responsive (`hidden md/xl`, `flex-wrap`), untouched.
+- **Next:** Await user confirmation on visuals; no roadmap rows affected (bugfix, no PROGRESS change).
+- **Blockers:** None.
+
+## 2026-09-23 — opencode — R25.6 caption sidecar + music bed editor
+- **Did:**
+  - New `src/engine/captions/sidecar.ts`: SRT/VTT timestamp formatters (throws on invalid), `wordsToCues` (word mode preserves single-word timing; phrase mode splits on >0.6s gap / maxWords like the kinetic renderer), `cuesToSrt`/`cuesToVtt`, `wordsToSidecar`, `parseSrt` (round-trip acceptance), `harvestCaptionWords` (enabled caption/subtitle effects on unmuted tracks; throws if none — no fabricated sidecar), `downloadSidecar` Blob helper.
+  - New `src/engine/musicEditor.ts`: `planMusicBedEdit` pure rational planner (`exact`/`trim`/`loop`, result always equals target or throws drift), `musicBedEditCommands` (TrimCommand for shorten; AddClipCommand tiles for lengthen; CompoundCommand undo; speed stays 1.0 — no pitch DSP invented), `findMusicBedClip` (audioRole=music or name match, skips muted/locked), `planDurationFrames`, `targetFromSeconds`.
+  - `src/components/ExportModal.tsx`: Caption Sidecar section (SRT/VTT select + download, honest error when no words) and Fit Music Bed section (target seconds input → real `executeCommand` transaction).
+  - Tests: sidecar 6/6 (acceptance: parseable SRT timings ≤1ms vs transcript; harvest skips muted), musicEditor 10/10 (acceptance: 60s→30s ±1 frame @30fps; loop 20s→50s sums exact; undo restores 60s), ExportModalSidecar 4/4 (acceptance: store lands 30s±1 frame; no-bed honest error); full suite 139 files/610 pass/1 skip.
+  - Fix: pre-existing `ExportModal.test.tsx` used `getByRole('combobox')` which broke when sidecar select added — scoped to `getByTestId('encoder-select')` (behavior unchanged).
+  - Fix during green-up: wrong relative import paths in `musicEditor.test.ts`; `captured` typed as array instead of object in sidecar UI test; CompoundCommand imported from `transaction.ts` (not re-exported by commands index).
+  - PROGRESS.md: R25.6 set `done` (`real`, tests named, limits in evidence); **R25 phase exit: Complete**; Next agent → no remaining `todo` rows (R24–R26 fully done).
+- **Verified:** `npm run build` clean (`tsc` + vite 5.59s, 1645 modules, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 139 files / 610 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** pitch-preserving time-stretch (ROADMAP says loop/cut without pitch artifacts — satisfied by not stretching); dedicated music-editor panel (controls live in ExportModal); native Tauri file-save path for sidecars (web Blob download only); beat-aligned loop points (cuts are exact-rational, not beat-snapped).
+- **Next:** No `todo` rows remain in PROGRESS.md Work Queue (R24–R26 complete). Await human review / new phase.
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R26.5 review + collaboration + quick publish
+- **Did:**
+  - `src/types/timeline.ts`: `TimelineComment` (id, timecode, body, author, resolved) + `TimelineState.comments`; `src/store/timelineStore.ts`: `addComment`/`removeComment`/`resolveComment` (validated, immutable).
+  - `src/core/project/schema.ts` + `serialize.ts`: `SequenceCommentSchema`, optional `ProjectVersionSchema` / `version_history`; comments serialize only when non-empty and round-trip on deserialize; `openProjectWeb` restores markers + comments alongside timeline.
+  - New `src/engine/exportPresets.ts` additions: `PublishCompatibilityError` (`ASPECT_MISMATCH`/`SIZE_MISMATCH`), `aspectBucket()`, `assertPublishCompatible()` (square/other masters pass; landscape↔portrait throws).
+  - New `src/services/reviewShare.ts`: `buildReviewBundle`, `encodeReviewLink`/`decodeReviewLink` (`cinecraft-review://v1/<base64>` — self-contained, no remote server invented), `checkPublishReady`, `commentPayload`.
+  - New `src/components/ReviewPanel.tsx`: composer at current playhead, seek-on-click per comment, resolve/remove, share + import review link, publish preflight UI showing typed `[ASPECT_MISMATCH] ...` error or success; mounted as 9th `review` tab in `AIPromptConsole`.
+  - Tests: `reviewShare.test.ts` 7/7 (acceptance: comment → JSON → deserialize round-trip with injected audio-streams media_pool asset for sample-rate; encode/decode link; vertical master vs `youtube_4k` throws `ASPECT_MISMATCH`, matching sizes pass, unknown preset throws); `ReviewPanel.test.tsx` 3/3 (acceptance: add comment → click seeks playhead → resolve; publish check shows ASPECT_MISMATCH text; matching preset shows ok) — `cleanup()` in `afterEach` (jsdom has no auto-cleanup); ~24 test fixtures bulk-updated with `comments: []`.
+  - Fixes during green-up: missing `checksum_sha256` on media_pool fixtures (deserialize requires it), missing `comments: []` on fixtures that assert full `TimelineState`, duplicate rendered elements without cleanup.
+  - PROGRESS.md: R26.5 set `done` (`real`, tests named, limits in evidence); **R26 phase exit: Complete**; Next agent → R25.6.
+- **Verified:** `npm run build` clean (`tsc` + vite 5.45s, 1643 modules, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 136 files / 590 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** remote review collaboration server / real shareable URL (self-contained payload only); `version_history` UI (schema field defined, no save/restore controls); real YouTube/Vimeo/X OAuth upload (publish is a local aspect/size preflight only, as scoped).
+- **Next:** R25.6 (caption SRT/VTT sidecar + AI music editor; deps R16.1) — last remaining `todo` row.
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R26.4 proxy v2 + smart cache + pro formats
+- **Did:**
+  - `src-tauri/src/proxy_engine.rs`: `ProxyPreset` + `proxy_presets()` (4 presets), `validate_proxy_codec()` h264/prores allowlist wired into `start_proxy_task` (unknown codec → typed error), `default_proxy_path_for` (`.mp4`/`.mov`), 5 unit tests.
+  - `src-tauri/src/ffmpeg_demuxer.rs`: `MediaProbeInfo.codec_display` + `pix_fmt`; `classify_pro_codec` (ProRes profile/tag matrix + XAVC gate so plain h264 is not upgraded); probe fills both fields from real ffprobe; tests: classifier matrix 8 assertions + real ffmpeg lavfi fixture asserts `codec_display="H.264"`, `pix_fmt="yuv420p"`.
+  - Fixed classifier test: ffprobe reports HQ profile as `"High"` not `"HQ"` — mapped `High` → `ProRes 422` (2-pass was the mistaken expectation; `"HQ"` profile string kept for explicit HQ).
+  - New `src/engine/cacheManager.ts`: byte-budget generic LRU (rejects oversized put, touch-to-MRU, exact `sizeBytes` accounting) + tests (budget eviction preserves MRU).
+  - New `src/engine/proxyPresets.ts`: TS mirror of Rust catalogue, `validateProxyPreset`, `proxyExtension`, `defaultProxyPath`, `shouldAutoProxy`/`AUTO_PROXY_MIN_WIDTH=3840` + tests.
+  - `src/components/AssetBin.tsx`: preset `<select>` in toolbar; both native `importMediaFile` and web file-input paths call `triggerProxyForAsset` when `shouldAutoProxy(width)`; status `generating`/`failed` via store; fire-and-forget (import never blocks).
+  - `src/services/nativeBridge.ts`: `MediaProbeMetadata` gains optional `codecDisplay`/`pixFmt` (camelCase mirrors of serde rename fields).
+  - Tests: ProxyTrigger 2/2 (acceptance: 4K→true, 1080p→false, NaN/undefined→false); full suite 134 files/580 pass/1 skip.
+  - PROGRESS.md: R26.4 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 5.18s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 134 files / 580 passed / 1 skipped (skip pre-existing). `cargo check` Finished OK (2.03s) | `cargo test proxy_engine` 5/5 ok | `cargo test ffmpeg_demuxer` 4/4 ok (includes real ffmpeg lavfi probe fixture).
+- **Left undone:** GPU 4:2:2 10-bit decode path; real XAVC/ProRes RAW media fixture (none in repo — classifier covered by synthetic inputs); full native-import e2e click-through in jsdom (pure predicate tested instead); AssetBin does not poll proxy progress into percentage (status only).
+- **Next:** R26.5 (review + collaboration + quick publish).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree. `cargo test` bare run previously killed on this host — filtered runs (`proxy_engine`, `ffmpeg_demuxer`) used instead; PowerShell stderr piped via `Out-String -Stream`.
+
+## 2026-09-23 — opencode — R26.3 HDR + spaces + comparison view
+- **Did:**
+  - `colorManagement.ts`: Rec.709 + ACES2065-1 spaces (return matrix derived by runtime inversion, exact by construction), labelled filmic tone-map approximation, CTA-861.3 MaxCLL/MaxFALL engine; all registered in OcioConfig.
+  - New `src/engine/compare.ts`: CPU A/B renderer (side-by-side/split/bypass, pure, non-destructive).
+  - New `src/components/ComparisonView.tsx` (+ `WorkingSpaceSelect`): snapshot slots with isolated copies, split slider, guarded canvas blits, honest empty state; working space writes project metadata through an undoable command. Mounted in ColorWorkspace with a Scopes/Compare toggle.
+  - Tests: colorSpaces 4/4 (acceptance: round-trips in tolerance), compare 3/3 (acceptance: no cross-talk), ComparisonView 3/3.
+  - Debugging notes: (1) two independently-rounded AP matrices were not exact inverses (3.5e-5 drift) — derive-by-inversion instead of loosening tolerance, then matched the suite's 1e-4 standard; (2) load-bearing `as unknown as ImageDataArray` cast documented per the R22.1 pattern.
+  - PROGRESS.md: R26.3 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.42s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 131 files / 574 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** RRT/ODT display transforms; HDR numbers in UI (engine-side only, by decision); full working-space grade evaluation (DAG future).
+- **Next:** R26.4 (proxy v2 + smart cache + pro formats).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R26.2 automation lanes + 5.1 scaffold
+- **Did:**
+  - `src/types/timeline.ts`: `AutomationMode/Point/Lane` + `Track.automation?`; `src/store/timelineStore.ts`: validated `setTrackAutomation`.
+  - New `src/engine/automation.ts`: exact linear evaluation (null on empty), snap/latch/trim write modes with sorted/immutable semantics, dB↔linear helpers.
+  - New `src/engine/surround.ts`: 5.1 layout model + ITU Lo/Ro downmix gains + documented silent-surround upmix (no graph bus yet — stated).
+  - New `src/components/AutomationLane.tsx` (SVG editor: curve render, drag, dbl-click add/remove, mode select) mounted in `AudioMixer` with track/param pickers.
+  - Tests: automation 7/7 (acceptance: 2-point ramp exact, modes preserve), surround 3/3 (acceptance: downmix exact), lane UI 4/4 (incl. store write-through).
+  - Debugging notes: (1) imported AUTOMATION_MODES from types instead of engine (esbuild silently yields undefined — caught by test, not build); (2) stable-sort tie order in test expectation; (3) new lane-duration memo crashed pre-existing mixer tests on clips-less tracks — guarded with `?? []`; (4) old mixer test needed `within()` scoping after the track picker duplicated a name (assertion strength preserved).
+  - PROGRESS.md: R26.2 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.35s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 128 files / 564 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** live per-tick automation audition (no transport hook); lanes in project JSON (session-side); 5.1 graph buses + hardware verification.
+- **Next:** R26.3 (HDR + ACES/OCIO + comparison view).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree. One justified edit to a prior test file (AudioMixer.test scoping, behavior unchanged).
+
+## 2026-09-23 — opencode — R26.1 nested sequences + adjustment layers
+- **Did:**
+  - `src/types/timeline.ts`: `Clip.compound` (span-relative children, depth-1) + `Clip.adjustment` flag.
+  - New `src/core/commands/nest.ts`: `NestClipsCommand` (same-track, 2+, unlocked, no re-nest) + `UnnestCompoundCommand` (absolute-position restore); store wrappers `nestClips`/`unnestCompound`.
+  - New `src/engine/adjustmentLayers.ts`: span resolution + sequential CPU composition through the real grade evaluator.
+  - Schema + serialize: recursive compound persistence + adjustment flag (omitted when absent).
+  - `TimelineTrackEditor`: Nest/+Adjustment toolbar buttons, NEST/ADJ badges, double-click open, breadcrumb with proportional chips + playhead-kept navigation + unnest-to-edit.
+  - Tests: nest 4/4, adjustmentLayers 2/2 (acceptance: adjustment == per-clip grade), nestSerialize 2/2, TimelineNest 2/2 (acceptance: nest→open at kept playhead→unnest).
+  - Debugging notes: (1) two more truncated-code edits caught by read-back (SetKeyframe body, InspectorBody phantom); (2) serialize double-comma caught by esbuild; (3) stale-button act() trap again on Nest — same lesson as TitlesPanel; (4) `?.title.` tsc-only chains — build stays mandatory.
+  - PROGRESS.md: R26.1 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.26s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 125 files / 550 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** nesting depth >1; in-place inner editing (unnest to edit); GPU consumption of compounds/adjustments (DAG evaluation).
+- **Next:** R26.2 (audio automation lanes + 5.1 prep).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R25.5 background mattes + Inspector section
+- **Did:**
+  - New `src/engine/bgRemove.ts`: chroma-key matte, static-camera difference matte, majority-despeckle + box-blur refinement, Porter-Duff compositing, and an honestly-throwing neural entry (no model bundled — no fake bg_remove.rs, no Rust stub).
+  - New `ToggleClipEffectCommand` (+ store wrapper) for undoable effect enable/disable.
+  - Inspector "Background Remove" accordion: strategy/key/tolerance controls writing `bg_remove` entries, Enable/Disable toggle, honest empty state.
+  - Tests: bgRemove 8/8 (acceptance: portrait matte kept-mass + clean background, disable restores bit-exact), effectToggle 2/2, BgRemoveInspector 2/2.
+  - Debugging notes: (1) chroma alpha came out inverted (key kept, subject removed) — caught by the first test run, fixed the smoothstep direction, not the test; (2) snapshot-invert test expectation corrected to pre-apply semantics; (3) two more `edit`-truncated-code incidents (SetKeyframe body lines, InspectorBody phantom) — both caught by read-back before build, reinforcing read-after-edit discipline.
+  - PROGRESS.md: R25.5 set `done` (`real`, tests named, limits in evidence). Phase R25 exit: all 6 creator tasks complete.
+- **Verified:** `npm run build` clean (`tsc` + vite 6.16s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 121 files / 540 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched (deliberately: no unverifiable Rust).
+- **Left undone:** neural segmentation weights + ONNX session; GPU consumption of `bg_remove` entries (DAG evaluation); green despill (GPU stage owns it).
+- **Next:** R26.1 (nested sequences + adjustment layers).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R25.4 templates + beat-synced cuts
+- **Did:**
+  - New `src/engine/templates/creatorTemplates.ts`: 3 validated creator templates + worded-caption targeting (only effects carrying words, skipped counted honestly).
+  - New `src/engine/beatCut.ts`: nearest-beat snaps + evenly-spread ideal planning with dedupe.
+  - `src/components/TemplateBrowser.tsx` mounted as 7th copilot tab: template cards applying canvas/captions/outro through real commands, plus beat-cut section (real onset detector over decoded samples → sequential span-resolved splits, one undo per cut).
+  - Tests: templates 2/2, beatCut 3/3 (cuts within half a beat interval), browser 3/3 (template end-to-end, real-detector splits landing on beats, decode-failure honesty).
+  - Debugging notes: (1) single-beat input hit the ≥2 guard before the in-range guard — relaxed to ≥1 so the meaningful error surfaces; (2) cuts leaked onto a longer video clip because span search covered all tracks — scoped to the source track (proven via a temporary probe, then deleted); (3) wrong-label describe header fixed.
+  - PROGRESS.md: R25.4 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.13s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 118 files / 528 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** single-transaction beat cuts (split-id chaining); caption preset sync without existing words (monitor requirement).
+- **Next:** R25.5 (one-tap background remover).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R25.3 voiceover service + panel
+- **Did:**
+  - New `src/services/voiceover.ts`: system-voice list/preview (SpeechSynthesis, guarded), mic recording to real takes (getUserMedia + MediaRecorder + object URL, every missing API throws typed), take placement as pool assets with performed durations, and an honestly-throwing offline-TTS entry (no model bundled — no fake tts.rs shipped).
+  - `src/components/VoiceoverPanel.tsx` mounted as 6th copilot tab: voice preview, record/stop with live timer, take placement on the first unlocked audio track, enhance via the R17.3 spectral path, explicit TTS-unavailable note.
+  - Tests: voiceover 6/6 (guards, stubbed end-to-end recording, placement, TTS honesty), panel 2/2 (record→place→enhance wiring, honest empty states).
+  - Debugging note: two tsc-only errors after green vitest (unused test local, untyped window.URL cast) — vitest never typechecks; build stays mandatory.
+  - PROGRESS.md: R25.3 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.05s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 115 files / 520 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** neural TTS model + voice cloning (needs model ADR + weights); generated music.
+- **Next:** R25.4 (template library + Beat-Sync auto-cut).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R25.2 script-to-video draft
+- **Did:**
+  - New `src/engine/scriptToVideo.ts`: blank-line scene parser, WPM VO estimator (documented estimate + floor), draft planner (VO-matched title scenes + optional real pool-asset bed, single-undo transaction).
+  - `src/components/ScriptToVideoPanel.tsx` mounted as 5th copilot tab: script box with live scene/VO preview, bed picker, one-click draft with honest failure surfacing.
+  - Tests: scriptToVideo 6/6 (acceptance: 3 scenes → 3 ordered VO-matched clips), panel 2/2 (bed span + full-undo revert).
+  - Debugging notes: (1) word-count arithmetic rechecked (11, not 9); (2) deleted-then-restored import lines twice while editing shared files — verified each via read before proceeding; build is the backstop.
+  - PROGRESS.md: R25.2 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.13s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 113 files / 512 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** real TTS voiceover (R25.3), generated music (no generative audio model).
+- **Next:** R25.3 (TTS / AI voiceover + enhancement).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R25.1 AI Auto-Edit full assembly
+- **Did:**
+  - New `src/engine/autoEdit/`: `segmentScorer.ts` (documented deterministic weights, keep/review/drop verdicts), `roughCutAssembler.ts` (drop-bad, stable order, auto volume trim toward -20 dBFS, recorded joints, rational insert planning, single-undo transaction), `autoEditPipeline.ts` (injected Whisper/VAD services with production default wiring; failures propagate, never fabricated).
+  - `src/services/tools/timelineTools.ts` + `registry.ts`: `auto_edit_assembly` tool (resolvable-assets-only, unparsable durations and perception failures return typed errors); `agentOrchestrator.ts`: intent branch placed BEFORE the generic cut branch (substring-ordering trap documented).
+  - `src/components/AutoEditPanel.tsx` mounted as 4th copilot tab: footage checkboxes, quality bar, run with honest status/reasons, failures surfaced without timeline writes.
+  - Tests: scorer/assembler 5/5 (acceptance: 4-of-5 assembled, bad take excluded), pipeline 3/3 (incl. failure propagation + one-undo), tool+planner 4/4, panel 3/3 (mocked pipeline seam, asserted store effects).
+  - Debugging notes: (1) test import paths from the new `__tests__/` depth; (2) stub failing both services surfaces the STT error — assertion widened to the error family, point (propagation) unchanged.
+  - PROGRESS.md: R25.1 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 4.98s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 111 files / 504 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** semantic (non-chronological) narrative reordering (LLM planner territory); auto color normalization (needs frame-stats plumbing); transition render consumption (recorded, DAG-deferred).
+- **Next:** R25.2 (script-to-video draft timeline).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree. Adjacent-file note: `timelineTools.ts`/`registry.ts` are outside R25.1's listed Files but required by its listed `agentOrchestrator.ts` wiring.
+
+## 2026-09-23 — opencode — R24.7 bins, metadata, Sequence Index, markers
+- **Did:**
+  - `src/types/timeline.ts`: `SequenceMarker` + required `TimelineState.markers` (12 legacy test literals extended); `src/store/timelineStore.ts`: `markers: []` + `addMarker`/`removeMarker` (annotation-grade, direct-set like selection).
+  - New `src/store/mediaBins.ts`: serializable bin descriptors (field/op/value, and/or), 5 built-ins, strict validation; `mediaPool.ts`: metadata fields + validated `updateAssetMetadata` (throws on missing asset) + custom bin CRUD with active-bin fallback.
+  - Schema + serialize: asset metadata and sequence markers round-trip (omitted when absent; golden fixture untouched).
+  - UI: `MediaBins` strip + `AssetMetadataEditor` mounted in `AssetBin` (bin predicate composes with type/search filters); `SequenceIndex` drawer (clip table with exact seek+select, marker add/seek/remove, unified search) behind an Index toggle in the timeline toolbar.
+  - Tests: mediaBins 4/4, mediaPool 2/2, SequenceIndex 3/3, AssetBinSearch 3/3 (acceptance: labelled search + bin counts + metadata edit), sequenceMeta 2/2.
+  - Debugging note: new component tests rendered without `afterEach(cleanup)`, tripling the DOM across tests — added cleanup instead of loosening queries.
+  - PROGRESS.md: R24.7 set `done` (`real`, tests named, limits in evidence). Phase R24 exit: all 7 pro-gap tasks complete.
+- **Verified:** `npm run build` clean (`tsc` + vite 4.88s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 107 files / 489 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** transcript full-text search (needs a transcript index store); bins sync beyond local project.
+- **Next:** R25.1 (AI Auto-Edit full assembly).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.6 scene detection + paper edit
+- **Did:**
+  - New `src/engine/sceneDetect.ts`: chi-square histogram cut detector (motion-robust, min-gap chatter suppression, optional audio-transient annotation that never gates) + `cutTimes` rational stepping helper with documented split-id-chaining deferral.
+  - New `src/engine/paperEdit.ts`: word-id selection → exact word-boundary runs → rational InsertCommand plan → single-undo CompoundCommand; zero-length inserts and unknown ids throw.
+  - `TranscriptEditor`: Assemble (n) button beside Delete, assembling the selected ranges at the playhead from the transcribed clip's own asset/track.
+  - Tests: sceneDetect 6/6 (exact 3-cut splits, drift immunity, annotation, guards, histogram pins, cutTimes), paperEdit 5/5 (exact rational durations/placement, one-undo revert), TranscriptEditor 2/2 (incl. split-insert at the scrubbed playhead + undo).
+  - Debugging note: test assumed assembly at playhead 0, but word-click scrubs to 0.5s — the 3-clip split-insert outcome is correct behavior; the test now pins it instead of assuming append.
+  - PROGRESS.md: R24.6 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 5.00s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 102 files / 475 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** multi-sequence store (assembly targets the live sequence); one-pass batch cut application (split-id chaining); dissolve/wipe gradual-transition detection.
+- **Next:** R24.7 (media bins + metadata + Sequence Index).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.5 stabilizer + speed warp
+- **Did:**
+  - New `src/engine/stabilizer.ts`: NCC-grid translation estimation reusing the R24.1 tracker (median-robust, per-point failures skipped, coverage/confidence reported) + integrate/smooth/correct pipeline with edge-clamped moving average.
+  - New `src/engine/speedWarp.ts`: SAD block motion (zero-displacement tie-break for flat regions) + symmetric motion-compensated interpolation with bilinear sampling.
+  - Tests: stabilizer 4/4 (exact integer shifts, impulse attenuation, corrections reproduce the smooth path with residual <1e-9), speedWarp 6/6 (edge-block translation, flat-block stillness, bit-exact endpoints, midpoint centroid, 50% slow-mo exactly doubles rational duration via speedRamp).
+  - Debugging notes: (1) residual-energy `toBe(0)` tripped on f64 dust — tight band instead; (2) first motion fixture was degenerate (fully-interior flat block ties at zero by design) — rebuilt with edge-straddling 12px squares so the true shift is the unique minimum; (3) field-size guard only caught oversized grids — added vectors-length check so undersized grids throw instead of misreading.
+  - PROGRESS.md: R24.5 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 4.88s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 100 files / 463 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched (no Rust needed for acceptance).
+- **Left undone:** rotation/scale/rolling-shutter stabilization; occlusion-aware and sub-pixel flow; stabilize UI panel.
+- **Next:** R24.6 (Scene Edit Detection + Paper Edit).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.3 remainder (reverb, match capture, live insertion)
+- **Did:**
+  - New `src/engine/reverbMatch.ts`: Schroeder-style RT60 estimator (genuine-decay guard rejects flat/sustained tails — caught by test on first run) + drying-only decay matcher (wetter references throw instead of inventing reflections).
+  - `src/engine/dialogueMatcher.ts`: Goertzel `bandLevelsDb` (exact on coherent fixtures).
+  - New `src/services/audioAnalyze.ts`: blob/http fetch, Tauri fs native reads, WebAudio decode-to-mono, end-to-end `analyzeClipBands` — every unavailable path raises typed errors (tested), no mocks.
+  - `src/engine/audioEngine.ts`: `applyClipDynamics`/`removeClipDynamics` splicing a per-clip `DynamicsCompressorNode` (gain→comp→track) from the stored entry; invalid params throw, absent entry/engine returns null.
+  - `EssentialSoundPanel`: reference-clip select + Analyze & Match writing `eq_match` entries, applying role-base + correction to the live EQ, and surfacing analyzer failures.
+  - Tests: reverb 4/4, Goertzel +2 (matcher 8/8), analyze 3/3, live-insert 3/3, panel 6/6 (mocked I/O boundary, asserted store effects).
+  - Debugging notes: (1) flat-DC through Schroeder yields a truncation slope — added the genuine-decay guard instead of blessing it; (2) f32-vs-f64 literal precision in one assertion; (3) `createDynamicsCompressor` baseline miscount (limiter owns one) — count relative now.
+  - PROGRESS.md: R24.3 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 4.76s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 98 files / 453 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** real-browser decode round-trip (jsdom has no decoder — error path tested); multi-slope/early-reflection reverb (documented single-exponential scope).
+- **Next:** R24.5 (stabilization + optical-flow slow-mo).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.4 titles engine + panel + schema round-trip
+- **Did:**
+  - `src/types/timeline.ts`: `TitleSpec`/`TitleBox`/`TitleAlign` + `Clip.title?`.
+  - New `src/engine/titles.ts`: spec validation, greedy word-wrap with injected measure (overlong words hard-split, documented), 1.2× line layout, `createTitleClip` on stable `title://` pseudo-scheme, 3 built-in bumper templates, localStorage custom library with memory fallback + corruption tolerance.
+  - New `src/core/commands/titleCommands.ts`: `AddTitleClipCommand` (video-track-only, append-no-ripple, duplicate/locked guards) + `UpdateTitleCommand` (merged-spec validation); store wrappers `addTitleClip`/`updateTitleClip`.
+  - Schema: `ProjectClipSchema.type` widened to `'Clip' | 'Title'`, `asset_reference_id` optional (required for Clip), `title` spec block; serialize/deserialize branch on type with strict per-type validation.
+  - `src/components/TitlesPanel.tsx` mounted as third copilot tab: template browser, in-place text/size/color edit, add-at-playhead, save-custom, guarded 2D preview canvas that re-renders on edit.
+  - Tests: titles 9/9, titleCommands 4/4, titleSerialize 3/3 (incl. invalid-Title/invalid-Clip rejection), TitlesPanel 3/3 (incl. tab mount + one-undo revert).
+  - Debugging notes: (1) layout test reused wrap numbers without recomputing for the box width — fixed the fixture, not the engine; (2) panel edit test failed without `act()` around store selection (query hit the pre-selection textarea showing identical draft text) — proven via a temporary probe test (store updated, PAST grew), then probe deleted and the real test fixed; (3) vitest does not typecheck — `TitleTemplate` interface + three `?.title.` chains only surfaced under `tsc`; build now clean.
+  - PROGRESS.md: R24.4 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 4.70s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 95 files / 439 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** ProgramMonitor overlay compositing of title clips (needs DAG evaluation; frame feed safely skips them today); custom template sync beyond localStorage.
+- **Next:** R24.3 remainder or next claimable R24.5 (stabilization + optical-flow slow-mo).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.3 engine + panel (Essential Sound, matcher, dynamics)
+- **Did:**
+  - `src/types/timeline.ts`: `AudioRole` + `Clip.audioRole?` (session-side until schema v1.5).
+  - New `src/engine/essentialSound.ts` (4 role presets over shared `STANDARD_EQ_FREQUENCIES`, ducking map, strict alignment validation), `src/engine/dialogueMatcher.ts` (clamped+smoothed tone transfer, level offset, EqBand conversion), `src/engine/dynamics.ts` (peak-hold feedforward compressor oracle, HF-driven de-esser oracle, `compressorNodeConfig` live mapping).
+  - `src/core/commands/audio.ts`: `SetClipAudioRoleCommand` + `UpsertClipAudioEffectCommand` (locked-track guards); store wrappers `setClipAudioRole`/`upsertClipAudioEffect`.
+  - `src/components/EssentialSoundPanel.tsx` mounted in `AudioWorkspace`: role tag (writes preset to live EQ chain), compressor/de-esser sliders onto `audioEffects[]`, honestly-disabled Match button.
+  - Tests: essentialSound 4/4, matcher 6/6, dynamics 6/6, role commands 4/4, panel 4/4.
+  - Debugging notes: (1) peak-GR expectation corrected — 12 dB over at 4:1 is 9 dB reduction, code was right; (2) raw-rectified detector pumped, replaced with peak-hold; (3) input-peak assertion relaxed to a sampling-honest band; (4) pre-existing `AudioWorkspaceDucking` test collided on clip-name text after the panel header showed it — removed the name span from the new panel instead of touching the old test.
+  - PROGRESS.md: R24.3 set `partial`/`in_progress` (not `done` — reverb match, Match-capture UI, and live per-clip graph insertion remain, per ADR-007).
+- **Verified:** `npm run build` clean (`tsc` + vite 4.93s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 91 files / 420 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone (R24.3 remainder):** blind reverb/RT60 matching; reference spectrum capture + Match button wiring; per-clip compressor params consumed by the live WebAudio graph (stored + CPU-verified today).
+- **Next:** R24.3 remainder or next claimable R24.4 (titles/motion-graphics engine).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.1 + R24.2 remainders (GPU parity + UI)
+- **Did:**
+  - WGSL: `color.wgsl` gains `apply_curves` (baked 64-entry 1D LUT uniform, i32 clamped indexing), `rgb_to_hsl`/`secondary_weight` (inclusive hard edges at zero softness, mirroring CPU), `mask_alpha` (rect/ellipse, rotation, feather, invert), all stages gated by enable flags; `apply3WayColorGrade` takes `(inColor, uv)`, mask blends `mix(inColor, graded, alpha)` last.
+  - `webgpuRenderer.ts`: 316-float uniform block (buffer 2048), bakes + uploads curves/secondary/mask uniforms, validates masks (throws on garbage), `RenderOptions.mask`; `ProgramMonitor` feeds `activeClip.masks?.[0]`. No new textures/bindings — existing `createTexture ×4` test untouched and passing.
+  - `colorCurves.ts`: `bakeCurveLut`/`curvesEnabled`/`CURVE_LUT_SIZE` (moved here from a first draft in `colorEngine.ts` that broke imports — fixed before any commit).
+  - UI: `ColorCurvesView` (Identity/S-Contrast/Lifted-Blacks presets + Auto Color from the live monitor frame, disabled with honest tooltip when unreadable), `MaskInspector` (shape/class/center/size/feather/invert, add/edit/remove through undoable commands), both mounted in `ColorWorkspace`.
+  - Tests: renderer parity 1/1 (shader contains stages; flags + baked nodes at exact offsets; legacy flags off), baker exactness, `ColorCurvesView` 3/3 (incl. warm-frame auto → temperature<0), `MaskInspector` 3/3 (incl. one-undo revert).
+  - Debugging notes: (1) Auto-Color test expectation corrected — bright fixture correctly yields negative offset; (2) f32 baker assertion uses `Math.fround` reference instead of f64 literal.
+  - PROGRESS.md: R24.1 + R24.2 set `done` (`real`, tests named, limits in evidence).
+- **Verified:** `npm run build` clean (`tsc` + vite 10.21s, pre-existing chunk warnings only) | `npm run lint` clean | `npm test`: gate clean + 86 files / 396 passed / 1 skipped (skip pre-existing) | WGSL brace/entry sanity script: balanced, `fs_main` + new stages present. NOT compiler-verified (no GPU/Dawn on host — stated in evidence). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** neural segmentation model (needs ADR); masks in project JSON (needs schema v1.5 ADR); 1-click Match UI (reference picker; solver done).
+- **Next:** R24.3 (Essential Sound tagging + Dialogue Matcher + dynamics).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commits (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.2 engine (curves + HSL secondary + match/auto)
+- **Did:**
+  - New `src/engine/colorCurves.ts` (validated control points, exact piecewise-linear interp, master-then-channel order; linear chosen over cubic to avoid overshoot — documented).
+  - New `src/engine/hslSecondary.ts` (rgb→HSL, circular-hue gate + sat/luma box with softness, isolated lift/gain blend).
+  - New `src/engine/colorMatch.ts` (Reinhard mean/std transfer → ordinary gain/offset params; gray-world auto → temperature/offset params; zero-variance degrades to mean shift, never divides by zero).
+  - `src/engine/colorEngine.ts`: optional `curves`/`secondarySelection`/`secondaryGrade` on `ColorGradeSettings`, evaluated in `evaluateColorOnCPU` after gamma (absent = legacy-identical); honest WGSL-parity gap comment added (GPU does lift/gamma/gain/LUT only).
+  - Tests: `colorCurves` 5/5, `hslSecondary` 7/7, `colorMatch` 6/6, `colorEngineCurves` 4/4 (incl. masked oracle + curves).
+  - Debugging note: hard qualifier edges excluded boundary values (sat = satMax scored 0); fixed to inclusive hard edges + pinned with a boundary test instead of adjusting the test expectation.
+  - PROGRESS.md: R24.2 set to `partial`/`in_progress` with evidence (not `done` — WGSL parity + UI remain, per ADR-007).
+- **Verified:** `npm run build` clean (`tsc` + vite 6.05s, only pre-existing chunk warnings) | `npm run lint` clean | `npm test`: gate clean + 84 files / 388 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** WGSL 1D-LUT bake + secondary qualifier stage in `color.wgsl`; curves/secondary/match-auto UI in Color workspace; reference-frame pixel plumbing for 1-click Match.
+- **Next:** R24.1 remainder (GPU mask plumbing + MaskInspector + schema v1.5 ADR) or R24.2 remainder (WGSL parity + UI) or next claimable R24.3 (Essential Sound).
+- **Blockers:** None. Protocol deviations: no `chore: claim` commit (commit policy); no fresh branch — changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24.1 foundation (mask model + NCC tracker + commands)
+- **Did:**
+  - `src/types/timeline.ts`: `ClipMask` (rect/ellipse, normalized coords, feather, invert) + `Clip.masks?` (session-side; serializer untouched, golden fixture safe).
+  - New `src/engine/masking/`: `maskTypes.ts` (validate/alpha/IoU), `pointTracker.ts` (NCC template tracker, integer precision, throws on OOB/featureless/mismatch), `maskTracker.ts` (centroid propagation + `detectSubjectMask` throwing `NotImplementedError` — no model bundled), `applyMaskedGrade.ts` (CPU oracle via real `evaluateColorOnCPU`, non-destructive).
+  - New `src/core/commands/masking.ts` (Add/Update/RemoveMaskCommand, locked-track + duplicate + unknown-id guards) + export from `index.ts` + `addClipMask/updateClipMask/removeClipMask` store wrappers.
+  - Tests: `masking.test.ts` 15/15 (exact displacement/score, alpha, IoU, grade-inside-only, input intact), `maskingCommands.test.ts` 6/6 (apply/undo/redo, failure leaves state untouched).
+  - Debugging note: a parabolic sub-pixel refinement biased results ~0.2px on step edges (caught by exact-displacement tests); removed it and pinned exact integer equality instead of loosening tolerance. Sub-pixel deferred with reason in code.
+  - PROGRESS.md: R24.1 claimed then set to `partial`/`in_progress` with evidence (not `done` — neural + GPU + UI scope remains, per ADR-007).
+- **Verified:** `npm run build` clean (`tsc` + vite 11.09s, only pre-existing chunk warnings) | `npm run lint` clean | `npm test`: gate clean + 80 files / 366 passed / 1 skipped (skip pre-existing). `cargo check` not run — `src-tauri/` untouched.
+- **Left undone:** neural segmentation model + missing-model UX; GPU mask-uniform plumbing in `webgpuRenderer.ts`; `MaskInspector` UI; masks in project JSON schema (needs schema v1.5 ADR).
+- **Next:** R24.1 remainder (GPU plumbing + UI + schema) or next claimable R24.2 (curves + match). Neural model choice needs an ADR first.
+- **Blockers:** None. Protocol deviations: no lone `chore: claim task R24.1` commit (commit policy forbids unrequested commits); stayed on `feat/R23.5-desktop-e2e` instead of a fresh `feat/R24.1-*` branch — all changes uncommitted in working tree.
+
+## 2026-09-23 — opencode — R24–R26 task creation (all enhancements)
+- **Did:** Added Phases R24 (R24.1–R24.7 pro gap), R25 (R25.1–R25.6 creator AI), R26 (R26.1–R26.5 polish) to `docs/ROADMAP.md` with Files + falsifiable Acceptance per task; registered 18 rows as `missing`/`todo` in `PROGRESS.md` with deps; added ADR-010 (proposed) in `docs/DECISIONS.md`; updated phase-exit + Next agent pointer to R24.1.
+- **Verified:** NOT VERIFIED — docs-only change; `npm run build` / `npm test` / `cargo check` not run (no code touched).
+- **Left undone:** Claim + implement starting at R24.1 per `AGENTS.md` §7.1.
+- **Next:** Pick R24.1 (Auto Mask + tracker) — needs its own ADR before implementation (new model + IPC/file boundary).
+- **Blockers:** None.
+
 ## 2026-09-22 — Antigravity — R23.5 Desktop end-to-end verification on live Tauri host
 - **Did:**
   - Added discovery file export in `src-tauri/src/main.rs`: upon binding loopback HTTP sidecar, writes `target/bridge_info.json` and `%TEMP%\cinecraft_bridge_info.json` containing dynamic port and UUID token for host discovery.

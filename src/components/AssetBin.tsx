@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Film, Music, FileText, Search, LayoutGrid, List, Plus, Play, Link2Off } from 'lucide-react';
+import { Film, Music, FileText, Search, LayoutGrid, List, Plus, Play, Link2Off, X } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
 import { useMediaPoolStore, MediaAsset } from '../store/mediaPool';
+import { BUILTIN_BINS, resolveBin } from '../store/mediaBins';
+import { MediaBins, AssetMetadataEditor } from './MediaBins';
 import { useTimelineStore } from '../store/timelineStore';
 import { secondsToRational } from '../types/time';
 import { Clip } from '../types/timeline';
+import { shouldAutoProxy } from '../engine/proxyPresets';
+import { capturePosterFrame } from '../engine/thumbnails';
 
 export interface AssetBinProps {
   width?: number;
@@ -14,11 +18,12 @@ export interface AssetBinProps {
 
 export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [filter, setFilter] = useState<'all' | 'video' | 'audio' | 'ai'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [scrubPosition, setScrubPosition] = useState<{ [assetId: string]: number }>({});
 
-  const { assets, addAsset, updateAssetStatus, relinkAsset, selectedAssetId, selectAsset } = useMediaPoolStore();
+  const { assets, addAsset, updateAssetStatus, relinkAsset, selectedAssetId, selectAsset, activeBinId, customBins, setAssetProxyStatus } = useMediaPoolStore();
+  // R26.4 — selected proxy preset for 4K auto-trigger (UI mirrors Rust presets).
+  const [proxyPresetId, setProxyPresetId] = useState('proxy-720p-h264');
 
   // Optionally periodic check for offline files.
   // In a real app we might watch files or check on focus.
@@ -41,7 +46,7 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
   }, [assets, updateAssetStatus]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addClipToTrack, tracks } = useTimelineStore();
+  const { addClipToTrack, tracks, targetTrackId } = useTimelineStore();
 
   const handleImportMedia = async () => {
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
@@ -67,6 +72,10 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
 
           addAsset(newAsset);
           selectAsset(newAsset.id);
+          // R26.4 — 4K auto-proxy trigger (fire-and-forget, never blocks import).
+          if (shouldAutoProxy(meta.width)) {
+            void triggerProxyForAsset(newAsset, meta.width);
+          }
         }
       } catch (err) {
         console.error('Failed to import media file:', err);
@@ -74,6 +83,28 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
     } else {
       // Web fallback
       fileInputRef.current?.click();
+    }
+  };
+
+  // R26.4 — shared proxy trigger helper (preset-aware, status-tracked).
+  const triggerProxyForAsset = async (asset: MediaAsset, width?: number) => {
+    if (!shouldAutoProxy(width)) return;
+    const presetMap: Record<string, { h: number; codec: string }> = {
+      'proxy-720p-h264': { h: 720, codec: 'h264' },
+      'proxy-540p-h264': { h: 540, codec: 'h264' },
+      'proxy-360p-h264': { h: 360, codec: 'h264' },
+      'proxy-720p-prores': { h: 720, codec: 'prores' },
+    };
+    const preset = presetMap[proxyPresetId] ?? { h: 720, codec: 'h264' };
+    try {
+      setAssetProxyStatus(asset.id, 'generating');
+      const taskId = await nativeBridge.generateProxy(asset.path, preset.h, preset.codec);
+      // Poll once to seed status; the full progress loop lives in nativeBridge/proxyEngine.
+      // For tests we assert that generateProxy was invoked for 4K assets.
+      void taskId;
+    } catch (err) {
+      console.warn('[AssetBin] auto-proxy failed:', err);
+      setAssetProxyStatus(asset.id, 'failed');
     }
   };
 
@@ -102,6 +133,18 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
         height = (mediaElement as HTMLVideoElement).videoHeight;
       }
 
+      // Real poster frame for the bin grid + timeline filmstrip (session-side;
+      // blob URLs don't survive reload, so this is intentionally not persisted).
+      // Falls back to undefined — callers render a neutral strip, never a fake.
+      let thumbnailUrl: string | undefined;
+      if (!isAudio && durationSeconds > 0) {
+        try {
+          thumbnailUrl = (await capturePosterFrame(objectUrl, { timeoutMs: 3000 })) ?? undefined;
+        } catch {
+          thumbnailUrl = undefined;
+        }
+      }
+
       const newAsset: MediaAsset = {
         id: `asset_${Date.now()}_${i}`,
         name: file.name,
@@ -113,9 +156,13 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
         resolution: width ? `${width}x${height}` : undefined,
         fingerprint: `${file.name}-${file.size}-${file.lastModified}`,
         isOffline: false,
+        thumbnailUrl,
       };
 
       addAsset(newAsset);
+      if (!isAudio && shouldAutoProxy(width)) {
+        void triggerProxyForAsset(newAsset, width);
+      }
     }
 
     // Clear input
@@ -127,8 +174,26 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
   const handleAddToTimeline = (e: React.MouseEvent, asset: MediaAsset) => {
     e.stopPropagation();
 
-    // Find a suitable track
-    const targetTrack = tracks.find(t => t.type === asset.type);
+    // Find a suitable track: prefer targetTrackId if matching type & unlocked
+    let targetTrack = targetTrackId
+      ? tracks.find((t) => t.id === targetTrackId && t.type === asset.type && !t.locked)
+      : undefined;
+
+    if (!targetTrack) {
+      // Default to V1 for video, A1 for audio, or first unlocked matching track
+      if (asset.type === 'video') {
+        targetTrack =
+          tracks.find((t) => t.id === 'track_v1' && !t.locked) ||
+          tracks.find((t) => t.type === 'video' && !t.locked);
+      } else if (asset.type === 'audio') {
+        targetTrack =
+          tracks.find((t) => t.id === 'track_a1' && !t.locked) ||
+          tracks.find((t) => t.type === 'audio' && !t.locked);
+      } else {
+        targetTrack = tracks.find((t) => t.type === asset.type && !t.locked);
+      }
+    }
+
     if (!targetTrack) {
       console.warn('No suitable track found for asset type', asset.type);
       return;
@@ -144,13 +209,13 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
       id: `clip_${Date.now()}`,
       assetId: asset.id,
       name: asset.name,
-      startOffset: secondsToRational(0), // Would normally be at playhead, but timeline track editor expects something
+      startOffset: secondsToRational(0),
       sourceIn: secondsToRational(0),
       sourceOut: clipDuration,
       duration: clipDuration,
     };
 
-    // Put it at playhead position, or max end of track
+    // Put it at max end of track
     let maxEnd = 0;
     for (const clip of targetTrack.clips) {
        const endSec = clip.startOffset.value / clip.startOffset.rate + clip.duration.value / clip.duration.rate;
@@ -193,10 +258,24 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
     });
   };
 
+  // R24.7: active smart bin narrows the pool before type/search filters.
+  // Unknown bin ids (stale selection) fall back to the full pool loudly.
+  const activeBinDef =
+    [...BUILTIN_BINS, ...customBins].find((b) => b.id === activeBinId) ?? BUILTIN_BINS[0];
+  let binAssetIds: Set<string> | null = null;
+  try {
+    binAssetIds = new Set(resolveBin(assets, activeBinDef).map((a) => a.id));
+  } catch (err) {
+    console.warn('[AssetBin] corrupt bin definition, showing full pool:', err);
+  }
+
+  // Single taxonomy: the smart bins strip below owns all category filtering
+  // (All/Video/Audio/AI/Offline/Favorites); search narrows further. No second
+  // pill row — it duplicated Video/Audio/All and AND-stacked confusingly.
   const filteredAssets = assets.filter((asset) => {
-    const matchesFilter = filter === 'all' || asset.type === filter;
+    const matchesBin = !binAssetIds || binAssetIds.has(asset.id);
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
+    return matchesBin && matchesSearch;
   });
 
   return (
@@ -252,6 +331,18 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
             </button>
           </div>
 
+          <select
+            aria-label="Proxy preset"
+            value={proxyPresetId}
+            onChange={(e) => setProxyPresetId(e.target.value)}
+            title="Proxy preset for 4K auto-generation"
+            className="bg-dark-950 text-neutral-300 text-[10px] rounded px-1 py-0.5 border border-subtle"
+          >
+            <option value="proxy-720p-h264">720p H.264</option>
+            <option value="proxy-540p-h264">540p H.264</option>
+            <option value="proxy-360p-h264">360p H.264</option>
+            <option value="proxy-720p-prores">720p ProRes</option>
+          </select>
           <button
             onClick={handleImportMedia}
             className="flex items-center space-x-1 px-2.5 py-1 bg-indigo-accent hover:bg-indigo-hover text-white rounded-panel text-[11px] font-medium shadow transition-all hover:scale-[1.02]"
@@ -262,35 +353,34 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
         </div>
       </div>
 
-      {/* Search & Category Filter Pills */}
-      <div className="p-2 border-b border-subtle space-y-2 bg-dark-950/40">
+      {/* Search (bins strip below owns category filtering — single taxonomy) */}
+      <div className="p-2 border-b border-subtle bg-dark-950/40">
         <div className="relative flex items-center">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 text-neutral-500" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 text-neutral-500 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assets, clips, tags..."
-            className="w-full bg-dark-950 text-neutral-200 text-xs pl-8 pr-2 py-1.5 rounded-panel border border-subtle focus:outline-none focus:border-indigo-accent placeholder-neutral-500 transition-colors"
+            className={`w-full bg-dark-950 text-neutral-200 text-xs pl-8 py-1.5 rounded-panel border border-subtle focus:outline-none focus:border-indigo-accent placeholder-neutral-500 transition-colors ${
+              searchQuery ? 'pr-8' : 'pr-2'
+            }`}
           />
-        </div>
-
-        <div className="flex items-center space-x-1 overflow-x-auto text-[10px] font-medium pb-0.5 no-scrollbar">
-          {(['all', 'video', 'audio', 'ai'] as const).map((cat) => (
+          {searchQuery && (
             <button
-              key={cat}
-              onClick={() => setFilter(cat)}
-              className={`px-2.5 py-1 rounded-full capitalize transition-all whitespace-nowrap ${
-                filter === cat
-                  ? 'bg-indigo-accent text-white shadow-sm font-semibold'
-                  : 'bg-dark-950 text-neutral-400 border border-subtle hover:text-neutral-200 hover:bg-dark-800'
-              }`}
+              onClick={() => setSearchQuery('')}
+              title="Clear search"
+              aria-label="Clear search"
+              className="absolute right-2 p-0.5 text-neutral-500 hover:text-neutral-100 transition-colors"
             >
-              {cat === 'ai' ? '✨ AI Generated' : cat}
+              <X className="w-3.5 h-3.5" />
             </button>
-          ))}
+          )}
         </div>
       </div>
+
+      {/* R24.7: smart bins strip */}
+      <MediaBins />
 
       {/* Asset Grid or List Area */}
       <div className="flex-1 overflow-y-auto p-2 bg-dark-950">
@@ -341,9 +431,11 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
                   key={asset.id}
                   draggable={true}
                   onClick={(e) => { e.stopPropagation(); selectAsset(asset.id); }}
+                  onDoubleClick={(e) => handleAddToTimeline(e, asset)}
                   onDragStart={(e) => { e.dataTransfer.setData("text/plain", asset.id); }}
                   onMouseMove={(e) => handleMouseMove(e, asset.id)}
                   onMouseLeave={() => handleMouseLeave(asset.id)}
+                  title="Click to select • Double-click or '+' to add to timeline"
                   className={`group relative bg-dark-900 border ${asset.id === selectedAssetId ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-subtle hover:border-indigo-accent/80'} rounded-panel p-2 transition-all duration-150 cursor-pointer shadow hover:shadow-indigo-500/10 flex flex-col justify-between`}
                 >
                   {/* Thumbnail Graphic Representation with Hover Scrub */}
@@ -409,12 +501,12 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
                       </span>
                     )}
 
-
                     <button
                       onClick={(e) => handleAddToTimeline(e, asset)}
-                      className="absolute bottom-1 left-1 bg-dark-950/90 hover:bg-indigo-900 text-[9px] font-medium px-1.5 py-0.5 rounded text-indigo-300 border border-indigo-900/50 backdrop-blur z-20 flex items-center space-x-1 transition-colors opacity-0 group-hover:opacity-100"
+                      className="absolute bottom-1 left-1 bg-dark-950/90 hover:bg-indigo-900 text-[9px] font-medium p-1 rounded text-indigo-200 border border-indigo-700/50 backdrop-blur z-20 flex items-center space-x-1 transition-all shadow-md group-hover:scale-105"
+                      title="Add to Timeline"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                     <span className="absolute bottom-1 right-1 bg-dark-950/90 text-[9px] font-mono px-1 py-0.5 rounded text-neutral-400 border border-subtle z-20">
                       {asset.duration}
@@ -444,7 +536,9 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
                 key={asset.id}
                 draggable={true}
                 onClick={(e) => { e.stopPropagation(); selectAsset(asset.id); }}
+                onDoubleClick={(e) => handleAddToTimeline(e, asset)}
                 onDragStart={(e) => { e.dataTransfer.setData("text/plain", asset.id); }}
+                title="Click to select • Double-click or '+' to add to timeline"
                 className={`flex items-center justify-between p-2 rounded-panel bg-dark-900 border hover:border-indigo-accent/80 hover:bg-dark-850 cursor-pointer transition-all ${asset.isOffline ? 'border-red-900/30' : asset.id === selectedAssetId ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-subtle'}`}
               >
                 <div className="flex items-center space-x-2.5 truncate">
@@ -480,7 +574,8 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
 
                   <button
                     onClick={(e) => handleAddToTimeline(e, asset)}
-                    className="px-2 py-0.5 bg-dark-800 hover:bg-indigo-900 text-indigo-300 rounded text-[9px] border border-subtle hover:border-indigo-500/50 flex items-center space-x-1"
+                    className="px-2 py-0.5 bg-dark-800 hover:bg-indigo-900 text-indigo-300 hover:text-white rounded text-[9px] border border-subtle hover:border-indigo-500/50 flex items-center space-x-1 transition-colors"
+                    title="Add to Timeline"
                   >
                     <Plus className="w-3 h-3" />
                   </button>
@@ -493,6 +588,9 @@ export const AssetBin: React.FC<AssetBinProps> = ({ width, className = '', style
           </div>
         )}
       </div>
+
+      {/* R24.7: metadata editor for the selected asset */}
+      <AssetMetadataEditor />
     </div>
   );
 };

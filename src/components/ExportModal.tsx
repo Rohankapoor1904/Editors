@@ -1,17 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { ExportConfig } from '../engine/exportEngine';
-import { Share2, Cpu, Sliders, Film } from 'lucide-react';
+import { Share2, Cpu, Sliders, Film, Captions, Music2 } from 'lucide-react';
 import { nativeBridge } from '../services/nativeBridge';
 import { useExportQueueStore } from '../engine/exportQueue';
 import { ExportQueue } from './ExportQueue';
 import { SOCIAL_PRESETS, SocialPreset } from '../engine/exportPresets';
+import { useTimelineStore } from '../store/timelineStore';
+import {
+  harvestCaptionWords,
+  wordsToSidecar,
+  downloadSidecar,
+  SidecarFormat,
+} from '../engine/captions/sidecar';
+import {
+  findMusicBedClip,
+  musicBedEditCommands,
+  targetFromSeconds,
+} from '../engine/musicEditor';
 
 export const ExportModal: React.FC = () => {
   const [selectedPresetId, setSelectedPresetId] = useState<string>('tiktok_reels');
   const [availableEncoders, setAvailableEncoders] = useState<string[]>(['Software x264']);
   const [selectedEncoder, setSelectedEncoder] = useState<ExportConfig['encoder']>('Software x264');
   const [customPath, setCustomPath] = useState<string>('');
+  const [sidecarFormat, setSidecarFormat] = useState<SidecarFormat>('srt');
+  const [sidecarStatus, setSidecarStatus] = useState<string | null>(null);
+  const [bedTargetSec, setBedTargetSec] = useState<string>('30');
+  const [bedStatus, setBedStatus] = useState<string | null>(null);
   const addJob = useExportQueueStore((state) => state.addJob);
+  const tracks = useTimelineStore((state) => state.tracks);
+  const metadata = useTimelineStore((state) => state.metadata);
+  const executeCommand = useTimelineStore((state) => state.executeCommand);
 
   useEffect(() => {
     const fetchEncoders = async () => {
@@ -51,8 +70,42 @@ export const ExportModal: React.FC = () => {
     });
   };
 
+  // R25.6 — sidecar download from real timeline caption effects.
+  const handleExportSidecar = () => {
+    try {
+      const words = harvestCaptionWords(tracks);
+      const content = wordsToSidecar(words, sidecarFormat, 'word');
+      const base = (metadata?.name || 'captions').replace(/[^a-zA-Z0-9_-]/g, '_');
+      downloadSidecar(content, `${base}.${sidecarFormat}`, sidecarFormat);
+      setSidecarStatus(`Exported ${words.length} word cue(s) → .${sidecarFormat}`);
+    } catch (err) {
+      setSidecarStatus(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  // R25.6 — fit music bed to an exact rational target (trim / loop, speed 1.0).
+  const handleFitMusicBed = () => {
+    try {
+      const found = findMusicBedClip(tracks);
+      if (!found) {
+        setBedStatus('No music bed clip found (role=music or name "Music Bed")');
+        return;
+      }
+      const rate = 60000;
+      const target = targetFromSeconds(Number(bedTargetSec), rate);
+      const { plan, transaction } = musicBedEditCommands(found.track, found.clip, target, rate);
+      executeCommand(transaction);
+      setBedStatus(
+        `Bed ${plan.mode}: ${(plan.resultDuration.value / plan.resultDuration.rate).toFixed(3)}s ` +
+          `(${plan.segments.length} segment${plan.segments.length === 1 ? '' : 's'})`
+      );
+    } catch (err) {
+      setBedStatus(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col space-y-4 max-w-md w-full shadow-2xl text-xs text-neutral-200 select-none">
+    <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-4 flex flex-col space-y-4 max-w-md w-full m-auto shadow-2xl text-xs text-neutral-200 select-none">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
         <div className="flex items-center space-x-2 font-bold text-sm text-neutral-100">
@@ -148,6 +201,69 @@ export const ExportModal: React.FC = () => {
             </span>
           )}
         </div>
+      </div>
+
+      {/* R25.6 — caption sidecar export */}
+      <div className="space-y-1.5 border-t border-neutral-800 pt-2">
+        <label className="text-[11px] font-semibold text-neutral-400 flex items-center gap-1">
+          <Captions className="w-3.5 h-3.5 text-sky-400" />
+          <span>Caption Sidecar (R25.6)</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <select
+            data-testid="sidecar-format"
+            value={sidecarFormat}
+            onChange={(e) => setSidecarFormat(e.target.value as SidecarFormat)}
+            className="bg-neutral-900 border border-neutral-700 text-neutral-200 p-1 rounded text-[11px]"
+          >
+            <option value="srt">SRT</option>
+            <option value="vtt">WebVTT</option>
+          </select>
+          <button
+            data-testid="export-sidecar"
+            onClick={handleExportSidecar}
+            className="flex-1 py-1.5 bg-sky-800 hover:bg-sky-700 text-white font-semibold rounded text-[11px] transition-all"
+          >
+            Download .{sidecarFormat}
+          </button>
+        </div>
+        {sidecarStatus && (
+          <div data-testid="sidecar-status" className="text-[10px] text-neutral-400 break-words">
+            {sidecarStatus}
+          </div>
+        )}
+      </div>
+
+      {/* R25.6 — music bed duration fit */}
+      <div className="space-y-1.5 border-t border-neutral-800 pt-2">
+        <label className="text-[11px] font-semibold text-neutral-400 flex items-center gap-1">
+          <Music2 className="w-3.5 h-3.5 text-amber-400" />
+          <span>Fit Music Bed (R25.6)</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            data-testid="bed-target"
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={bedTargetSec}
+            onChange={(e) => setBedTargetSec(e.target.value)}
+            className="w-20 bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-[11px] text-neutral-200 font-mono focus:outline-none focus:border-amber-500"
+          />
+          <span className="text-[10px] text-neutral-500 font-mono">seconds</span>
+          <button
+            data-testid="fit-bed"
+            onClick={handleFitMusicBed}
+            className="flex-1 py-1.5 bg-amber-700 hover:bg-amber-600 text-white font-semibold rounded text-[11px] transition-all"
+          >
+            Fit Bed
+          </button>
+        </div>
+        {bedStatus && (
+          <div data-testid="bed-status" className="text-[10px] text-neutral-400 break-words">
+            {bedStatus}
+          </div>
+        )}
       </div>
 
       {/* Export Action Button */}
