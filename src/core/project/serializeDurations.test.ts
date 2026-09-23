@@ -21,6 +21,8 @@ function baseState(): TimelineState {
     outPoint: null,
     tracks: [],
     selectedClipIds: [],
+    markers: [],
+    comments: [],
     activeWorkspace: 'edit',
     magneticSnapping: true,
     zoomLevel: 100,

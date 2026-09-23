@@ -119,4 +119,66 @@ describe('WebGPURendererEngine', () => {
     const mockTexture = mockDevice.createTexture.mock.results[0].value;
     expect(mockTexture.destroy).toHaveBeenCalled();
   });
+
+  it('compiles curves/secondary/mask WGSL stages and uploads their uniforms (R24.1/R24.2)', async () => {
+    await engine.init(mockCanvas);
+
+    const code = mockDevice.createShaderModule.mock.calls[0][0].code as string;
+    expect(code).toContain('apply_curves');
+    expect(code).toContain('secondary_weight');
+    expect(code).toContain('mask_alpha');
+
+    const yuvData = {
+      y: new Uint8Array([255, 255, 255, 255]),
+      u: new Uint8Array([128]),
+      v: new Uint8Array([128]),
+    };
+
+    engine.renderFrame({
+      width: 2,
+      height: 2,
+      timecode: 0,
+      yuvData,
+      colorSettings: {
+        lift: { r: 0, g: 0, b: 0 },
+        gamma: { r: 1, g: 1, b: 1 },
+        gain: { r: 1, g: 1, b: 1 },
+        offset: { r: 0, g: 0, b: 0 },
+        curves: { master: [{ input: 0, output: 0 }, { input: 1, output: 0.5 }] },
+        secondarySelection: {
+          hueCenter: 0, hueWidth: 0.1, hueSoftness: 0,
+          satMin: 0.5, satMax: 1, lumaMin: 0, lumaMax: 1, boxSoftness: 0,
+        },
+        secondaryGrade: { lift: { r: 0, g: 0, b: 0 }, gain: { r: 0.5, g: 1, b: 1 } },
+      },
+      mask: {
+        id: 'mask-1', shape: 'rect', subjectClass: 'custom',
+        centerX: 0.25, centerY: 0.5, sizeX: 0.5, sizeY: 1,
+      },
+    });
+
+    const colorWrites = mockDevice.queue.writeBuffer.mock.calls.filter(
+      (call: unknown[]) => call[2] instanceof Float32Array && (call[2] as Float32Array).length === 316
+    );
+    expect(colorWrites.length).toBeGreaterThan(0);
+    const colorData = colorWrites[colorWrites.length - 1][2] as Float32Array;
+    expect(colorData[280]).toBe(1); // curves enabled
+    expect(colorData[287]).toBe(1); // secondary enabled
+    expect(colorData[311]).toBe(1); // mask enabled
+    expect(colorData[312]).toBe(0); // rect shape flag
+    expect(colorData[304]).toBeCloseTo(0.25, 12); // mask cx
+    // Baked master-halve LUT: first node 0, last node 0.5 (red channel).
+    expect(colorData[24]).toBeCloseTo(0, 12);
+    expect(colorData[24 + 63 * 4]).toBeCloseTo(0.5, 12);
+
+    // Legacy path: no extras -> all three stages disabled, same buffer shape.
+    engine.renderFrame({ width: 2, height: 2, timecode: 0, yuvData });
+    const legacyWrites = mockDevice.queue.writeBuffer.mock.calls.filter(
+      (call: unknown[]) => call[2] instanceof Float32Array && (call[2] as Float32Array).length === 316
+    );
+    const legacy = legacyWrites[legacyWrites.length - 1][2] as Float32Array;
+    expect(legacy[280]).toBe(0);
+    expect(legacy[287]).toBe(0);
+    expect(legacy[311]).toBe(0);
+  });
 });

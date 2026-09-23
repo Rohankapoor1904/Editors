@@ -36,6 +36,8 @@ describe('Multicam Commands', () => {
       outPoint: null,
       tracks: [track],
       selectedClipIds: [],
+    markers: [],
+    comments: [],
       activeWorkspace: 'edit',
       magneticSnapping: true,
       zoomLevel: 100,

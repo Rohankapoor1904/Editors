@@ -10,6 +10,9 @@ export interface MediaProbeMetadata {
   height: number;
   fps: number;
   codec: string;
+  // R26.4: pro-format display label and raw pixel format
+  codecDisplay?: string;
+  pixFmt?: string;
   hasAudio: boolean;
   sampleRate?: number;
   thumbnailDataUrl?: string;

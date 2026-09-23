@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { AudioMixer } from '../AudioMixer';
 import { audioEngine } from '../../engine/audioEngine';
 
@@ -48,7 +48,9 @@ describe('AudioMixer', () => {
   it('renders correctly with only audio tracks', () => {
     render(<AudioMixer />);
     expect(screen.getByText('Track Mixer')).toBeDefined();
-    expect(screen.getByText('A1 - Dialogue Track')).toBeDefined();
+    // Scoped to the fader strip: the R26.2 automation section lists the
+    // same track name in its own track picker.
+    expect(within(screen.getByTestId('track-fader-track_a1')).getByText('A1 - Dialogue Track')).toBeDefined();
     expect(screen.queryByText('V1 - Main Video')).toBeNull();
   });
 

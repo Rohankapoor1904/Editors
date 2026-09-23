@@ -41,6 +41,7 @@ export const App: React.FC = () => {
     resizeTimeline,
     toggleTimeline,
     resizeMonitorRatio,
+    clampPanelsToViewport,
   } = useLayoutStore();
 
   React.useEffect(() => {
@@ -48,6 +49,14 @@ export const App: React.FC = () => {
     agentBridge.start();
     return () => agentBridge.stop();
   }, []);
+
+  // Viewport changes (window resize, new tab at another size, zoom) must
+  // re-clamp persisted panel widths or the center gets crushed.
+  React.useEffect(() => {
+    clampPanelsToViewport();
+    window.addEventListener('resize', clampPanelsToViewport);
+    return () => window.removeEventListener('resize', clampPanelsToViewport);
+  }, [clampPanelsToViewport]);
 
   React.useEffect(() => {
     const saveTimeout = setTimeout(() => {
@@ -162,14 +171,18 @@ export const App: React.FC = () => {
 
         {/* Center Panel View depending on active Workspace Mode */}
         {activeWorkspace === 'ai' ? (
-          <div className="flex-1 flex p-2 space-x-2 bg-neutral-950 min-h-0 overflow-hidden">
+          <div className="flex-1 flex p-2 space-x-2 bg-neutral-950 min-h-0 min-w-0 overflow-hidden">
             <ProgramMonitor />
-            <div className="w-96 shrink-0">
+            {/* Transcript keeps its width on wide centers but yields (max 45%)
+                instead of crushing the monitor on narrow ones. */}
+            <div className="w-96 max-w-[45%] min-w-0">
               <TranscriptEditor />
             </div>
           </div>
         ) : activeWorkspace === 'export' ? (
-          <div className="flex-1 flex items-center justify-center bg-neutral-950 p-4">
+          /* Scrollable parent + m-auto child: safe-centers on tall screens,
+             top-aligns and scrolls instead of clipping on short ones. */
+          <div className="flex-1 flex min-h-0 min-w-0 overflow-y-auto bg-neutral-950 p-4">
             <ExportModal />
           </div>
         ) : activeWorkspace === 'color' ? (
@@ -180,10 +193,11 @@ export const App: React.FC = () => {
           <div className="flex-1 flex bg-neutral-950 min-h-0 overflow-hidden relative">
             {monitorViewMode === 'dual' ? (
               <>
-                {/* Source Monitor */}
+                {/* Source Monitor: min-w-0 so it flexes instead of clipping
+                    the Program monitor when the center gets narrow. */}
                 <div
                   style={{ width: `${Math.round(sourceMonitorRatio * 100)}%` }}
-                  className="h-full min-w-[240px] overflow-hidden flex flex-col min-h-0"
+                  className="h-full min-w-0 overflow-hidden flex flex-col min-h-0"
                 >
                   <SourceMonitor />
                 </div>
@@ -199,10 +213,10 @@ export const App: React.FC = () => {
                   }}
                 />
 
-                {/* Program Monitor */}
+                {/* Program Monitor: min-w-0 so it shrinks instead of hiding. */}
                 <div
                   style={{ width: `${Math.round((1 - sourceMonitorRatio) * 100)}%` }}
-                  className="h-full min-w-[240px] overflow-hidden flex flex-col min-h-0"
+                  className="h-full min-w-0 overflow-hidden flex flex-col min-h-0"
                 >
                   <ProgramMonitor />
                 </div>

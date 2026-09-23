@@ -4,11 +4,13 @@ import { addRational, compareRational, subRational, RationalTime } from '../type
 import { AudioGraph, DuckingConfig } from './audioGraph';
 import { parametricEqEngine } from './parametricEq';
 import { limiterEngine } from './limiter';
+import { CompressorSettings, validateCompressorSettings, compressorNodeConfig } from './dynamics';
 
 export class WebAudioEngineManager {
   private ctx: AudioContext | null = null;
   private trackGainNodes: Map<string, GainNode> = new Map();
   private clipGainNodes: Map<string, GainNode> = new Map();
+  private clipDynamicsNodes: Map<string, DynamicsCompressorNode> = new Map();
   private trackPannerNodes: Map<string, StereoPannerNode> = new Map();
   private trackAnalyserNodes: Map<string, AnalyserNode> = new Map();
   public isInitialized = false;
@@ -205,6 +207,115 @@ export class WebAudioEngineManager {
 
     const linearGain = Math.pow(10, volumeDb / 20);
     gainNode.gain.setValueAtTime(linearGain, this.ctx.currentTime);
+  }
+
+  /**
+   * R24.3 remainder — resolves the node a clip's gain feeds today (its
+   * track gain, else the destination). Used to splice dynamics in/out
+   * without disturbing the rest of the graph.
+   */
+  private resolveClipDownstream(clipId: string): AudioNode | null {
+    if (!this.ctx) return null;
+    try {
+      const store = useTimelineStore.getState();
+      for (const track of store.tracks) {
+        if (track.clips.some((c) => c.id === clipId)) {
+          return this.getOrCreateTrackGain(track.id) ?? this.ctx.destination;
+        }
+      }
+    } catch {
+      // Store unavailable: fall through to destination.
+    }
+    return this.ctx.destination;
+  }
+
+  /**
+   * R24.3 remainder — inserts (or updates) a per-clip DynamicsCompressorNode
+   * from the clip's `dynamics_compressor` audioEffects entry, spliced as
+   * clipGain -> compressor -> track. Returns the applied node config, or
+   * null when the engine is down, the host lacks the node, the clip is
+   * unknown, or the clip carries no compressor entry (any stale node is
+   * removed in that case). Invalid params throw — never half-applied.
+   */
+  applyClipDynamics(clipId: string): {
+    threshold: number;
+    knee: number;
+    ratio: number;
+    attack: number;
+    release: number;
+  } | null {
+    if (!this.ctx || typeof this.ctx.createDynamicsCompressor !== 'function') return null;
+
+    let clip: Clip | undefined;
+    try {
+      const store = useTimelineStore.getState();
+      for (const track of store.tracks) {
+        const found = track.clips.find((c) => c.id === clipId);
+        if (found) {
+          clip = found;
+          break;
+        }
+      }
+    } catch {
+      return null;
+    }
+    if (!clip) return null;
+
+    const entry = clip.audioEffects?.find((e) => e.type === 'dynamics_compressor' && e.enabled !== false);
+    if (!entry) {
+      this.removeClipDynamics(clipId);
+      return null;
+    }
+    const settings = entry.params as unknown as CompressorSettings;
+    validateCompressorSettings(settings);
+    const cfg = compressorNodeConfig(settings);
+
+    const gain = this.getOrCreateClipGain(clipId);
+    if (!gain) return null;
+
+    let comp = this.clipDynamicsNodes.get(clipId);
+    if (!comp) {
+      comp = this.ctx.createDynamicsCompressor();
+      const downstream = this.resolveClipDownstream(clipId);
+      gain.disconnect();
+      gain.connect(comp);
+      if (downstream) comp.connect(downstream);
+      this.clipDynamicsNodes.set(clipId, comp);
+    }
+    comp.threshold.value = cfg.threshold;
+    comp.knee.value = cfg.knee;
+    comp.ratio.value = cfg.ratio;
+    comp.attack.value = cfg.attack;
+    comp.release.value = cfg.release;
+    return cfg;
+  }
+
+  /** R24.3 remainder — removes a clip compressor and restores gain->track. */
+  removeClipDynamics(clipId: string): void {
+    const comp = this.clipDynamicsNodes.get(clipId);
+    if (!comp || !this.ctx) return;
+    const gain = this.clipGainNodes.get(clipId);
+    try {
+      comp.disconnect();
+    } catch {
+      // Already torn down: continue restoring the direct path.
+    }
+    if (gain) {
+      try {
+        gain.disconnect();
+      } catch {
+        // Ignore: rewire below regardless.
+      }
+      const downstream = this.resolveClipDownstream(clipId);
+      if (downstream) {
+        try {
+          gain.connect(downstream);
+        } catch {
+          // Host rejected the rewire: state stays consistent (node dropped).
+        }
+      }
+    }
+    this.clipDynamicsNodes.delete(clipId);
   }
 
   getDuckingConfig(sourceBus = 'dialogue', targetBus = 'music'): DuckingConfig | undefined {

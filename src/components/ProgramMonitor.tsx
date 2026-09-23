@@ -378,6 +378,8 @@ export const ProgramMonitor: React.FC = () => {
           timecode: rationalToSeconds(playheadPosition),
           transform: activeClip.transform,
           colorSettings: colorGradeEffect ? (colorGradeEffect.params as any) : undefined,
+          // R24.1: first clip mask gates the whole grade on the GPU.
+          mask: activeClip.masks?.[0],
           captionData: {
             words: transcriptWords
           },
@@ -627,8 +629,33 @@ export const ProgramMonitor: React.FC = () => {
                 }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-neutral-950">
-                <span className="text-neutral-600 text-sm font-mono">No clip at playhead</span>
+              <div className="w-full h-full flex flex-col items-center justify-center bg-neutral-950/95 relative select-none">
+                {/* Viewfinder Corner Framing Guides */}
+                <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-neutral-700/50 pointer-events-none" />
+                <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-neutral-700/50 pointer-events-none" />
+                <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-neutral-700/50 pointer-events-none" />
+                <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-neutral-700/50 pointer-events-none" />
+
+                {/* Center Viewfinder Reticle */}
+                <div className="relative flex items-center justify-center pointer-events-none mb-3">
+                  <div className="w-16 h-16 rounded-full border border-dashed border-neutral-800/80 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500/50 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                  </div>
+                  <div className="absolute w-6 h-[1px] bg-neutral-700/40" />
+                  <div className="absolute h-6 w-[1px] bg-neutral-700/40" />
+                </div>
+
+                <span className="text-neutral-400 text-xs font-mono tracking-wider uppercase mb-0.5">
+                  Ready For Playback
+                </span>
+                <span className="text-neutral-600 text-[11px] font-mono">
+                  No clip at playhead
+                </span>
+
+                {/* Aspect Ratio Badge */}
+                <div className="mt-3 px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400">
+                  {aspectRatio === '9:16' ? '1080 × 1920 • 9:16 Vertical' : aspectRatio === '16:9' ? '1920 × 1080 • 16:9 Widescreen' : `${aspectRatio} Canvas`}
+                </div>
               </div>
             )}
 

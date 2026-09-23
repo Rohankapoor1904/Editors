@@ -10,6 +10,11 @@ export interface MediaPoolAssetSchema {
   proxy_path?: string;
   checksum_sha256?: string;
   duration?: RationalTimeSchema;
+  /** R24.7: editorial metadata (scene/take/rating/tags). */
+  scene?: string;
+  take?: number;
+  rating?: number;
+  tags?: string[];
   video_streams?: {
     stream_index: number;
     codec: string;
@@ -26,10 +31,24 @@ export interface MediaPoolAssetSchema {
   }[];
 }
 
+export interface TitleSpecSchema {
+  text: string;
+  font_family: string;
+  font_size: number;
+  color: string;
+  background?: string;
+  align: 'left' | 'center' | 'right';
+  box: { x: number; y: number; w: number; h: number };
+  fade_in_sec?: number;
+  fade_out_sec?: number;
+  template_id?: string;
+}
+
 export interface ProjectClipSchema {
-  type: 'Clip';
+  type: 'Clip' | 'Title';
   clip_id: string;
-  asset_reference_id: string;
+  /** Required for 'Clip'; absent for 'Title' (generated content). */
+  asset_reference_id?: string;
   source_range: {
     start_time: RationalTimeSchema;
     duration: RationalTimeSchema;
@@ -56,6 +75,15 @@ export interface ProjectClipSchema {
     time: RationalTimeSchema;
     gain_db: number;
   }[];
+  /** R24.4: present only when type is 'Title'. */
+  title?: TitleSpecSchema;
+  /** R26.1: present on compound containers (children recurse). */
+  compound?: {
+    name: string;
+    clips: ProjectClipSchema[];
+  };
+  /** R26.1: marks an adjustment-layer span clip. */
+  adjustment?: boolean;
 }
 
 export interface ProjectTrackSchema {
@@ -70,6 +98,32 @@ export interface ProjectTrackSchema {
   items: ProjectClipSchema[];
 }
 
+export interface SequenceMarkerSchema {
+  marker_id: string;
+  name: string;
+  color: string;
+  time: RationalTimeSchema;
+}
+
+/** R26.5: timecoded review comment (collaboration annotation). */
+export interface SequenceCommentSchema {
+  comment_id: string;
+  author: string;
+  body: string;
+  resolved: boolean;
+  created_at: string;
+  time: RationalTimeSchema;
+}
+
+/** R26.5: project version snapshot (append-only history entry). */
+export interface ProjectVersionSchema {
+  version_id: string;
+  label: string;
+  saved_at: string;
+  /** Full serialized project document at this version. */
+  project_json: string;
+}
+
 export interface SequenceSchema {
   sequence_id: string;
   name: string;
@@ -82,6 +136,10 @@ export interface SequenceSchema {
   };
   video_tracks: ProjectTrackSchema[];
   audio_tracks: ProjectTrackSchema[];
+  /** R24.7: user markers (annotation only). */
+  markers?: SequenceMarkerSchema[];
+  /** R26.5: timecoded review comments. */
+  comments?: SequenceCommentSchema[];
 }
 
 export interface ProjectMetadataSchema {
@@ -104,4 +162,6 @@ export interface ProjectDocumentSchema {
   metadata: ProjectMetadataSchema;
   media_pool: MediaPoolAssetSchema[];
   sequences: SequenceSchema[];
+  /** R26.5: append-only version history (newest first when present). */
+  version_history?: ProjectVersionSchema[];
 }

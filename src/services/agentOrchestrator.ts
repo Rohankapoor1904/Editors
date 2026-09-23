@@ -109,6 +109,25 @@ export class RuleBasedAgentPlanner implements AgentPlanner {
           asset_id: assetId,
         },
       });
+    } else if (
+      lower.includes('auto edit') ||
+      lower.includes('autoedit') ||
+      lower.includes('rough cut') ||
+      lower.includes('roughcut') ||
+      lower.includes('assemble selects')
+    ) {
+      // R25.1: route assembly requests at real footage, never at fixtures.
+      const { useMediaPoolStore } = await import('../store/mediaPool');
+      const poolAssets = useMediaPoolStore.getState().assets.filter((a) => !a.isOffline);
+      const footageIds = poolAssets.length > 0
+        ? poolAssets.map((a) => a.id)
+        : [...new Set(state.tracks.flatMap((t) => t.clips.map((c) => c.assetId)))];
+      steps.push({
+        tool: 'auto_edit_assembly',
+        args: {
+          asset_ids: footageIds,
+        },
+      });
     } else if (lower.includes('cut') || lower.includes('trim') || lower.includes('split') || lower.includes('edit')) {
       steps.push({
         tool: 'cut_and_arrange_timeline',

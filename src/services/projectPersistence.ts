@@ -54,7 +54,10 @@ export function openProjectWeb(): Promise<void> {
             metadata: timelineState.metadata,
             tracks: timelineState.tracks,
             playheadPosition: { value: 0, rate: 1 },
-            selectedClipIds: []
+            selectedClipIds: [],
+            // R24.7 / R26.5: restore annotations with the rest of the document.
+            markers: timelineState.markers ?? [],
+            comments: timelineState.comments ?? [],
           });
           resolve();
         } catch (err) {

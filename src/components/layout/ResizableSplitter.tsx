@@ -108,7 +108,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
   if (direction === 'horizontal') {
     return (
       <div
-        className={`relative w-2 flex items-center justify-center group shrink-0 z-30 transition-colors select-none cursor-col-resize ${
+        className={`relative w-2 flex items-center justify-center group shrink-0 z-10 transition-colors select-none cursor-col-resize ${
           isDragging ? 'bg-indigo-500/80 shadow-md shadow-indigo-500/50' : 'bg-neutral-900/90 hover:bg-indigo-600/40'
         } ${className}`}
         onMouseDown={handleMouseDown}
@@ -152,7 +152,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
   // Vertical (Horizontal divider bar)
   return (
     <div
-      className={`relative h-2 flex items-center justify-center group shrink-0 z-30 transition-colors select-none cursor-row-resize ${
+      className={`relative h-2 flex items-center justify-center group shrink-0 z-10 transition-colors select-none cursor-row-resize ${
         isDragging ? 'bg-indigo-500/80 shadow-md shadow-indigo-500/50' : 'bg-neutral-900/90 hover:bg-indigo-600/40'
       } ${className}`}
       onMouseDown={handleMouseDown}

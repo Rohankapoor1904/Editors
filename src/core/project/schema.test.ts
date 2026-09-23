@@ -53,6 +53,8 @@ describe('Project serialization', () => {
       outPoint: null,
       tracks: [testTrack],
       selectedClipIds: [],
+    markers: [],
+    comments: [],
       activeWorkspace: 'edit',
       magneticSnapping: true,
       zoomLevel: 100

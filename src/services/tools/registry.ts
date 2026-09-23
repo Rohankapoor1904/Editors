@@ -134,7 +134,8 @@ import {
   probe_media_def, probe_media_executor,
   transcribe_and_align_def, transcribe_and_align_executor,
   detect_silence_def, detect_silence_executor,
-  cut_and_arrange_timeline_def, cut_and_arrange_timeline_executor
+  cut_and_arrange_timeline_def, cut_and_arrange_timeline_executor,
+  auto_edit_assembly_def, auto_edit_assembly_executor
 } from './timelineTools';
 
 globalToolRegistry.register(probe_media_def, probe_media_executor);
@@ -142,6 +143,7 @@ globalToolRegistry.register(transcribe_and_align_def, transcribe_and_align_execu
 
 globalToolRegistry.register(detect_silence_def, detect_silence_executor);
 globalToolRegistry.register(cut_and_arrange_timeline_def, cut_and_arrange_timeline_executor);
+globalToolRegistry.register(auto_edit_assembly_def, auto_edit_assembly_executor);
 
 
 import {

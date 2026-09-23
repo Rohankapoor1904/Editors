@@ -55,7 +55,12 @@ export function serializeProject(
         name: asset.name,
         file_path: asset.path,
         checksum_sha256: asset.fingerprint,
-        duration: duration
+        duration: duration,
+        // R24.7: editorial metadata round-trips when present.
+        scene: asset.scene,
+        take: asset.take,
+        rating: asset.rating,
+        tags: asset.tags ? [...asset.tags] : undefined,
     };
   });
 
@@ -100,6 +105,26 @@ export function serializeProject(
     },
     video_tracks: videoTracks,
     audio_tracks: audioTracks,
+    // R24.7: markers persist as annotation (omitted when empty).
+    markers: (timelineState.markers ?? []).length > 0
+      ? (timelineState.markers ?? []).map((m) => ({
+          marker_id: m.id,
+          name: m.name,
+          color: m.color,
+          time: { value: m.time.value, rate: m.time.rate },
+        }))
+      : undefined,
+    // R26.5: timecoded review comments persist (omitted when empty).
+    comments: (timelineState.comments ?? []).length > 0
+      ? (timelineState.comments ?? []).map((c) => ({
+          comment_id: c.id,
+          author: c.author,
+          body: c.body,
+          resolved: c.resolved,
+          created_at: c.createdAt,
+          time: { value: c.time.value, rate: c.time.rate },
+        }))
+      : undefined,
   };
 
   const projectDoc: ProjectDocumentSchema = {
@@ -138,6 +163,35 @@ function serializeTrack(track: Track): ProjectTrackSchema {
 }
 
 function serializeClip(clip: Clip): ProjectClipSchema {
+  // R24.4: title clips persist as type 'Title' with their spec and no
+  // asset reference (generated content, never a file on disk).
+  if (clip.title) {
+    return {
+      type: 'Title',
+      clip_id: clip.id,
+      source_range: {
+        start_time: { value: clip.sourceIn.value, rate: clip.sourceIn.rate },
+        duration: { value: clip.duration.value, rate: clip.duration.rate }
+      },
+      timeline_range: {
+        start_time: { value: clip.startOffset.value, rate: clip.startOffset.rate },
+        duration: { value: clip.duration.value, rate: clip.duration.rate }
+      },
+      title: {
+        text: clip.title.text,
+        font_family: clip.title.fontFamily,
+        font_size: clip.title.fontSize,
+        color: clip.title.color,
+        background: clip.title.background,
+        align: clip.title.align,
+        box: { ...clip.title.box },
+        fade_in_sec: clip.title.fadeInSec,
+        fade_out_sec: clip.title.fadeOutSec,
+        template_id: clip.title.templateId,
+      }
+    };
+  }
+
   const schemaClip: ProjectClipSchema = {
     type: 'Clip',
     clip_id: clip.id,
@@ -169,6 +223,18 @@ function serializeClip(clip: Clip): ProjectClipSchema {
       opacity: buildProp(clip.transform.opacity, clip.keyframes?.opacity),
       blend_mode: "Normal"
     };
+  }
+
+  // R26.1: compound children recurse (relative offsets preserved verbatim);
+  // adjustment spans persist as a flag (grade rides the colorGrade effect).
+  if (clip.compound) {
+    schemaClip.compound = {
+      name: clip.compound.name,
+      clips: clip.compound.clips.map(serializeClip),
+    };
+  }
+  if (clip.adjustment) {
+    schemaClip.adjustment = true;
   }
 
   return schemaClip;
@@ -214,7 +280,12 @@ export function deserializeProject(
       type: type,
       duration: duration,
       fingerprint: assetSchema.checksum_sha256,
-      isOffline: false
+      isOffline: false,
+      // R24.7: editorial metadata (absent stays undefined).
+      scene: assetSchema.scene,
+      take: assetSchema.take,
+      rating: assetSchema.rating,
+      tags: assetSchema.tags ? [...assetSchema.tags] : undefined,
     };
   });
 
@@ -258,6 +329,22 @@ export function deserializeProject(
       colorSpace: projectDoc.metadata.color_management?.working_space || 'sRGB'
     },
     tracks,
+    // R24.7: markers round-trip (absent means none).
+    markers: (mainSequence.markers ?? []).map((m) => ({
+      id: m.marker_id,
+      name: m.name,
+      color: m.color,
+      time: createRational(m.time.value, m.time.rate),
+    })),
+    // R26.5: review comments round-trip (absent means none).
+    comments: (mainSequence.comments ?? []).map((c) => ({
+      id: c.comment_id,
+      author: c.author,
+      body: c.body,
+      resolved: c.resolved,
+      createdAt: c.created_at,
+      time: createRational(c.time.value, c.time.rate),
+    })),
   };
 
   return { timelineState, assets };
@@ -281,8 +368,12 @@ function deserializeTrack(schemaTrack: ProjectTrackSchema, type: 'video' | 'audi
 }
 
 function deserializeClip(schemaClip: ProjectClipSchema, trackId: string): Clip {
-  if (!schemaClip.clip_id || !schemaClip.asset_reference_id || !schemaClip.timeline_range || !schemaClip.source_range) {
-      throw new Error(`Clip in track ${trackId} is missing required fields (clip_id, asset_reference_id, timeline_range, source_range)`);
+  if (!schemaClip.clip_id || !schemaClip.timeline_range || !schemaClip.source_range) {
+      throw new Error(`Clip in track ${trackId} is missing required fields (clip_id, timeline_range, source_range)`);
+  }
+  // R24.4: 'Clip' items reference media; 'Title' items carry their spec.
+  if ((schemaClip.type ?? 'Clip') === 'Clip' && !schemaClip.asset_reference_id) {
+      throw new Error(`Clip ${schemaClip.clip_id} in track ${trackId} is missing asset_reference_id`);
   }
 
   const keyframes: Record<string, any[]> = {};
@@ -313,9 +404,17 @@ function deserializeClip(schemaClip: ProjectClipSchema, trackId: string): Clip {
     anchorPoint: { x: 0, y: 0 }
   } : undefined;
 
+  const isTitle = (schemaClip.type ?? 'Clip') === 'Title';
+  if (isTitle && !schemaClip.title) {
+      throw new Error(`Title clip ${schemaClip.clip_id} in track ${trackId} is missing its title spec`);
+  }
+  if (schemaClip.compound && (!Array.isArray(schemaClip.compound.clips) || schemaClip.compound.clips.length === 0)) {
+      throw new Error(`Compound clip ${schemaClip.clip_id} in track ${trackId} carries no children`);
+  }
+
   return {
     id: schemaClip.clip_id,
-    assetId: schemaClip.asset_reference_id,
+    assetId: schemaClip.asset_reference_id ?? `title://${schemaClip.clip_id}`,
     name: schemaClip.clip_id,
     startOffset: createRational(schemaClip.timeline_range.start_time.value, schemaClip.timeline_range.start_time.rate),
     sourceIn: createRational(schemaClip.source_range.start_time.value, schemaClip.source_range.start_time.rate),
@@ -325,6 +424,25 @@ function deserializeClip(schemaClip: ProjectClipSchema, trackId: string): Clip {
     ),
     duration: createRational(schemaClip.source_range.duration.value, schemaClip.source_range.duration.rate),
     transform,
-    keyframes: Object.keys(keyframes).length > 0 ? keyframes : undefined
+    keyframes: Object.keys(keyframes).length > 0 ? keyframes : undefined,
+    // R26.1: compound children deserialize recursively (offsets stay
+    // span-relative, exactly as the nest command stores them).
+    compound: schemaClip.compound ? {
+      name: schemaClip.compound.name,
+      clips: schemaClip.compound.clips.map((c) => deserializeClip(c, trackId)),
+    } : undefined,
+    adjustment: schemaClip.adjustment || undefined,
+    title: schemaClip.title ? {
+      text: schemaClip.title.text,
+      fontFamily: schemaClip.title.font_family,
+      fontSize: schemaClip.title.font_size,
+      color: schemaClip.title.color,
+      background: schemaClip.title.background,
+      align: schemaClip.title.align,
+      box: { ...schemaClip.title.box },
+      fadeInSec: schemaClip.title.fade_in_sec,
+      fadeOutSec: schemaClip.title.fade_out_sec,
+      templateId: schemaClip.title.template_id,
+    } : undefined,
   };
 }

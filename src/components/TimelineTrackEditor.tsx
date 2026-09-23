@@ -3,12 +3,66 @@ import { useTimelineStore } from '../store/timelineStore';
 import { useMediaPoolStore } from '../store/mediaPool';
 import { Clip } from '../types/timeline';
 import { rationalToSeconds, secondsToRational, addRational } from '../types/time';
-import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical, ChevronDown, ListPlus, Trash2, SplitSquareHorizontal, VolumeX, RotateCw, Zap, Link2 } from 'lucide-react';
+import { Scissors, ZoomIn, ZoomOut, Lock, MousePointer, MoveHorizontal, ArrowLeftRight, Film, Music, Activity, GripVertical, ChevronDown, ListPlus, ListOrdered, Trash2, SplitSquareHorizontal, VolumeX, RotateCw, Zap, Link2, Maximize2 } from 'lucide-react';
+import { nativeBridge } from '../services/nativeBridge';
+import { captureFilmstripFrames, isDirectlyPlayableUrl } from '../engine/thumbnails';
 
 export type EditingTool = 'select' | 'blade' | 'slip' | 'slide';
 
+/**
+ * Zoom (px/sec) that fits `totalDurationSec` into `viewportWidthPx`.
+ * Returns null when the viewport is unmeasurable (width <= 0) or the
+ * duration is invalid — callers keep the current zoom then.
+ */
+export function computeFitZoom(viewportWidthPx: number, totalDurationSec: number): number | null {
+  if (!Number.isFinite(viewportWidthPx) || viewportWidthPx <= 0) return null;
+  if (!Number.isFinite(totalDurationSec) || totalDurationSec <= 0) return null;
+  return Math.min(100, Math.max(5, Math.round(viewportWidthPx / totalDurationSec)));
+}
+
+/** Speed/reverse/sync/duration pills shared by the video top bar and audio row. */
+const ClipMetaBadges: React.FC<{ clip: Clip }> = ({ clip }) => (
+  <>
+    {clip.speedRamp?.envelope && clip.speedRamp.envelope.length > 0 ? (
+      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/25 text-purple-300 border border-purple-500/40 shadow-sm" title="Speed Ramp Envelope Applied">
+        Ramp
+      </span>
+    ) : clip.speed && clip.speed !== 1.0 ? (
+      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm" title={`Playback Speed ${clip.speed}x`}>
+        {clip.speed}x
+      </span>
+    ) : null}
+
+    {clip.reverse && (
+      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40 shadow-sm" title="Reverse Playback">
+        « Rev
+      </span>
+    )}
+
+    {clip.splitTrimType && clip.splitTrimType !== 'none' && clip.syncOffset && (
+      <span
+        className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm flex items-center space-x-0.5 ${
+          clip.splitTrimType === 'j-cut'
+            ? 'bg-blue-500/25 text-blue-300 border-blue-500/40'
+            : 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40'
+        }`}
+        title={`${clip.splitTrimType.toUpperCase()}: Sync offset ${rationalToSeconds(clip.syncOffset).toFixed(2)}s`}
+        data-testid="sync-offset-badge"
+      >
+        <span>{clip.splitTrimType.toUpperCase()}</span>
+        <span className="opacity-80">({rationalToSeconds(clip.syncOffset) > 0 ? '+' : ''}{rationalToSeconds(clip.syncOffset).toFixed(2)}s)</span>
+      </span>
+    )}
+
+    <span className="text-[9px] opacity-90 font-mono tabular-nums bg-dark-950/70 px-1.5 py-0.5 rounded border border-white/10 backdrop-blur-sm">
+      {rationalToSeconds(clip.duration).toFixed(1)}s
+    </span>
+  </>
+);
+
 import { getOrCreateWaveformEnvelope, renderWaveformToCanvas } from '../utils/waveform';
 import { CurveEditor } from './CurveEditor';
+import { SequenceIndex } from './SequenceIndex';
 import { createSpeedRampTemplate } from '../engine/speedRamp';
 import { beatDetector } from '../engine/beatDetector';
 import { calculateMagneticSnap } from '../utils/snapping';
@@ -51,19 +105,72 @@ const AudioWaveformCanvas: React.FC<{
 };
 
 
-// Video Filmstrip Generator Component
-const FilmstripPreview: React.FC = () => {
+// Video filmstrip: shows the asset's own frames at their timeline positions.
+// The stored poster renders instantly as tiles; distinct live-captured frames
+// replace it when the media is playable. No real frame → no strip at all:
+// fabricated placeholder boxes are never rendered.
+const FilmstripPreview: React.FC<{
+  assetId: string;
+  sourceInSeconds: number;
+  durationSeconds: number;
+  widthPx: number;
+}> = ({ assetId, sourceInSeconds, durationSeconds, widthPx }) => {
+  const asset = useMediaPoolStore((s) => s.assets.find((a) => a.id === assetId));
+  const poster = asset?.thumbnailUrl;
+  const assetPath = asset?.path;
+  const count = Math.max(1, Math.min(8, Math.floor(widthPx / 90) || 1));
+  const [liveFrames, setLiveFrames] = React.useState<(string | null)[] | null>(null);
+
+  React.useEffect(() => {
+    if (!assetPath || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      setLiveFrames(null);
+      return;
+    }
+    const src = nativeBridge.getAssetUrl(assetPath);
+    if (!src || !isDirectlyPlayableUrl(src)) {
+      setLiveFrames(null);
+      return;
+    }
+    let cancelled = false;
+    captureFilmstripFrames(src, {
+      durationSec: durationSeconds,
+      sourceInSec: sourceInSeconds,
+      count,
+      widthPx,
+    })
+      .then((frames) => {
+        if (!cancelled) setLiveFrames(frames);
+      })
+      .catch(() => {
+        if (!cancelled) setLiveFrames([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetPath, sourceInSeconds, durationSeconds, count, widthPx]);
+
+  const liveTiles = (liveFrames ?? []).filter(
+    (f): f is string => typeof f === 'string' && f.length > 0
+  );
+  // Distinct captured frames win; the single poster only fills in while they
+  // load (or when capture yields nothing at all).
+  const tiles =
+    liveTiles.length > 0 ? liveTiles : poster ? Array<string>(count).fill(poster) : [];
+  if (tiles.length === 0) return null;
+
   return (
-    <div className="absolute inset-0 flex items-center space-x-1 opacity-25 pointer-events-none overflow-hidden px-1">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
+    <div
+      data-testid={`filmstrip-${assetId}`}
+      className="absolute inset-0 flex overflow-hidden pointer-events-none opacity-90"
+    >
+      {tiles.map((src, i) => (
+        <img
           key={i}
-          className="h-full w-12 bg-neutral-800/80 border border-neutral-700/50 rounded flex items-center justify-center shrink-0 overflow-hidden relative"
-        >
-          <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900/40 via-purple-900/30 to-neutral-900/60" />
-          <Film className="w-3 h-3 text-indigo-300 opacity-60 z-10" />
-          <div className="absolute bottom-0.5 left-0.5 right-0.5 h-0.5 bg-indigo-500/40 rounded-full" />
-        </div>
+          src={src}
+          alt=""
+          draggable={false}
+          className="h-full flex-1 min-w-0 object-cover"
+        />
       ))}
     </div>
   );
@@ -78,6 +185,8 @@ export interface TimelineTrackEditorProps {
 export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height, className = '', style }) => {
   const [activeTool, setActiveTool] = useState<EditingTool>('select');
   const [showAddTrackMenu, setShowAddTrackMenu] = useState(false);
+  // R24.7: Sequence Index drawer visibility (local UI state).
+  const [showIndex, setShowIndex] = useState(false);
   const [showCurveEditor, setShowCurveEditor] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -85,6 +194,42 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
     clipId: string;
     timeOffset: import('../types/time').RationalTime;
   } | null>(null);
+
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (!contextMenu || !menuRef.current) return;
+    const el = menuRef.current;
+    const rect = el.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let adjustedX = contextMenu.x;
+    let adjustedY = contextMenu.y;
+
+    if (adjustedX + rect.width > viewportWidth - 8) {
+      adjustedX = Math.max(8, viewportWidth - rect.width - 8);
+    }
+    if (adjustedY + rect.height > viewportHeight - 8) {
+      adjustedY = Math.max(8, viewportHeight - rect.height - 8);
+    }
+
+    if (adjustedX !== contextMenu.x || adjustedY !== contextMenu.y) {
+      el.style.left = `${adjustedX}px`;
+      el.style.top = `${adjustedY}px`;
+    }
+  }, [contextMenu]);
+
+  React.useEffect(() => {
+    if (!contextMenu) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [contextMenu]);
 
   React.useEffect(() => {
     const handleSetActiveTool = (e: Event) => {
@@ -120,10 +265,54 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
     removeClip,
     toggleClipMute,
     applySpeedRamp,
-    realignSync
+    realignSync,
+    nestClips,
+    unnestCompound,
+    addClipToTrack
   } = useTimelineStore();
 
   const [snapToBeat, setSnapToBeat] = useState(true);
+  // R26.1: open compound navigation (view-only; edits need unnest).
+  const [openCompoundId, setOpenCompoundId] = useState<string | null>(null);
+
+  const openCompound = React.useMemo(() => {
+    if (!openCompoundId) return null;
+    for (const track of tracks) {
+      const clip = track.clips.find((c) => c.id === openCompoundId);
+      if (clip?.compound) return { track, clip };
+    }
+    return null;
+  }, [tracks, openCompoundId]);
+
+  // Nest eligibility: 2+ selected clips, same unlocked track, none compound.
+  const nestable = React.useMemo(() => {
+    if (selectedClipIds.length < 2) return null;
+    for (const track of tracks) {
+      const picked = track.clips.filter((c) => selectedClipIds.includes(c.id));
+      if (picked.length === selectedClipIds.length) {
+        if (track.locked) return null;
+        if (picked.some((c) => c.compound)) return null;
+        return track;
+      }
+    }
+    return null;
+  }, [tracks, selectedClipIds]);
+
+  const handleAddAdjustment = () => {
+    const targetTrack = tracks.find((t) => t.type === 'video' && !t.locked) ?? null;
+    if (!targetTrack) return;
+    const duration = secondsToRational(5);
+    addClipToTrack(targetTrack.id, {
+      id: `adjust_${Date.now()}`,
+      assetId: `adjustment://adjust_${Date.now()}`,
+      name: 'Adjustment Layer',
+      startOffset: { ...playheadPosition },
+      sourceIn: secondsToRational(0),
+      sourceOut: duration,
+      duration,
+      adjustment: true,
+    });
+  };
 
   // Extract active musical beat markers from audio clips
   const audioBeatMarkers = React.useMemo(() => {
@@ -140,7 +329,86 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
     return beats;
   }, [tracks]);
 
-  const totalDuration = 60; // 60 seconds view window
+  // View window follows the actual content: longest clip end + a 5s tail
+  // handle, floored at 30s for empty timelines. Never a fixed 60s ruler that
+  // leaves dead space after short clips or truncates long ones.
+  const sequenceEndSec = React.useMemo(() => {
+    let end = 0;
+    for (const track of tracks) {
+      for (const clip of track.clips) {
+        end = Math.max(
+          end,
+          rationalToSeconds(clip.startOffset) + rationalToSeconds(clip.duration)
+        );
+      }
+    }
+    return end;
+  }, [tracks]);
+  const totalDuration = Math.max(30, sequenceEndSec + 5);
+
+  // Zoom-to-fit: scale so the whole sequence fills the lane viewport.
+  // Auto-applies on mount and when content changes — but never fights a
+  // manual zoom: once the user picks their own zoom it is left alone until
+  // the next auto-fit (Fit button or fresh content-driven fit).
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const lastAutoFitZoom = React.useRef<number | null>(null);
+  const fitZoomToViewport = React.useCallback(() => {
+    const viewport = scrollRef.current?.clientWidth ?? 0;
+    const z = computeFitZoom(viewport, totalDuration);
+    if (z === null) return false;
+    if (
+      lastAutoFitZoom.current !== null &&
+      useTimelineStore.getState().zoomLevel !== lastAutoFitZoom.current
+    ) {
+      return false; // user took over the zoom — respect it.
+    }
+    setZoomLevel(z);
+    lastAutoFitZoom.current = z;
+    return true;
+  }, [totalDuration, setZoomLevel]);
+  const handleFitZoom = React.useCallback(() => {
+    const viewport = scrollRef.current?.clientWidth ?? 0;
+    const z = computeFitZoom(viewport, totalDuration);
+    if (z === null) return;
+    setZoomLevel(z);
+    lastAutoFitZoom.current = z;
+  }, [totalDuration, setZoomLevel]);
+
+  // Wheel over the seconds ruler zooms in/out, anchored at the cursor so the
+  // time under the pointer stays put. Wheel up = zoom in (standard NLE feel).
+  // This is a manual zoom, so the auto-fit guard leaves it alone afterwards.
+  const handleRulerWheel = React.useCallback(
+    (e: React.WheelEvent) => {
+      const delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+      if (delta === 0) return;
+      const current = useTimelineStore.getState().zoomLevel;
+      const next = Math.min(100, Math.max(5, Math.round(current * Math.exp(-delta * 0.0015))));
+      if (next === current) return;
+      const scroller = scrollRef.current;
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      setZoomLevel(next);
+      if (scroller) {
+        const timeAtCursor = (scroller.scrollLeft + cursorX) / current;
+        requestAnimationFrame(() => {
+          scroller.scrollLeft = Math.max(0, timeAtCursor * next - cursorX);
+        });
+      }
+    },
+    [setZoomLevel]
+  );
+  // Clip-set changes (add/remove/nest/undo) re-fit so the lane keeps filling
+  // its box. Pure duration edits (trim/drag) intentionally do NOT refit —
+  // zoom must not jump mid-gesture. Manual zoom is always respected.
+  const clipSignature = React.useMemo(
+    () => tracks.map((t) => t.clips.map((c) => c.id).join(',')).join('|'),
+    [tracks]
+  );
+  const fitRef = React.useRef(fitZoomToViewport);
+  fitRef.current = fitZoomToViewport;
+  React.useEffect(() => {
+    fitRef.current();
+  }, [clipSignature]);
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (contextMenu) setContextMenu(null);
@@ -392,6 +660,44 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
             <span>Beats</span>
           </button>
 
+          <button
+            onClick={() => setShowIndex(!showIndex)}
+            className={`flex items-center space-x-1 px-2.5 py-1 rounded-panel border transition-colors font-medium text-[11px] ${
+              showIndex
+                ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
+                : 'bg-dark-900 border-subtle hover:bg-neutral-800/80 text-neutral-300'
+            }`}
+            title="Toggle Sequence Index (spreadsheet view)"
+          >
+            <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Index</span>
+          </button>
+          {/* R26.1: Nest selected clips into a compound */}
+          <button
+            onClick={() => {
+              if (nestable) {
+                nestClips(nestable.id, selectedClipIds);
+                setOpenCompoundId(null);
+              }
+            }}
+            disabled={!nestable}
+            title={
+              nestable
+                ? `Nest ${selectedClipIds.length} clips into a compound`
+                : 'Select 2+ clips on one unlocked track to nest'
+            }
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-panel border transition-colors font-medium text-[11px] bg-dark-900 border-subtle hover:bg-neutral-800/80 text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span>Nest</span>
+          </button>
+          {/* R26.1: Adjustment layer at playhead */}
+          <button
+            onClick={handleAddAdjustment}
+            title="Add 5s adjustment layer at playhead (grade it in the Inspector)"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-panel border transition-colors font-medium text-[11px] bg-dark-900 border-subtle hover:bg-neutral-800/80 text-neutral-300"
+          >
+            <span>+ Adjustment</span>
+          </button>
           <div className="relative">
             <button
               onClick={() => setShowAddTrackMenu(!showAddTrackMenu)}
@@ -443,36 +749,122 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
               className="w-3.5 h-3.5 hover:text-white cursor-pointer transition-colors"
               onClick={() => setZoomLevel(Math.min(100, zoomLevel + 5))}
             />
+            <button
+              onClick={handleFitZoom}
+              title="Zoom to fit sequence in view"
+              data-testid="fit-zoom"
+              className="flex items-center hover:text-white cursor-pointer transition-colors"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>
 
+      {/* R24.7: Sequence Index drawer */}
+      {showIndex && <SequenceIndex />}
+
+      {/* R26.1: open-compound breadcrumb (playhead-preserving navigation) */}
+      {openCompound && (
+        <div className="bg-dark-900 border-b border-subtle px-3 py-1.5 text-xs">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setOpenCompoundId(null)}
+              className="text-indigo-300 hover:text-white font-medium"
+              title="Back to sequence (playhead unchanged)"
+            >
+              ← Sequence
+            </button>
+            <span className="text-neutral-500">/</span>
+            <span className="font-semibold text-neutral-100">{openCompound.clip.compound?.name}</span>
+            <span className="text-[10px] font-mono text-neutral-500">
+              {openCompound.clip.compound?.clips.length ?? 0} clips · playhead kept
+            </span>
+            <button
+              onClick={() => {
+                unnestCompound(openCompound.clip.id);
+                setOpenCompoundId(null);
+              }}
+              title="Expand compound back into editable clips"
+              className="ml-auto px-2 py-0.5 rounded border border-subtle text-neutral-300 hover:bg-neutral-800 transition-colors text-[11px]"
+            >
+              Unnest to edit
+            </button>
+          </div>
+          <div className="flex mt-1.5 space-x-1 overflow-x-auto">
+            {(openCompound.clip.compound?.clips ?? []).map((child) => {
+              const span = rationalToSeconds(openCompound.clip.duration);
+              const share = span > 0 ? (rationalToSeconds(child.duration) / span) * 100 : 0;
+              const selected = selectedClipIds.includes(child.id);
+              return (
+                <button
+                  key={child.id}
+                  onClick={() => selectClip(child.id)}
+                  title={`${child.name} (select only — unnest to edit)`}
+                  style={{ flexGrow: Math.max(share, 4), flexBasis: 0 }}
+                  className={`truncate px-2 py-1 rounded text-[10px] font-mono border transition-colors ${
+                    selected
+                      ? 'bg-indigo-600 text-white border-indigo-400'
+                      : 'bg-dark-950 text-neutral-400 border-subtle hover:text-neutral-200'
+                  }`}
+                >
+                  {child.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Track List + Timeline Canvas View */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Track Headers */}
-        <div className="w-60 bg-dark-900 border-r border-subtle flex flex-col divide-y divide-subtle z-10 shadow-xl">
+        {/* Left Track Headers: the ruler spacer mirrors the h-6 timecode
+            ruler so each header row starts exactly where its lane starts.
+            Rows use border-b (same as lanes) — never divide-y — so separators
+            never drift by a pixel per track. */}
+        <div className="w-64 bg-dark-900 border-r border-subtle flex flex-col z-10 shadow-xl shrink-0">
+          <div data-testid="ruler-spacer" aria-hidden="true" className="h-6 bg-dark-900/90 border-b border-subtle shrink-0" />
           {tracks.map((track) => {
             return (
               <div
                 key={track.id}
+                data-testid={`track-header-${track.id}`}
                 style={{ height: `${track.height}px` }}
-                className="flex items-center justify-between px-3 bg-dark-900/90 hover:bg-dark-850 transition-colors"
+                className={`flex items-center justify-between px-3 bg-dark-900/90 hover:bg-dark-850/90 transition-colors border-l-2 border-b border-subtle ${
+                  track.type === 'video' ? 'border-l-indigo-500/70' : 'border-l-teal-500/70'
+                }`}
               >
-                <div className="flex items-center space-x-2 font-semibold text-neutral-300 text-[11px] truncate">
-                  {track.type === 'video' ? (
-                    <Film className="w-3.5 h-3.5 text-indigo-accent shrink-0" />
-                  ) : (
-                    <Music className="w-3.5 h-3.5 text-teal-accent shrink-0" />
-                  )}
-                  <span className="truncate">{track.name}</span>
+                <div className="flex items-center space-x-2 min-w-0 flex-1 mr-2">
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 ${
+                      track.type === 'video'
+                        ? 'bg-indigo-950/80 text-indigo-400 border border-indigo-500/30'
+                        : 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
+                    }`}
+                  >
+                    {(() => {
+                      const name = track.name || '';
+                      const id = track.id || '';
+                      const match = name.match(/\b([VA]\d+)\b/i) || id.match(/^track_([va]\d+)/i);
+                      if (match) return match[1].toUpperCase();
+                      const sameType = tracks.filter((x) => x.type === track.type);
+                      const idx = sameType.indexOf(track);
+                      return `${track.type === 'video' ? 'V' : 'A'}${idx + 1}`;
+                    })()}
+                  </span>
+                  <span className="truncate font-medium text-neutral-300 text-[11px]" title={track.name}>
+                    {track.name}
+                  </span>
                 </div>
 
                 {/* Track Controls T/M/S/L */}
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1 shrink-0">
                   <button
                     onClick={() => setTargetTrack(targetTrackId === track.id ? null : track.id)}
-                    className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      targetTrackId === track.id ? 'bg-indigo-600 text-white shadow ring-1 ring-indigo-400' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                    className={`w-5 h-5 rounded text-[10px] font-mono font-bold transition-all ${
+                      targetTrackId === track.id
+                        ? 'bg-indigo-600 text-white shadow ring-1 ring-indigo-400/80'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title={targetTrackId === track.id ? "Active Target Track" : "Set as Target Track"}
                     data-testid={`target-track-${track.id}`}
@@ -481,8 +873,10 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   </button>
                   <button
                     onClick={() => toggleTrackState(track.id, 'muted')}
-                    className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      track.muted ? 'bg-red-600 text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                    className={`w-5 h-5 rounded text-[10px] font-mono font-bold transition-all ${
+                      track.muted
+                        ? 'bg-red-600 text-white shadow ring-1 ring-red-400/80'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title="Mute Track"
                   >
@@ -490,8 +884,10 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   </button>
                   <button
                     onClick={() => toggleTrackState(track.id, 'solo')}
-                    className={`w-5 h-5 rounded text-[10px] font-bold transition-all ${
-                      track.solo ? 'bg-amber-500 text-black' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                    className={`w-5 h-5 rounded text-[10px] font-mono font-bold transition-all ${
+                      track.solo
+                        ? 'bg-amber-500 text-black font-extrabold shadow ring-1 ring-amber-300'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title="Solo Track"
                   >
@@ -500,7 +896,9 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   <button
                     onClick={() => toggleTrackState(track.id, 'locked')}
                     className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
-                      track.locked ? 'bg-indigo-accent text-white' : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle'
+                      track.locked
+                        ? 'bg-indigo-600 text-white shadow ring-1 ring-indigo-400/80'
+                        : 'bg-dark-950 text-neutral-500 hover:text-neutral-300 border border-subtle hover:bg-dark-800'
                     }`}
                     title="Lock Track"
                   >
@@ -512,13 +910,23 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
           })}
         </div>
 
-        {/* Right Tracks Sequence Canvas Area */}
+        {/* Right Tracks Sequence Canvas Area: lanes keep border-b (drop-target
+            selector depends on it); no divide-y here so each lane is exactly
+            track.height + 1px, matching its header row. */}
         <div
-          className="flex-1 bg-dark-950 overflow-x-auto relative divide-y divide-subtle"
+          ref={scrollRef}
+          data-testid="timeline-scroll"
+          className="flex-1 bg-dark-950 overflow-x-auto relative"
           onClick={handleTimelineClick}
         >
-          {/* Timecode Ruler Bar */}
-          <div className="h-6 bg-dark-900/90 border-b border-subtle sticky top-0 flex items-center font-mono tabular-nums text-[10px] text-neutral-500 z-10 backdrop-blur">
+          {/* Timecode Ruler Bar: wheel scroll zooms anchored at the cursor */}
+          <div
+            data-testid="time-ruler"
+            onWheel={handleRulerWheel}
+            title="Scroll to zoom in/out"
+            style={{ minWidth: `${Math.ceil(totalDuration) * zoomLevel}px` }}
+            className="h-6 bg-dark-900/90 border-b border-subtle sticky top-0 flex items-center font-mono tabular-nums text-[10px] text-neutral-500 z-10 backdrop-blur cursor-ew-resize select-none"
+          >
             {Array.from({ length: Math.ceil(totalDuration) }).map((_, sec) => (
               <div
                 key={sec}
@@ -535,7 +943,7 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
 
             <div
               key={track.id}
-              style={{ height: `${track.height}px` }}
+              style={{ height: `${track.height}px`, minWidth: `${Math.ceil(totalDuration) * zoomLevel}px` }}
               className="relative w-full border-b border-neutral-900/60"
               onDragOver={(e) => {
                 e.preventDefault(); // Allow dropping
@@ -582,6 +990,10 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                   <div
                     key={clip.id}
                     onClick={(e) => handleClipClick(e, clip.id)}
+                    onDoubleClick={() => {
+                      if (clip.compound) setOpenCompoundId(clip.id);
+                    }}
+                    title={clip.compound ? 'Double-click to open compound (playhead kept)' : undefined}
                     onPointerDown={(e) => {
                       if (activeTool === 'slip') {
                         handlePointerDown(e, clip.id, 'slip');
@@ -602,9 +1014,25 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                       const timeOffsetInClip = secondsToRational(clickXInClip / zoomLevel);
                       const absoluteTime = addRational(clip.startOffset, timeOffsetInClip);
 
+                      // Prevent context menu from overflowing off-screen (flip up/left if near edges)
+                      const estimatedWidth = 192;
+                      const estimatedHeight = 240;
+                      const vpWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
+                      const vpHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+                      let posX = e.clientX;
+                      let posY = e.clientY;
+
+                      if (posX + estimatedWidth > vpWidth - 8) {
+                        posX = Math.max(8, posX - estimatedWidth);
+                      }
+                      if (posY + estimatedHeight > vpHeight - 8) {
+                        posY = Math.max(8, posY - estimatedHeight);
+                      }
+
                       setContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
+                        x: posX,
+                        y: posY,
                         clipId: clip.id,
                         timeOffset: absoluteTime
                       });
@@ -614,7 +1042,7 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                       width: `${rationalToSeconds(clip.duration) * zoomLevel}px`,
                       cursor: activeTool === 'blade' ? 'crosshair' : activeTool === 'slip' ? 'ew-resize' : activeTool === 'slide' ? 'move' : 'pointer'
                     }}
-                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate transition-all shadow-md group relative overflow-hidden ${clip.muted ? 'opacity-50 grayscale' : ''} ${
+                    className={`absolute top-1 bottom-1 rounded-panel px-2.5 flex items-center justify-between text-[11px] font-semibold truncate transition-all shadow-md group overflow-hidden ${clip.muted ? 'opacity-50 grayscale' : ''} ${
                       track.type === 'video'
                         ? isSelected
                           ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white ring-2 ring-indigo-400 shadow-indigo-500/30'
@@ -625,9 +1053,49 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                     }`}
                   >
                     {track.type === 'video' ? (
-                      <FilmstripPreview />
+                      <>
+                        <FilmstripPreview
+                          assetId={clip.assetId}
+                          // Partial/test clips may lack sourceIn — sample from
+                          // media start then instead of crashing the timeline.
+                          sourceInSeconds={clip.sourceIn ? rationalToSeconds(clip.sourceIn) : 0}
+                          durationSeconds={rationalToSeconds(clip.duration)}
+                          widthPx={rationalToSeconds(clip.duration) * zoomLevel}
+                        />
+                        {/* Label bar docked to the top so the filmstrip owns
+                            the full box below it. pointer-events-none lets
+                            clicks fall through to select/drag the clip. */}
+                        <div
+                          data-testid={`clip-label-${clip.id}`}
+                          className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between gap-2 pl-2 pr-1.5 py-[3px] bg-gradient-to-b from-black/75 via-black/35 to-transparent pointer-events-none"
+                        >
+                          <div className="flex items-center gap-1.5 truncate min-w-0">
+                            {(clip.compound || clip.adjustment) && (
+                              <span
+                                title={clip.compound ? `Compound: ${clip.compound.clips.length} clips` : 'Adjustment layer'}
+                                className="shrink-0 px-1 rounded bg-black/40 text-[9px] font-mono text-amber-300 border border-amber-500/40"
+                              >
+                                {clip.compound ? 'NEST' : 'ADJ'}
+                              </span>
+                            )}
+                            <Film className="w-3.5 h-3.5 text-indigo-300 shrink-0 drop-shadow" />
+                            <span className="truncate drop-shadow">{clip.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <ClipMetaBadges clip={clip} />
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       <>
+                        {(clip.compound || clip.adjustment) && (
+                          <span
+                            title={clip.compound ? `Compound: ${clip.compound.clips.length} clips` : 'Adjustment layer'}
+                            className="shrink-0 mr-1 px-1 rounded bg-black/40 text-[9px] font-mono text-amber-300 border border-amber-500/40"
+                          >
+                            {clip.compound ? 'NEST' : 'ADJ'}
+                          </span>
+                        )}
                         <AudioWaveformCanvas
                           assetId={clip.assetId}
                           sourceInSeconds={rationalToSeconds(clip.sourceIn)}
@@ -671,52 +1139,21 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
                       <GripVertical className="w-2.5 h-2.5 text-white/80" />
                     </div>
 
-                    {/* Content Header */}
-                    <div className="flex items-center space-x-1.5 truncate relative z-10">
-                      {track.type === 'audio' ? (
-                        <Activity className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                      ) : (
-                        <Film className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
-                      )}
-                      <span className="truncate drop-shadow">{clip.name}</span>
-                    </div>
+                    {/* Audio clips keep the centered single-row header; video
+                        clips use the docked top label bar above instead. */}
+                    {track.type === 'audio' && (
+                      <>
+                        {/* Content Header */}
+                        <div className="flex items-center space-x-1.5 truncate relative z-10">
+                          <Activity className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                          <span className="truncate drop-shadow">{clip.name}</span>
+                        </div>
 
-                    <div className="flex items-center space-x-1 shrink-0 ml-2 relative z-10">
-                      {clip.speedRamp?.envelope && clip.speedRamp.envelope.length > 0 ? (
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/25 text-purple-300 border border-purple-500/40 shadow-sm" title="Speed Ramp Envelope Applied">
-                          Ramp
-                        </span>
-                      ) : clip.speed && clip.speed !== 1.0 ? (
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-500/40 shadow-sm" title={`Playback Speed ${clip.speed}x`}>
-                          {clip.speed}x
-                        </span>
-                      ) : null}
-
-                      {clip.reverse && (
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40 shadow-sm" title="Reverse Playback">
-                          « Rev
-                        </span>
-                      )}
-
-                      {clip.splitTrimType && clip.splitTrimType !== 'none' && clip.syncOffset && (
-                        <span
-                          className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shadow-sm flex items-center space-x-0.5 ${
-                            clip.splitTrimType === 'j-cut'
-                              ? 'bg-blue-500/25 text-blue-300 border-blue-500/40'
-                              : 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40'
-                          }`}
-                          title={`${clip.splitTrimType.toUpperCase()}: Sync offset ${rationalToSeconds(clip.syncOffset).toFixed(2)}s`}
-                          data-testid="sync-offset-badge"
-                        >
-                          <span>{clip.splitTrimType.toUpperCase()}</span>
-                          <span className="opacity-80">({rationalToSeconds(clip.syncOffset) > 0 ? '+' : ''}{rationalToSeconds(clip.syncOffset).toFixed(2)}s)</span>
-                        </span>
-                      )}
-
-                      <span className="text-[9px] opacity-90 font-mono tabular-nums bg-dark-950/70 px-1.5 py-0.5 rounded border border-white/10 backdrop-blur-sm">
-                        {rationalToSeconds(clip.duration).toFixed(1)}s
-                      </span>
-                    </div>
+                        <div className="flex items-center space-x-1 shrink-0 ml-2 relative z-10">
+                          <ClipMetaBadges clip={clip} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -753,8 +1190,9 @@ export const TimelineTrackEditor: React.FC<TimelineTrackEditorProps> = ({ height
       {/* Clip Context Menu */}
       {contextMenu && (
         <div
+          ref={menuRef}
           data-testid="clip-context-menu"
-          className="fixed bg-dark-900 border border-subtle shadow-2xl rounded-md py-1 z-[100] w-48 text-neutral-300 text-[11px] font-medium"
+          className="fixed bg-dark-900 border border-subtle shadow-2xl rounded-md py-1 z-[100] w-48 text-neutral-300 text-[11px] font-medium max-h-[calc(100vh-16px)] overflow-y-auto"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >

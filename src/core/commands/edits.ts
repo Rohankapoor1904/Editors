@@ -1138,6 +1138,60 @@ export class UpdateClipEffectCommand implements Command {
   }
 }
 
+/**
+ * R25.5 — toggles an effect entry's enabled flag (undoable). Throws when
+ * the clip or effect id is unknown instead of silently succeeding.
+ */
+export class ToggleClipEffectCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly effectId: string
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    let found = false;
+    for (const track of state.tracks) {
+      const clip = track.clips.find((c) => c.id === this.clipId);
+      if (clip) {
+        found = true;
+        if (track.locked) {
+          throw new Error(`Track ${track.id} is locked`);
+        }
+        if (!(clip.effects ?? []).some((e) => e.id === this.effectId)) {
+          throw new Error(`Effect with id ${this.effectId} not found on clip ${this.clipId}`);
+        }
+        break;
+      }
+    }
+    if (!found) {
+      throw new Error(`Clip with id ${this.clipId} not found`);
+    }
+    this.previousState = state;
+    return {
+      ...state,
+      tracks: state.tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) => {
+          if (c.id !== this.clipId) return c;
+          return {
+            ...c,
+            effects: (c.effects ?? []).map((e) =>
+              e.id === this.effectId ? { ...e, enabled: !e.enabled } : e
+            ),
+          };
+        }),
+      })),
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) return state;
+    return this.previousState;
+  }
+}
+
 export class SetKeyframeCommand implements Command {
   private previousState: TimelineState | null = null;
   readonly coalesceKey?: string;
