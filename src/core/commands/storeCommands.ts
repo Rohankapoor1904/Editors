@@ -3,11 +3,11 @@ import { TimelineState, Track, Clip } from '../../types/timeline';
 import { RationalTime, addRational, subRational, compareRational } from '../../types/time';
 
 export class AddTrackCommand implements Command {
-  private readonly newTrack: Track;
+  readonly newTrack: Track;
 
-  constructor(type: Track['type'], name: string, index: number) {
+  constructor(type: Track['type'], name: string, index: number, customId?: string) {
     this.newTrack = {
-      id: `track_${type}_${Date.now()}`,
+      id: customId || `track_${type}_${Date.now()}`,
       type,
       index,
       name,
@@ -17,6 +17,10 @@ export class AddTrackCommand implements Command {
       height: type === 'video' ? 64 : 56,
       clips: [],
     };
+  }
+
+  get trackId(): string {
+    return this.newTrack.id;
   }
 
   apply(state: TimelineState): TimelineState {

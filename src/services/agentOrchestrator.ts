@@ -61,6 +61,23 @@ export class RuleBasedAgentPlanner implements AgentPlanner {
         },
       });
     } else if (
+      lower.includes('retention') ||
+      lower.includes('viral') ||
+      lower.includes('shorts edit') ||
+      lower.includes('reels edit') ||
+      lower.includes('tiktok edit')
+    ) {
+      steps.push({
+        tool: 'auto_retention_edit',
+        args: {
+          target_ratio: '9:16',
+          caption_style: 'karaoke_bounce',
+          punch_in_zooms: true,
+          add_bgm: true,
+          add_sfx_transitions: true,
+        },
+      });
+    } else if (
       lower.includes('vertical') ||
       lower.includes('9:16') ||
       lower.includes('tiktok') ||
@@ -126,6 +143,97 @@ export class RuleBasedAgentPlanner implements AgentPlanner {
         tool: 'auto_edit_assembly',
         args: {
           asset_ids: footageIds,
+        },
+      });
+    } else if (
+      lower.includes('overlay') ||
+      lower.includes('sticker') ||
+      lower.includes('object') ||
+      lower.includes('graphic') ||
+      lower.includes('badge') ||
+      lower.includes('icon')
+    ) {
+      steps.push({
+        tool: 'add_overlay_object',
+        args: {
+          asset_id: 'overlay_graphic_1',
+          start_seconds: 0,
+          duration_seconds: 3.0,
+          animation_preset: 'spring_pop',
+          sfx: 'pop',
+        },
+      });
+    } else if (
+      lower.includes('animate') ||
+      lower.includes('animation') ||
+      lower.includes('spring') ||
+      lower.includes('bounce') ||
+      lower.includes('motion')
+    ) {
+      const targetClip = state.tracks.flatMap((t) => t.clips)[0];
+      if (targetClip) {
+        steps.push({
+          tool: 'apply_clip_animation',
+          args: {
+            clip_id: targetClip.id,
+            animation_type: lower.includes('swing') ? 'pendulum_swing' : 'spring_pop',
+            duration_seconds: 0.5,
+          },
+        });
+      }
+    } else if (
+      lower.includes('title') ||
+      lower.includes('callout') ||
+      lower.includes('lower third') ||
+      lower.includes('header')
+    ) {
+      steps.push({
+        tool: 'add_motion_title',
+        args: {
+          text: 'Highlights',
+          start_seconds: 0,
+          duration_seconds: 3.0,
+          style: lower.includes('cursive') ? 'cursive_accent' : 'bold_header',
+          animation_preset: 'spring_pop',
+        },
+      });
+    } else if (
+      lower.includes('sfx') ||
+      lower.includes('sound effect') ||
+      lower.includes('foley') ||
+      lower.includes('bell') ||
+      lower.includes('whoosh') ||
+      lower.includes('chime')
+    ) {
+      steps.push({
+        tool: 'add_sfx_hit',
+        args: {
+          sfx_type: lower.includes('whoosh')
+            ? 'whoosh'
+            : lower.includes('bell')
+            ? 'phone_bell'
+            : lower.includes('chime')
+            ? 'chime'
+            : 'pop',
+          timestamp_seconds: 0,
+          volume: 0.8,
+        },
+      });
+
+    } else if (
+      lower.includes('punch in') ||
+      lower.includes('punch-in') ||
+      lower.includes('zoom cut') ||
+      lower.includes('pattern interrupt') ||
+      lower.includes('dynamic zoom')
+    ) {
+      steps.push({
+        tool: 'apply_punch_in_zooms',
+        args: {
+          interval_seconds: 4.0,
+          zoom_scale: 1.12,
+          center_focus: 'speaker_face',
+          animation_type: 'hard_cut',
         },
       });
     } else if (lower.includes('cut') || lower.includes('trim') || lower.includes('split') || lower.includes('edit')) {

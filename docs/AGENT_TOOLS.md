@@ -275,6 +275,177 @@ Removes silent ranges across tracks with click-free seams (research §23, §24).
 
 ---
 
+### 13. `add_overlay_object`
+Places a graphic overlay, sticker, badge, or image onto an overlay track at a specific timestamp with optional physics animation and SFX.
+```json
+{
+  "name": "add_overlay_object",
+  "description": "Places a graphic overlay, sticker, badge, or image onto an overlay track at a specific timestamp with optional physics animation and SFX.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "asset_id": { "type": "string", "description": "Asset ID or file path of the overlay graphic" },
+      "start_seconds": { "type": "number", "default": 0 },
+      "duration_seconds": { "type": "number", "default": 3.0 },
+      "position_x": { "type": "number", "default": 0 },
+      "position_y": { "type": "number", "default": 0 },
+      "scale": { "type": "number", "default": 1.0 },
+      "animation_preset": {
+        "type": "string",
+        "enum": ["none", "spring_pop", "slide_up", "pendulum_swing", "fade_in"],
+        "default": "none"
+      },
+      "sfx": {
+        "type": "string",
+        "enum": ["none", "pop", "whoosh", "chime", "marker"],
+        "default": "none"
+      }
+    },
+    "required": ["asset_id"]
+  }
+}
+```
+
+---
+
+### 14. `apply_clip_animation`
+Applies physics-based keyframe animations (spring pop, bounce, pendulum swing, slide) to any clip on the timeline.
+```json
+{
+  "name": "apply_clip_animation",
+  "description": "Applies physics-based keyframe animations (spring pop, bounce, pendulum swing, slide) to any clip on the timeline.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "clip_id": { "type": "string", "description": "Target clip ID" },
+      "animation_type": {
+        "type": "string",
+        "enum": ["spring_pop", "pendulum_swing", "slide_up", "fade_in", "bounce"],
+        "default": "spring_pop"
+      },
+      "duration_seconds": { "type": "number", "default": 0.5 }
+    },
+    "required": ["clip_id"]
+  }
+}
+```
+
+---
+
+### 15. `add_sfx_hit`
+Adds a synchronized Foley sound effect (pop, whoosh, marker, phone_bell, chime) at an exact timeline position.
+```json
+{
+  "name": "add_sfx_hit",
+  "description": "Adds a synchronized Foley sound effect (pop, whoosh, marker, phone_bell, chime) at an exact timeline position.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "sfx_type": {
+        "type": "string",
+        "enum": ["pop", "whoosh", "marker", "phone_bell", "chime"]
+      },
+      "timestamp_seconds": { "type": "number", "default": 0 },
+      "volume": { "type": "number", "default": 0.8 }
+    },
+    "required": ["sfx_type"]
+  }
+}
+```
+
+---
+
+### 16. `add_motion_title`
+Creates an animated title card, lower-third, cursive name, or callout box with custom styling and entrance timing.
+```json
+{
+  "name": "add_motion_title",
+  "description": "Creates an animated title card, lower-third, cursive name, or callout box with custom styling and entrance timing.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string" },
+      "start_seconds": { "type": "number", "default": 0 },
+      "duration_seconds": { "type": "number", "default": 3.0 },
+      "style": {
+        "type": "string",
+        "enum": ["bold_header", "cursive_accent", "highlight_card", "badge"],
+        "default": "bold_header"
+      },
+      "color": { "type": "string", "default": "#0B3558" },
+      "background": { "type": "string", "default": "#FDF3AE" },
+      "animation_preset": {
+        "type": "string",
+        "enum": ["spring_pop", "slide_up", "fade_in", "none"],
+        "default": "spring_pop"
+      }
+    },
+    "required": ["text"]
+  }
+}
+```
+
+---
+
+### 17. `apply_punch_in_zooms`
+Applies alternating punch-in zoom cuts (e.g. 1.0x to 1.12x) across video clips or at periodic intervals to maintain high viewer retention and pattern interrupts.
+```json
+{
+  "name": "apply_punch_in_zooms",
+  "description": "Applies alternating punch-in zoom cuts (e.g. 1.0x to 1.12x) across video clips or at periodic intervals to maintain high viewer retention and pattern interrupts.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "clip_id": { "type": "string", "description": "Optional specific clip ID. If omitted, applies across the active video track." },
+      "interval_seconds": { "type": "number", "default": 4.0 },
+      "zoom_scale": { "type": "number", "default": 1.12 },
+      "center_focus": {
+        "type": "string",
+        "enum": ["speaker_face", "center"],
+        "default": "speaker_face"
+      },
+      "animation_type": {
+        "type": "string",
+        "enum": ["hard_cut", "smooth_spring"],
+        "default": "hard_cut"
+      }
+    }
+  }
+}
+```
+
+---
+
+### 18. `auto_retention_edit`
+Executes the full viral retention editing pipeline in one click: 9:16 vertical reframe with face tracking, periodic punch-in zoom pattern interrupts, animated kinetic captions, ducked BGM, and Foley SFX hits.
+```json
+{
+  "name": "auto_retention_edit",
+  "description": "Executes the full viral retention editing pipeline in one click: 9:16 vertical reframe with face tracking, periodic punch-in zoom pattern interrupts, animated kinetic captions, ducked BGM, and Foley SFX hits.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "target_ratio": {
+        "type": "string",
+        "enum": ["9:16", "16:9"],
+        "default": "9:16"
+      },
+      "caption_style": {
+        "type": "string",
+        "enum": ["karaoke_bounce", "bold_yellow_highlight", "clean_white"],
+        "default": "karaoke_bounce"
+      },
+      "punch_in_zooms": { "type": "boolean", "default": true },
+      "add_bgm": { "type": "boolean", "default": true },
+      "bgm_asset_id": { "type": "string", "default": "asset_bgm_ambient" },
+      "add_sfx_transitions": { "type": "boolean", "default": true }
+    }
+  }
+}
+```
+
+---
+
 ## Execution rules for all tools
 
 1. **Schema-validated.** Arguments are validated before execution; invalid input returns a typed

@@ -1401,4 +1401,64 @@ export class ApplyAutoReframeCommand implements Command {
   }
 }
 
+export class ApplyClipAnimationCommand implements Command {
+  private previousState: TimelineState | null = null;
+
+  constructor(
+    private readonly clipId: string,
+    private readonly keyframes: Record<string, Keyframe[]>,
+    private readonly initialTransform?: Partial<Transform>
+  ) {}
+
+  apply(state: TimelineState): TimelineState {
+    this.previousState = state;
+    let foundClip = false;
+
+    const newTracks = state.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.map((clip) => {
+        if (clip.id === this.clipId) {
+          foundClip = true;
+          const defaultTransform: Transform = {
+            position: { x: 0, y: 0 },
+            scale: { x: 1, y: 1 },
+            rotation: 0,
+            opacity: 1,
+            anchorPoint: { x: 0.5, y: 0.5 },
+          };
+          const baseTransform = clip.transform || defaultTransform;
+          const updatedTransform = this.initialTransform
+            ? { ...baseTransform, ...this.initialTransform }
+            : baseTransform;
+
+          return {
+            ...clip,
+            transform: updatedTransform,
+            keyframes: {
+              ...clip.keyframes,
+              ...this.keyframes,
+            },
+          };
+        }
+        return clip;
+      }),
+    }));
+
+    if (!foundClip) {
+      throw new Error(`Clip with id ${this.clipId} not found for animation`);
+    }
+
+    return {
+      ...state,
+      tracks: newTracks,
+    };
+  }
+
+  invert(state: TimelineState): TimelineState {
+    if (!this.previousState) return state;
+    return this.previousState;
+  }
+}
+
+
 

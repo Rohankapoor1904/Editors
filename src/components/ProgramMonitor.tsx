@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '../store/timelineStore';
 import { rationalToSeconds, secondsToRational } from '../types/time';
 import { addRational, compareRational, subRational } from '../types/time';
-import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square, SplitSquareHorizontal, Zap, Subtitles, Sparkles, LayoutGrid, Mic, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipBack, Volume2, Cpu, Maximize2, Repeat, ChevronLeft, ChevronRight, Monitor, Smartphone, Square, SplitSquareHorizontal, Zap, Subtitles, Sparkles, LayoutGrid, Mic, Loader2, Shield } from 'lucide-react';
 import { webgpuEngine } from '../engine/webgpuRenderer';
 import { WordTimestamp, whisperService } from '../services/whisperTranscriber';
 import { transportEngine } from '../engine/transport';
@@ -58,6 +58,7 @@ export const ProgramMonitor: React.FC = () => {
   const [volume, setVolume] = useState<number>(0);
   const [isMultiCamMode, setIsMultiCamMode] = useState<boolean>(false);
   const { monitorViewMode, toggleMonitorViewMode } = useLayoutStore();
+  const [showSafeZone, setShowSafeZone] = useState<boolean>(false);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -516,6 +517,22 @@ export const ProgramMonitor: React.FC = () => {
             <Sparkles className="w-3 h-3 text-indigo-400" />
             <span className="hidden sm:inline">Auto-Reframe</span>
           </button>
+
+          {/* Social Safe Zone Guides (TikTok / Reels / Shorts UI overlay) */}
+          <button
+            type="button"
+            onClick={() => setShowSafeZone(!showSafeZone)}
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded transition-all text-[11px] font-medium border ml-1 ${
+              showSafeZone
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-sm shadow-rose-500/20'
+                : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-neutral-200'
+            }`}
+            title="Toggle Social Media Safe Zone Guide (TikTok / Reels / Shorts UI overlay)"
+            data-testid="safe-zone-toggle"
+          >
+            <Shield className={`w-3 h-3 ${showSafeZone ? 'text-rose-400' : 'text-neutral-500'}`} />
+            <span className="hidden sm:inline">Safe Zone</span>
+          </button>
         </div>
 
         <div className="flex items-center space-x-1.5 shrink-0 flex-wrap">
@@ -695,6 +712,63 @@ export const ProgramMonitor: React.FC = () => {
                 containerHeight={frameDimensions.height}
                 onUpdateTransform={(t) => updateClipTransform(selectedVideoClip.id, t)}
               />
+            )}
+
+            {/* Social Media Safe Zone Guide (TikTok, Instagram Reels, YouTube Shorts) */}
+            {showSafeZone && (
+              <div
+                data-testid="social-safe-zone-overlay"
+                className="absolute inset-0 pointer-events-none z-20 overflow-hidden flex flex-col justify-between"
+              >
+                {/* Top Danger Zone (Search bar, Following/For You tabs) */}
+                <div className="w-full h-[14%] bg-rose-500/10 border-b border-dashed border-rose-400/40 relative flex items-center justify-center">
+                  <span className="text-[10px] font-mono text-rose-300/80 bg-neutral-950/80 px-2 py-0.5 rounded border border-rose-500/30">
+                    Top UI Danger Zone (Search & Tabs)
+                  </span>
+                </div>
+
+                {/* Center Safe Action Area */}
+                <div className="flex-1 w-full flex relative">
+                  {/* Safe Action Box: Margined from right to avoid action icons */}
+                  <div className="flex-1 h-full mr-[20%] border-2 border-emerald-400/50 border-dashed rounded-lg m-2 relative flex items-center justify-center">
+                    <div className="absolute top-2 left-2 text-[9px] font-mono text-emerald-400/90 bg-neutral-950/80 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                      SAFE ACTION AREA (Captions, Hooks, Faces)
+                    </div>
+                    {/* Center Crosshair */}
+                    <div className="w-4 h-4 border border-emerald-400/30 rounded-full flex items-center justify-center pointer-events-none">
+                      <div className="w-1 h-1 bg-emerald-400/50 rounded-full" />
+                    </div>
+                  </div>
+
+                  {/* Right Side Danger Zone (Like, Comment, Share, Audio Disc) */}
+                  <div className="w-[20%] h-full bg-rose-500/10 border-l border-dashed border-rose-400/40 flex flex-col items-center justify-center space-y-4 py-2">
+                    <div className="w-7 h-7 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-[9px] font-mono text-rose-300">
+                      ♥
+                    </div>
+                    <div className="w-7 h-7 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-[9px] font-mono text-rose-300">
+                      💬
+                    </div>
+                    <div className="w-7 h-7 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-[9px] font-mono text-rose-300">
+                      ➤
+                    </div>
+                    <div className="w-7 h-7 rounded-full bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-[9px] font-mono text-rose-300">
+                      🎵
+                    </div>
+                    <span className="text-[8px] font-mono text-rose-400/90 text-center leading-tight">
+                      Right UI Icons
+                    </span>
+                  </div>
+                </div>
+
+                {/* Bottom Danger Zone (Username, Captions, Audio Track) */}
+                <div className="w-full h-[20%] bg-rose-500/10 border-t border-dashed border-rose-400/40 relative flex flex-col justify-center px-4">
+                  <div className="w-32 h-2.5 bg-rose-400/20 rounded mb-1.5" />
+                  <div className="w-48 h-2 bg-rose-400/20 rounded mb-1.5" />
+                  <span className="text-[9px] font-mono text-rose-300/80 bg-neutral-950/80 px-2 py-0.5 rounded border border-rose-500/30 self-start">
+                    Bottom UI Danger Zone (@username, captions & audio)
+                  </span>
+                </div>
+              </div>
             )}
 
 

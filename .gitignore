@@ -9,3 +9,6 @@ verification/
 # Rust ignore
 src-tauri/target/
 __pycache__/
+
+# User render artifacts and media exports
+user_render_artifacts/

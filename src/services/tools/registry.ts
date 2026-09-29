@@ -154,7 +154,13 @@ import {
   video_apply_auto_reframe_def, video_apply_auto_reframe_executor,
   transcript_filter_tokens_def, transcript_filter_tokens_executor,
   captions_generate_karaoke_def, captions_generate_karaoke_executor,
-  timeline_remove_silence_def, timeline_remove_silence_executor
+  timeline_remove_silence_def, timeline_remove_silence_executor,
+  add_overlay_object_def, add_overlay_object_executor,
+  apply_clip_animation_def, apply_clip_animation_executor,
+  add_sfx_hit_def, add_sfx_hit_executor,
+  add_motion_title_def, add_motion_title_executor,
+  apply_punch_in_zooms_def, apply_punch_in_zooms_executor,
+  auto_retention_edit_def, auto_retention_edit_executor
 } from './effectsTools';
 
 globalToolRegistry.register(add_subtitles_def, add_subtitles_executor);
@@ -167,3 +173,12 @@ globalToolRegistry.register(video_apply_auto_reframe_def, video_apply_auto_refra
 globalToolRegistry.register(transcript_filter_tokens_def, transcript_filter_tokens_executor);
 globalToolRegistry.register(captions_generate_karaoke_def, captions_generate_karaoke_executor);
 globalToolRegistry.register(timeline_remove_silence_def, timeline_remove_silence_executor);
+
+globalToolRegistry.register(add_overlay_object_def, add_overlay_object_executor);
+globalToolRegistry.register(apply_clip_animation_def, apply_clip_animation_executor);
+globalToolRegistry.register(add_sfx_hit_def, add_sfx_hit_executor);
+globalToolRegistry.register(add_motion_title_def, add_motion_title_executor);
+globalToolRegistry.register(apply_punch_in_zooms_def, apply_punch_in_zooms_executor);
+globalToolRegistry.register(auto_retention_edit_def, auto_retention_edit_executor);
+
+

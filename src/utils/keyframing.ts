@@ -10,7 +10,19 @@ export const EASING_PRESETS: Record<string, [number, number, number, number]> = 
   'ease-in': [0.42, 0.0, 1.0, 1.0],
   'ease-out': [0.0, 0.0, 0.58, 1.0],
   'ease-in-out': [0.42, 0.0, 0.58, 1.0],
+  'spring-pop': [0.175, 0.885, 0.32, 1.275],
+  overshoot: [0.34, 1.56, 0.64, 1.0],
+  anticipate: [0.68, -0.6, 0.32, 1.6],
 };
+
+/**
+ * Evaluates a damped harmonic oscillator (spring physics) curve for dynamic pop-ins.
+ */
+export function evaluateSpringDamper(progress: number): number {
+  if (progress <= 0) return 0;
+  if (progress >= 1) return 1;
+  return 1.0 - Math.exp(-6.0 * progress) * Math.cos(7.5 * progress * Math.PI * 0.5);
+}
 
 /**
  * Evaluates a unit cubic Bezier curve at progress x in [0, 1] using Newton-Raphson iteration
@@ -79,6 +91,10 @@ export function solveCubicBezier(
 export function evaluateEasing(easing: string | undefined, progress: number): number {
   if (!easing || easing === 'linear') {
     return progress;
+  }
+
+  if (easing.toLowerCase() === 'spring' || easing.toLowerCase() === 'spring-damper') {
+    return evaluateSpringDamper(progress);
   }
 
   const preset = EASING_PRESETS[easing.toLowerCase()];

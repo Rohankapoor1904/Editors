@@ -239,3 +239,23 @@ Format:
 - **Context:** R7.4/R7.5 tasks require multimodal perception and semantic media search logic, however, actual AI logic requires complex Rust backend support and local AI weight management.
 - **Decision:** Added frontend interfaces and testable stubs for `MultimodalPerceptionEngine` and `SemanticSearchService` that comply strictly with `AGENTS.md` and throw `NotImplementedError` in live mode, preventing unverified usage on main paths.
 - **Consequences:** Safe, testable stubs exist for the UI/agents, but actual inferencing will fail loudly in `live` mode until backend rust layer implementation for CLIP is finished.
+
+## ADR-031: AI Agent Overlay, Physics Keyframe Animations, and Sound Design Tools
+- **Context:** The AI Video Editor required high-level agentic capabilities to allow an AI model (or rule-based copilot) to place graphical overlays (stickers, badges, b-roll), apply physics-based keyframe animations (spring-damper pop, pendulum swing oscillation, slide-in), drop synchronized Foley SFX, and generate styled motion titles with exact word timestamps.
+- **Decision:**
+  - Added `ApplyClipAnimationCommand` in `src/core/commands/edits.ts` adhering to the command pattern and transaction rollback.
+  - Implemented `evaluateSpringDamper` and standard `spring-pop`, `overshoot`, and `anticipate` easing curves in `src/utils/keyframing.ts`.
+  - Registered 4 schema-validated tools in `src/services/tools/effectsTools.ts`: `add_overlay_object`, `apply_clip_animation`, `add_sfx_hit`, and `add_motion_title`.
+  - Expanded `RuleBasedAgentPlanner` in `src/services/agentOrchestrator.ts` to automatically route natural language prompts to these tools.
+- **Consequences:** The agent orchestrator can now take high-level creative prompts and translate them into real multi-track timeline mutations (video overlays, keyframe curves, Foley audio) with full undo/redo support and zero mock data.
+
+## ADR-032: Viral Retention Editing Engine, Dynamic Punch-In Zooms, and Social Safe Zone Guides
+- **Context:** Top short-form video editors (Alex Hormozi, Ali Abdaal, MrBeast, Submagic, CapCut) achieve viral retention through 6 key techniques: periodic pattern interrupts (punch-in zoom cuts every 3-5 seconds), auto 9:16 vertical reframe with face tracking, kinetic word-level captions, multi-layer ducked audio design, and avoiding platform UI occlusion on TikTok, Instagram Reels, and YouTube Shorts.
+- **Decision:**
+  - Implemented `apply_punch_in_zooms` in `src/services/tools/effectsTools.ts`: calculates rhythmic zoom cuts (1.0x to 1.12x) with upper-third speaker face framing and keyframe transitions.
+  - Implemented `auto_retention_edit` in `src/services/tools/effectsTools.ts`: composite 1-click viral edit pipeline executing vertical aspect ratio, Kalman face tracking auto-reframe, punch-in zoom pattern interrupts, kinetic animated subtitles, ducked background music, and opening Foley SFX hits.
+  - Added Social Safe Zone Guide overlay and toggle in `src/components/ProgramMonitor.tsx` to visualize TikTok/Reels UI occlusion danger zones and safe action areas.
+  - Registered tools 17 and 18 in `src/services/tools/registry.ts` and prioritized their natural language routing in `RuleBasedAgentPlanner`.
+- **Consequences:** CineCraft AI now provides full end-to-end viral video creation capabilities, combining automated timeline editing with visual monitor guides while preserving the non-destructive command pattern and zero mock data invariants.
+
+
