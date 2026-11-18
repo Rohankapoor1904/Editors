@@ -1,5 +1,5 @@
 import { useTimelineStore } from '../store/timelineStore';
-import { agentOrchestrator } from './agentOrchestrator';
+import { agentOrchestrator, getAgentToolSchemas } from './agentOrchestrator';
 import { globalToolRegistry } from './tools/registry';
 import { CompoundCommand } from '../core/commands/transaction';
 import { SetMetadataCommand } from '../core/commands/storeCommands';
@@ -295,6 +295,9 @@ class AgentBridgeClient {
       tracksCount: state.tracks.length,
       clipsCount: state.tracks.reduce((acc, t) => acc + t.clips.length, 0),
       selectedClipIds: state.selectedClipIds,
+      // R27.1: publish the live tool catalogue so an external agent can plan
+      // against the real registry without guessing tool names/args.
+      tools: getAgentToolSchemas(),
       timeline: {
         tracks: state.tracks.map(t => ({
           id: t.id,

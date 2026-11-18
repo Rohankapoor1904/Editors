@@ -96,6 +96,21 @@ export function agentBridgePlugin(): Plugin {
           });
         }
 
+        // 2.1 GET /api/agent/tools
+        // The live tool catalogue published by the frontend heartbeat. An
+        // external agent (e.g. via the MCP server in `scripts/mcp-server.mjs`)
+        // reads this to discover tool names + JSON schemas before calling
+        // `/tool`. Returns an empty list until the app first heartbeats —
+        // never a fabricated catalogue.
+        if (pathname === '/api/agent/tools' && req.method === 'GET') {
+          const tools = Array.isArray(latestState?.tools) ? latestState.tools : [];
+          return sendJson(res, 200, {
+            tools,
+            count: tools.length,
+            source: 'frontend-registry',
+          });
+        }
+
         // 3. POST /api/agent/prompt
         if (pathname === '/api/agent/prompt' && req.method === 'POST') {
           if (!isAuthorized(req)) {

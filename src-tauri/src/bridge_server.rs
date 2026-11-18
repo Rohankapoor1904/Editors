@@ -87,6 +87,7 @@ impl BridgeServerState {
         Router::new()
             .route("/api/agent/status", get(handle_status))
             .route("/api/agent/timeline", get(handle_timeline))
+            .route("/api/agent/tools", get(handle_tools))
             .route("/api/agent/heartbeat", post(handle_heartbeat))
             .route("/api/agent/connect", post(handle_connect))
             .route("/api/agent/prompt", post(handle_prompt))
@@ -184,6 +185,32 @@ async fn handle_timeline(State(state): State<BridgeServerState>) -> impl IntoRes
         "playhead": latest.get("playhead").unwrap_or(&Value::Null),
         "activeWorkspace": latest.get("activeWorkspace").unwrap_or(&Value::Null),
     }))
+}
+
+/// Serves the live tool catalogue published by the frontend heartbeat
+/// (R27.1). External agents read this to discover tool names + JSON schemas
+/// before calling `/tool`. Empty until the app first heartbeats — never a
+/// fabricated catalogue (invariant §5.5).
+async fn handle_tools(State(state): State<BridgeServerState>) -> impl IntoResponse {
+    let queues = state.queues.lock().unwrap();
+    Json(tools_snapshot(&queues))
+}
+
+/// Extracts the published tool catalogue from the latest heartbeat snapshot.
+/// Absent or non-array `tools` yields an empty list (honest "nothing yet").
+fn tools_snapshot(queues: &BridgeQueues) -> Value {
+    let tools = queues
+        .latest_state
+        .as_ref()
+        .and_then(|s| s.get("tools"))
+        .and_then(|t| t.as_array())
+        .cloned()
+        .unwrap_or_default();
+    json!({
+        "tools": tools,
+        "count": tools.len(),
+        "source": "frontend-registry",
+    })
 }
 
 async fn handle_heartbeat(
@@ -449,6 +476,36 @@ mod tests {
         let snapshot = status_snapshot(&queues);
         assert_eq!(snapshot["status"], "connected");
         assert_eq!(snapshot["connected"], true);
+    }
+
+    #[test]
+    fn tools_snapshot_is_empty_before_any_heartbeat() {
+        let queues = BridgeQueues::default();
+        let snapshot = tools_snapshot(&queues);
+        assert_eq!(snapshot["tools"], json!([]));
+        assert_eq!(snapshot["count"], 0);
+        assert_eq!(snapshot["source"], "frontend-registry");
+    }
+
+    #[test]
+    fn tools_snapshot_publishes_published_catalogue() {
+        let mut queues = BridgeQueues::default();
+        queues.latest_state = Some(json!({
+            "playhead": 0,
+            "tools": [
+                { "name": "probe_media", "description": "probe", "parameters": { "type": "object" } }
+            ]
+        }));
+        let snapshot = tools_snapshot(&queues);
+        assert_eq!(snapshot["count"], 1);
+        assert_eq!(snapshot["tools"][0]["name"], "probe_media");
+    }
+
+    #[test]
+    fn tools_snapshot_ignores_non_array_tools() {
+        let mut queues = BridgeQueues::default();
+        queues.latest_state = Some(json!({ "tools": "not-an-array" }));
+        assert_eq!(tools_snapshot(&queues)["count"], 0);
     }
 
     #[test]

@@ -11,12 +11,14 @@
     "verify:invariants": "node scripts/verify-invariants.mjs",
     "test": "node scripts/verify-invariants.mjs && vitest run",
     "test:watch": "vitest",
+    "mcp": "node src/services/mcp/main.ts",
     "tauri": "tauri",
     "dev:desktop": "tauri dev",
     "build:desktop": "tauri build",
     "build:native": "npm run build && cd src-tauri && cargo build"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@tauri-apps/plugin-fs": "^2.5.2",

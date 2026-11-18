@@ -351,3 +351,36 @@ workflow is the only consumer.
 **Operating it.** Run `gh workflow run jules-orchestrator.yml`. To force a specific task,
 edit `phase`/`task_id` in `state.json` on the `automation-state` branch, or reset the branch
 to `{"phase":"idle"}` to let it pick the next claimable row.
+
+---
+
+## 13. Connecting an external agent (MCP)
+
+The editor can be driven by any MCP-capable agent (Claude Code, Cursor, …) via
+`src/services/mcp/` (R27.1, ADR-011). The MCP server is a thin client of the running app's
+agent bridge: it mirrors the live tool registry and forwards each call back to the app,
+which is the only executor.
+
+**Run it**
+
+1. Start the app (`npm run dev`, or the installed desktop build).
+2. Register the MCP server with the agent, e.g. Claude Code:
+
+   ```bash
+   claude mcp add cinecraft -- npm run mcp
+   ```
+
+The **Bridge panel** (Copilot tab) shows this exact command — built from the live bridge
+state — with a copy button, so you never have to type it by hand.
+
+The server resolves the bridge as: `MCP_BRIDGE_URL` / `MCP_BRIDGE_TOKEN` env → the sidecar
+discovery file `cinecraft_bridge_info.json` (written by the desktop build to the temp dir)
+→ dev default `http://localhost:3000/api/agent`. If the app is unreachable the agent gets a
+loud error, never a fabricated tool catalogue.
+
+**What the agent can do.** Every tool registered in `globalToolRegistry` (see
+`docs/AGENT_TOOLS.md`) — `probe_media`, `transcribe_and_align`, `detect_silence`,
+`cut_and_arrange_timeline`, `add_subtitles`, `auto_edit_assembly`, … — discovered live from
+`GET /api/agent/tools` and executed through the app's command stack, so every agent edit is
+undoable.
+

@@ -1,3 +1,35 @@
+## 2026-11-18 — OpenHands — R27.2
+- **Did:**
+  - `src/services/mcp/connectionInfo.ts` — new pure `buildMcpConnectionInfo({ bridgeKind, bridgeUrl, token })` returning the `claude mcp add …` command + `.mcp.json` body + honest note. Dev default omits env; sidecar carries `MCP_BRIDGE_URL` + `MCP_BRIDGE_TOKEN`; unavailable yields guidance, no command.
+  - `src/components/BridgePanel.tsx` — new "MCP Agent" section (note + command `<pre>` + copy button), driven entirely by the helper; added `data-testid` `bridge-unavailable` to the existing message.
+  - Tests: `src/services/mcp/__tests__/connectionInfo.test.ts` (4), extended `src/components/__tests__/BridgePanel.test.tsx` (+2).
+- **Verified:**
+  - `npm run build` — clean.
+  - `npm run lint` — clean.
+  - `npm test` — gate clean + 147 files / 672 passed / 1 skipped (skip pre-existing).
+- **Left undone:** `.mcp.json` body is shown but not written to disk automatically (user pastes it); command uses Claude Code syntax (other clients use the JSON).
+- **Next:** Optional streamable-HTTP MCP; run Rust checks on a tooled host.
+- **Blockers:** None.
+
+## 2026-11-18 — OpenHands — R27.1
+- **Did:**
+  - `src/services/mcp/mcpServer.ts` — new stdio MCP server factory (pure, transport-agnostic): `createCineCraftMcpServer(config, fetchImpl)` mirrors the app's live tool catalogue (`GET /api/agent/tools`) as MCP tools and forwards `tools/call` to `POST /api/agent/tool`. `resolveMcpConfig` (env → sidecar file → dev default), `readSidecarInfo`, `fetchBridgeTools`, `callBridgeTool`.
+  - `src/services/mcp/main.ts` — thin stdio entrypoint; diagnostics to stderr, JSON-RPC on stdout. `npm run mcp` added to `package.json`.
+  - `src/services/agentBridge.ts` — heartbeat snapshot now publishes `tools: getAgentToolSchemas()`.
+  - `scripts/agentBridgePlugin.ts` — new `GET /api/agent/tools` route (empty before first heartbeat, never fabricated).
+  - `src-tauri/src/bridge_server.rs` — new `/api/agent/tools` route + `tools_snapshot()` helper + 3 unit tests (unverified here, no cargo toolchain).
+  - Tests: `src/services/mcp/__tests__/mcpServer.test.ts` (6), `src/services/__tests__/bridgeToolsRoute.test.ts` (2).
+  - Docs: ADR-011, ROADMAP Phase R27, PROGRESS R27.1 row.
+- **Verified:**
+  - `npm run build` — clean (3.25s).
+  - `npm run lint` — clean.
+  - `npm test` — gate clean + 145 files / 664 passed / 1 skipped (skip pre-existing).
+  - E2E: spawned `node src/services/mcp/main.ts` as a real child process over stdio JSON-RPC; a real MCP `Client` listed the catalogue and `probe_media` round-tripped to a real local HTTP bridge returning `{ ok: true }`.
+  - `cargo check`/`cargo test` — NOT run: no Rust toolchain in this environment. The `bridge_server.rs` `/tools` mirror is `unverified` here; unit tests are written and CI's `verify-rust` job covers them.
+- **Left undone:** No in-app UI affordance yet showing the MCP connection / `claude mcp add` instructions (follow-up). Streamable-HTTP MCP deferred.
+- **Next:** Optionally surface the MCP one-liner in the BridgePanel; otherwise open the next ROADMAP phase after human review.
+- **Blockers:** None.
+
 ## 2026-09-23 — opencode — ruler wheel-zoom (user request)
 - **Did:**
   - `TimelineTrackEditor.tsx`: wheel over the seconds ruler now zooms the timeline (up = in, down = out), exponential step, clamped to the 5..100 slider range, anchored at the cursor (time under pointer stays put via scrollLeft compensation). Ruler gets `cursor-ew-resize` + "Scroll to zoom in/out" title. Counts as manual zoom, so auto-fit never overrides it.

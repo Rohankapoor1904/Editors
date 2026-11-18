@@ -1,7 +1,8 @@
 import React from 'react';
-import { Plug, Copy, Check, RefreshCw } from 'lucide-react';
+import { Plug, Copy, Check, RefreshCw, Bot } from 'lucide-react';
 import { useAgentStore } from '../store/agentStore';
 import { fetchBridgeStatus, BridgeStatusInfo } from '../services/agentBridge';
+import { buildMcpConnectionInfo } from '../services/mcp/connectionInfo';
 
 type StatusState =
   | { state: 'idle' }
@@ -27,8 +28,11 @@ export const BridgePanel: React.FC = () => {
 
   const [status, setStatus] = React.useState<StatusState>({ state: 'idle' });
   const [copied, setCopied] = React.useState(false);
+  const [copiedMcp, setCopiedMcp] = React.useState(false);
 
   const token = bridgeKind === 'native-sidecar' ? sidecarToken : '';
+
+  const mcp = buildMcpConnectionInfo({ bridgeKind, bridgeUrl, token });
 
   const handleRefresh = async () => {
     setStatus({ state: 'checking' });
@@ -50,6 +54,21 @@ export const BridgePanel: React.FC = () => {
       await clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable (permissions, insecure context) — user copies manually
+    }
+  };
+
+  const handleCopyMcp = async (text: string) => {
+    try {
+      const clipboard = (navigator as unknown as { clipboard?: { writeText: (t: string) => Promise<void> } })
+        .clipboard;
+      if (!clipboard) {
+        return;
+      }
+      await clipboard.writeText(text);
+      setCopiedMcp(true);
+      setTimeout(() => setCopiedMcp(false), 1500);
     } catch {
       // clipboard unavailable (permissions, insecure context) — user copies manually
     }
@@ -113,7 +132,7 @@ export const BridgePanel: React.FC = () => {
       )}
 
       {kindLabel === 'unavailable' && (
-        <p className="text-[11px] text-amber-300/90">
+        <p className="text-[11px] text-amber-300/90" data-testid="bridge-unavailable">
           Production build has no agent transport. Run <span className="font-mono">npm run dev</span> for
           IDE access, or ship the native sidecar.
         </p>
@@ -155,6 +174,36 @@ export const BridgePanel: React.FC = () => {
           {status.error}
         </p>
       )}
+
+      {/* R27.2: how to drive the app from an MCP-capable agent. The command is
+          built from the live bridge state, never hardcoded. */}
+      <div className="pt-2 border-t border-neutral-800/80 space-y-1.5">
+        <div className="flex items-center space-x-1.5">
+          <Bot className="w-3.5 h-3.5 text-indigo-accent" />
+          <span className="text-[11px] font-semibold text-neutral-200">MCP Agent</span>
+        </div>
+        <p className="text-[10px] text-neutral-400" data-testid="mcp-note">
+          {mcp.note}
+        </p>
+        {mcp.available && (
+          <>
+            <pre
+              className="bg-dark-950 rounded border border-neutral-800/80 px-2 py-1.5 text-[10px] font-mono text-neutral-300 whitespace-pre-wrap break-all"
+              data-testid="mcp-command"
+            >
+              {mcp.claudeCommand}
+            </pre>
+            <button
+              onClick={() => void handleCopyMcp(mcp.claudeCommand)}
+              className="px-2 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 rounded-md text-[10px] font-medium flex items-center space-x-1 transition-all"
+              title="Copy the Claude Code MCP registration command"
+            >
+              {copiedMcp ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedMcp ? 'Copied' : 'Copy MCP command'}</span>
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 };

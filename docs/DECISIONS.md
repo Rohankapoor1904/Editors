@@ -21,6 +21,21 @@ Format:
 
 ---
 
+## ADR-011: MCP as the external-agent surface (stdio server bridging the live tool registry)
+- **Date:** 2026-11-18
+- **Status:** accepted
+- **Task:** R27.1
+- **Context:** The user wants to drive the editor with Claude Code or another external model and have it perform pro-level edits. The app already exposes an agent bridge (ADR-008 dev middleware, ADR-009 native sidecar) and a real typed tool registry (R19.1), but the bridge speaks a bespoke poll-queue HTTP handshake. Modern coding agents connect to external tools via the Model Context Protocol (MCP); without an MCP surface, "connect Claude Code" means writing a bespoke client per model.
+- **Options considered:**
+  - Re-implement tool execution natively / in the MCP process — rejected: duplicates the registry + command stack; two executors diverge (same reasoning as ADR-009).
+  - Expose MCP over the existing HTTP sidecar only (streamable-HTTP MCP) — deferred: more moving parts (sessions, SSE) than the stdio transport most agents already speak; can be added later over the same `/tools` + `/tool` routes.
+  - Stdio MCP server that is a *client of the bridge* (`GET /tools` to discover, `POST /tool` to execute) — chosen: one new small surface, zero changes to the execution path, works for both dev middleware and the production sidecar, and is what `claude mcp add` expects.
+  - New `@modelcontextprotocol/sdk` dependency — accepted: standard, maintained SDK; the alternative is hand-rolling JSON-RPC framing.
+- **Decision:** Add `src/services/mcp/` — a stdio MCP `Server` (pure, transport-agnostic factory + a thin `main.ts` entrypoint, `npm run mcp`) that mirrors the app's live tool catalogue and forwards `tools/call` to the bridge. Publish the catalogue from the frontend heartbeat via a new `GET /api/agent/tools` route on both the dev plugin and the Rust sidecar. Config resolves `MCP_BRIDGE_URL/TOKEN` env → sidecar discovery file (`cinecraft_bridge_info.json`) → dev default `http://localhost:3000/api/agent`. The app remains the sole executor; an unreachable app fails loudly, never with a fabricated catalogue.
+- **Consequences:** Any MCP client (Claude Code, Cursor, …) can discover and call the real editing tools with no per-client code. Adds one runtime dependency and a Rust route (`tools_snapshot`, `unverified` until a tooled host runs `cargo check`). Streamable-HTTP MCP and an in-app connection affordance are left as follow-ups.
+
+---
+
 ## ADR-010: R24–R26 enhancement roadmap (pro gap + creator parity + polish)
 - **Date:** 2026-09-23
 - **Status:** proposed

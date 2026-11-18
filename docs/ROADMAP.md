@@ -463,6 +463,24 @@ Goal: the last mile to "standard and production level" — project structure, br
 
 ---
 
+## Phase R27 — MCP: connect external agents (Claude Code, Cursor, …)
+
+Goal: let a standard, MCP-capable agent drive the editor against the *real* tool
+registry, not a bespoke HTTP handshake. The app already publishes its tool
+catalogue and executes tools over the agent bridge (R19/R21/R23); R27 adds the
+Model Context Protocol surface that modern agents expect, plus the catalogue
+route that makes it discoverable.
+
+| ID | Task | Files | Acceptance |
+| :--- | :--- | :--- | :--- |
+| **R27.1** | **MCP bridge server.** Publish the live tool catalogue on `GET /api/agent/tools` (frontend heartbeat → dev plugin + native sidecar) and add a stdio MCP server (`src/services/mcp/`) that mirrors that catalogue as MCP tools and forwards `tools/call` to `POST /api/agent/tool`. Config resolves env → sidecar discovery file → dev default; an unreachable app fails loudly, never silently empty. | `src/services/mcp/*`, `src/services/agentBridge.ts`, `scripts/agentBridgePlugin.ts`, `src-tauri/src/bridge_server.rs`, `package.json` | Test: an MCP `Client` over an in-memory transport lists the app's real tools and a `callTool` round-trips to a local HTTP bridge returning its real result; a bridge error becomes an honest `isError` result; an unreachable app makes `listTools` reject. Rust `tools_snapshot` unit tests pass on a tooled host. |
+| **R27.2** | **In-app MCP connect affordance.** Show the exact `claude mcp add …` command (and `.mcp.json` body) in the Bridge panel, built from the live bridge state; omit env for the dev default, carry URL+token for the sidecar, and show honest guidance when no transport is live. | `src/services/mcp/connectionInfo.ts`, `src/components/BridgePanel.tsx` | Test: the panel renders the dev command with no env and copies it; a sidecar state renders URL+token in the command; an unavailable state renders no command and points at `npm run dev`. |
+
+**Phase exit:** a user runs `npm run mcp`, registers it with Claude Code (or any MCP
+client), and the agent discovers and calls the real editing tools end to end.
+
+---
+
 ## Deferred / experimental (not scheduled)
 
 From research §33 — do **not** start these before R8:

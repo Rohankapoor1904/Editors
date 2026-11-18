@@ -73,7 +73,7 @@ describe('R23.4: BridgePanel connection display', () => {
     useAgentStore.setState({ bridgeAvailability: 'unavailable-in-production' });
     render(<BridgePanel />);
     expect(screen.getByTestId('bridge-kind')).toHaveTextContent('unavailable');
-    expect(screen.getByText(/npm run dev/i)).toBeInTheDocument();
+    expect(screen.getByTestId('bridge-unavailable')).toHaveTextContent(/npm run dev/i);
   });
 
   it('refresh probes /status and reports success or failure honestly', async () => {
@@ -108,5 +108,43 @@ describe('R23.4: BridgePanel connection display', () => {
     await waitFor(() => {
       expect(screen.getByTestId('bridge-probe-error')).toHaveTextContent(/connection refused/);
     });
+  });
+
+  it('shows the MCP command built from the dev bridge and copies it', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    useAgentStore.setState({ bridgeKind: 'dev-middleware', bridgeUrl: DEFAULT_AGENT_BRIDGE_BASE });
+    render(<BridgePanel />);
+
+    expect(screen.getByTestId('mcp-command')).toHaveTextContent(
+      'claude mcp add cinecraft -- npm run mcp'
+    );
+
+    fireEvent.click(screen.getByText('Copy MCP command'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('claude mcp add cinecraft -- npm run mcp');
+    });
+  });
+
+  it('shows the sidecar URL + token in the MCP command and no command when unavailable', () => {
+    useAgentStore.setState({
+      bridgeKind: 'native-sidecar',
+      bridgeUrl: 'http://127.0.0.1:45222/api/agent',
+      sidecarPort: 45222,
+      sidecarToken: 'tok-secret-1',
+    });
+    const { unmount } = render(<BridgePanel />);
+    const cmd = screen.getByTestId('mcp-command');
+    expect(cmd).toHaveTextContent('MCP_BRIDGE_URL=http://127.0.0.1:45222/api/agent');
+    expect(cmd).toHaveTextContent('MCP_BRIDGE_TOKEN=tok-secret-1');
+    unmount();
+
+    useAgentStore.setState({ bridgeKind: 'unknown', bridgeUrl: '', sidecarToken: '' });
+    render(<BridgePanel />);
+    expect(screen.queryByTestId('mcp-command')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mcp-note')).toHaveTextContent(/npm run dev/i);
   });
 });
