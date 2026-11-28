@@ -1,0 +1,178 @@
+{
+ "phase": "idle",
+ "task_id": null,
+ "session_id": null,
+ "branch": null,
+ "pr": null,
+ "fix_attempts": 0,
+ "nudges": 0,
+ "plan_rejections": 0,
+ "user_input_attempts": 0,
+ "last_error_sig": null,
+ "last_update": null,
+ "stuck_since": null,
+ "history": [
+  {
+   "t": 1789866934,
+   "ev": "verified PR #87: ok=True"
+  },
+  {
+   "t": 1789882932,
+   "ev": "dispatch R12.1 (new session)"
+  },
+  {
+   "t": 1789884929,
+   "ev": "auto-steered user input (attempt 1)"
+  },
+  {
+   "t": 1789885060,
+   "ev": "PR #88 detected (COMPLETED)"
+  },
+  {
+   "t": 1789885063,
+   "ev": "verified PR #88: ok=False"
+  },
+  {
+   "t": 1789885065,
+   "ev": "feedback sent (attempt 1)"
+  },
+  {
+   "t": 1789885144,
+   "ev": "PR #88 detected (COMPLETED)"
+  },
+  {
+   "t": 1789885149,
+   "ev": "verified PR #88: ok=False"
+  },
+  {
+   "t": 1789885151,
+   "ev": "feedback sent (attempt 2)"
+  },
+  {
+   "t": 1789885559,
+   "ev": "PR #88 detected (IN_PROGRESS)"
+  },
+  {
+   "t": 1789885606,
+   "ev": "verified PR #88: ok=True"
+  },
+  {
+   "t": 1789885622,
+   "ev": "dispatch R12.2 (new session)"
+  },
+  {
+   "t": 1789886911,
+   "ev": "PR #89 detected (COMPLETED)"
+  },
+  {
+   "t": 1789886947,
+   "ev": "verified PR #89: ok=True"
+  },
+  {
+   "t": 1789886961,
+   "ev": "dispatch R12.3 (new session)"
+  },
+  {
+   "t": 1789889400,
+   "ev": "PR #90 detected (IN_PROGRESS)"
+  },
+  {
+   "t": 1789889447,
+   "ev": "verified PR #90: ok=True"
+  },
+  {
+   "t": 1789889464,
+   "ev": "dispatch R12.4 (new session)"
+  },
+  {
+   "t": 1789892414,
+   "ev": "PR #91 detected (COMPLETED)"
+  },
+  {
+   "t": 1789892466,
+   "ev": "verified PR #91: ok=False"
+  },
+  {
+   "t": 1789892468,
+   "ev": "feedback sent (attempt 1)"
+  },
+  {
+   "t": 1789892718,
+   "ev": "PR #91 detected (IN_PROGRESS)"
+  },
+  {
+   "t": 1789892772,
+   "ev": "verified PR #91: ok=True"
+  },
+  {
+   "t": 1790091158,
+   "ev": "dispatch R23.3 (new session)"
+  },
+  {
+   "t": 1790093514,
+   "ev": "PR #93 detected (COMPLETED)"
+  },
+  {
+   "t": 1790093586,
+   "ev": "verified PR #93: ok=True"
+  },
+  {
+   "t": 1790093602,
+   "ev": "dispatch R23.5 (new session)"
+  },
+  {
+   "t": 1790096473,
+   "ev": "auto-steered user input (attempt 1)"
+  },
+  {
+   "t": 1790096540,
+   "ev": "auto-steered user input (attempt 2)"
+  },
+  {
+   "t": 1790097075,
+   "ev": "PR #95 detected (COMPLETED)"
+  },
+  {
+   "t": 1790097080,
+   "ev": "verified PR #95: ok=False"
+  },
+  {
+   "t": 1790097083,
+   "ev": "feedback sent (attempt 1)"
+  },
+  {
+   "t": 1790097260,
+   "ev": "PR #96 detected (IN_PROGRESS)"
+  },
+  {
+   "t": 1790097314,
+   "ev": "verified PR #96: ok=False"
+  },
+  {
+   "t": 1790097316,
+   "ev": "feedback sent (attempt 2)"
+  },
+  {
+   "t": 1790097861,
+   "ev": "PR #96 detected (COMPLETED)"
+  },
+  {
+   "t": 1790097925,
+   "ev": "verified PR #96: ok=False"
+  },
+  {
+   "t": 1790097928,
+   "ev": "feedback sent (attempt 3)"
+  },
+  {
+   "t": 1790098368,
+   "ev": "PR #96 detected (COMPLETED)"
+  },
+  {
+   "t": 1790098431,
+   "ev": "verified PR #96: ok=False"
+  }
+ ],
+ "dispatched_at": 1790093602,
+ "no_pr_attempts": 1
+}
